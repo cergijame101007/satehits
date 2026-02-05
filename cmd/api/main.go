@@ -1,14 +1,25 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
+	"encoding/json"
 )
+
+type JsonResponse struct {
+	Message string `json:"message"`
+	Status string `json:"status"`
+}
+
+type ReservationRequest struct {
+	Name string `json:"name"`
+	People int `json:"people"`
+}
 
 func main() {
 	// ルートパスへのハンドラを登録
 	http.HandleFunc("/", handleRoot)
+	http.HandleFunc("/reservations", handleReservations)
 
 	// サーバー起動
 	addr := ":8080"
@@ -26,6 +37,55 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// "Welcome" を返す
-	fmt.Fprint(w, "Welcome to the Go API")
+	// Root以外のときは404 Not Foundを返す
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+
+	message := JsonResponse{
+		Message: "Welcome to the Go API",
+		Status: "success",
+	}
+
+	respondWithJSON(w, http.StatusOK, message)
+}
+
+func handleReservations(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if r.URL.Path != "/reservations" {
+		http.NotFound(w, r)
+		return
+	}
+
+	var request ReservationRequest
+	err := json.NewDecoder(r.Body).Decode(&request)
+	if err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("Received Reservation: Name=%s, People=%d", request.Name, request.People)
+
+	responseMessage := JsonResponse{
+		Message: "Reservation created",
+		Status: "success",
+	}
+
+	respondWithJSON(w, http.StatusOK, responseMessage)
+}
+
+func respondWithJSON(w http.ResponseWriter, status int, payload interface{}) {
+	res, err := json.Marshal(payload)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	w.Write(res)
 }
