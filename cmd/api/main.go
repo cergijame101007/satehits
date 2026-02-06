@@ -1,9 +1,14 @@
 package main
 
 import (
+	"database/sql"
+	"encoding/json"
 	"log"
 	"net/http"
-	"encoding/json"
+	"os"
+
+	"github.com/joho/godotenv"
+	_ "github.com/jackc/pgx/v5/stdlib" // PostgreSQLドライバ
 )
 
 type JsonResponse struct {
@@ -17,6 +22,31 @@ type ReservationRequest struct {
 }
 
 func main() {
+	// .envファイルを読み込む
+	if err := godotenv.Load(); err != nil {
+		log.Printf("Error loading .env file: %v", err)
+	}
+
+	// DBのURLを取得
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		log.Fatal("DATABASE_URL is not set")
+	}
+
+	// DB接続を開く
+	db, err := sql.Open("pgx", dbURL)
+	if err != nil {
+		log.Fatalf("Unable to parse DB URL: %v", err)
+	}
+	// main終了時に閉じる
+	defer db.Close()
+
+	// 実際に接続確認 (Ping)
+	if err := db.Ping(); err != nil {
+		log.Fatalf("Unable to connect to database: %v", err)
+	}
+	log.Println("✅ Connected to Database!")
+
 	// ルートパスへのハンドラを登録
 	http.HandleFunc("/", handleRoot)
 	http.HandleFunc("/reservations", handleReservations)
