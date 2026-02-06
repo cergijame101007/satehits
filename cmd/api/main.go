@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"log"
@@ -19,6 +20,28 @@ type JsonResponse struct {
 type ReservationRequest struct {
 	Name string `json:"name"`
 	People int `json:"people"`
+}
+
+// ReservationRepositoryは、予約データを永続化するためのリポジトリ
+type ReservationRepository struct {
+	db *sql.DB
+}
+
+// NewReservationRepositoryは、ReservationRepositoryのインスタンスを作成する
+func NewReservationRepository(db *sql.DB) *ReservationRepository {
+	return &ReservationRepository{db: db}
+}
+
+// Createは、予約データを永続化する
+func (r *ReservationRepository) Create(ctx context.Context, name string, people int) error {
+	query := `INSERT INTO reservations (name, people) VALUES ($1, $2)`
+	_, err := r.db.ExecContext(ctx, query, name, people)
+	return err
+}
+
+// Serverは、APIサーバーを管理する
+type Server struct {
+	repo *ReservationRepository
 }
 
 func main() {
@@ -47,9 +70,14 @@ func main() {
 	}
 	log.Println("✅ Connected to Database!")
 
+	// ReservationRepositoryのインスタンスを作成
+	repo := NewReservationRepository(db)
+	// Serverのインスタンスを作成
+	server := &Server{repo: repo}
+
 	// ルートパスへのハンドラを登録
 	http.HandleFunc("/", handleRoot)
-	http.HandleFunc("/reservations", handleReservations)
+	http.HandleFunc("/reservations", server.handleReservations)
 
 	// サーバー起動
 	addr := ":8080"
@@ -81,7 +109,7 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, message)
 }
 
-func handleReservations(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleReservations(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
@@ -98,7 +126,20 @@ func handleReservations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Received Reservation: Name=%s, People=%d", request.Name, request.People)
+	// 簡易バリデーション
+	if request.Name == "" || request.People <= 0 {
+		http.Error(w, "Name and valid people count required", http.StatusBadRequest)
+		return
+	}
+
+	// Repositoryを使って予約データを永続化
+	if err := s.repo.Create(r.Context(), request.Name, request.People); err != nil {
+		log.Printf("Failed to create reservation: %v", err)
+		http.Error(w, "Failed to create reservation", http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("✅ Saved Reservation: Name=%s, People=%d", request.Name, request.People)
 
 	responseMessage := JsonResponse{
 		Message: "Reservation created",
