@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 	_ "github.com/jackc/pgx/v5/stdlib" // PostgreSQLドライバ
@@ -20,6 +21,14 @@ type JsonResponse struct {
 type ReservationRequest struct {
 	Name string `json:"name"`
 	People int `json:"people"`
+}
+
+// DBから取得する用の構造体
+type Reservation struct {
+	ID        int    `json:"id"`
+	Name      string `json:"name"`
+	People    int    `json:"people"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // ReservationRepositoryは、予約データを永続化するためのリポジトリ
@@ -37,6 +46,30 @@ func (r *ReservationRepository) Create(ctx context.Context, name string, people 
 	query := `INSERT INTO reservations (name, people) VALUES ($1, $2)`
 	_, err := r.db.ExecContext(ctx, query, name, people)
 	return err
+}
+
+// GetAllは、全ての予約データを取得する
+func (r *ReservationRepository) GetAll (ctx context.Context) ([]Reservation, error) {
+	query := `SELECT id, name, people, created_at FROM reservations`
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	// 関数終了時に必ず rows を閉じる
+	defer rows.Close()
+
+	var reservations []Reservation
+	for rows.Next() {
+		var reservation Reservation
+		if err := rows.Scan(&reservation.ID, &reservation.Name, &reservation.People, &reservation.CreatedAt); err != nil {
+			return nil, err
+		}
+		reservations = append(reservations, reservation)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return reservations, nil
 }
 
 // Serverは、APIサーバーを管理する
@@ -110,15 +143,39 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleReservations(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	if r.URL.Path != "/reservations" {
 		http.NotFound(w, r)
 		return
 	}
+	switch r.Method {
+	case http.MethodGet:
+		// 一覧取得処理へ
+		s.handleListReservations(w, r)
+	case http.MethodPost:
+		// 予約作成処理へ
+		s.handleCreateReservation(w, r)
+	default:
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+}
 
+func (s *Server) handleListReservations(w http.ResponseWriter, r *http.Request) {
+	reservations, err := s.repo.GetAll(r.Context())
+	if err != nil {
+		log.Printf("Failed to get reservations: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	if reservations == nil {
+		reservations = []Reservation{}
+	}
+
+	respondWithJSON(w, http.StatusOK, reservations)
+}
+
+func (s *Server) handleCreateReservation(w http.ResponseWriter, r *http.Request) {
 	var request ReservationRequest
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
@@ -146,7 +203,7 @@ func (s *Server) handleReservations(w http.ResponseWriter, r *http.Request) {
 		Status: "success",
 	}
 
-	respondWithJSON(w, http.StatusOK, responseMessage)
+	respondWithJSON(w, http.StatusCreated, responseMessage)
 }
 
 func respondWithJSON(w http.ResponseWriter, status int, payload interface{}) {
