@@ -1,0 +1,1228 @@
+openapi: 3.0.3
+info:
+  title: さて、羊に戻るとしよう - 予約API
+  description: |
+    飲食店「さて、羊に戻るとしよう」の予約管理システムAPI
+    
+    ## 概要
+    - 顧客向け: 予約申請、残り食数確認、スケジュール確認、取引先一覧
+    - 管理者向け: 予約管理、スケジュール管理、取引先管理
+    
+    ## 認証
+    管理者向けAPIはJWT認証が必要です。
+    `Authorization: Bearer {token}` ヘッダーを付与してください。
+  version: 1.1.0
+  contact:
+    name: satehits
+    url: https://www.instagram.com/satehits/
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: ローカル開発環境
+  - url: https://api.satehits.com/api/v1
+    description: 本番環境
+
+tags:
+  - name: 顧客向け
+    description: 認証不要のAPI
+  - name: 認証
+    description: ログイン・ログアウト
+  - name: 予約管理
+    description: 管理者向け予約管理API
+  - name: スケジュール管理
+    description: 管理者向けスケジュール管理API
+  - name: 取引先管理
+    description: 管理者向け取引先管理API
+
+paths:
+  # ========================================
+  # 顧客向けAPI
+  # ========================================
+  /reservations/availability:
+    get:
+      tags:
+        - 顧客向け
+      summary: 残り食数を取得
+      description: 指定日の予約可能な残り食数を取得します。
+      operationId: getAvailability
+      parameters:
+        - name: date
+          in: query
+          required: true
+          description: 日付（YYYY-MM-DD形式）
+          schema:
+            type: string
+            format: date
+            example: "2026-02-10"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailabilityResponse"
+              examples:
+                available:
+                  summary: 予約可能な日
+                  value:
+                    date: "2026-02-10"
+                    capacity: 10
+                    reserved: 6
+                    available: 4
+                    schedule_type: "normal"
+                    is_holiday: false
+                event:
+                  summary: イベント日
+                  value:
+                    date: "2026-02-11"
+                    capacity: 0
+                    reserved: 0
+                    available: 0
+                    schedule_type: "event"
+                    event_name: "和紅茶をしばく会"
+                    event_description: "和紅茶をしばく会 入門編@WINE LAB. 通常のランチ営業はおやすみです。"
+                    is_holiday: false
+                holiday:
+                  summary: 定休日
+                  value:
+                    date: "2026-02-13"
+                    capacity: 0
+                    reserved: 0
+                    available: 0
+                    schedule_type: null
+                    is_holiday: true
+        "400":
+          description: リクエスト不正
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /reservations:
+    post:
+      tags:
+        - 顧客向け
+      summary: 予約を申請
+      description: |
+        予約を申請します。申請後はオーナーの承認が必要です。
+        
+        ### バリデーションルール
+        - 人数: 1〜7名
+        - 来店日: 翌日〜14日後まで
+        - 来店日: 木・金（定休日）は不可
+        - 来店日: 臨時休業日は不可
+        - 来店時間: 営業時間内
+        
+        ### 注意事項
+        - 8名以上はInstagramへ
+        - 当日予約はInstagramへ
+        - 2週間以上先はInstagramへ
+        - イベント日・特別メニュー日は注意書きが表示されます
+      operationId: createReservation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReservationRequest"
+      responses:
+        "201":
+          description: 予約申請成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReservationResponse"
+        "400":
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "409":
+          description: 予約可能数超過
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /schedules:
+    get:
+      tags:
+        - 顧客向け
+      summary: 月間スケジュールを取得
+      description: 指定月のスケジュール一覧を取得します。カレンダー表示用。
+      operationId: getMonthlySchedule
+      parameters:
+        - name: year
+          in: query
+          required: true
+          description: 年
+          schema:
+            type: integer
+            example: 2026
+        - name: month
+          in: query
+          required: true
+          description: 月（1-12）
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+            example: 2
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyScheduleResponse"
+
+  /suppliers:
+    get:
+      tags:
+        - 顧客向け
+      summary: お取り引き先一覧を取得
+      description: 表示中のお取り引き先一覧を取得します。
+      operationId: getSuppliers
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupplierListResponse"
+
+  # ========================================
+  # 認証API
+  # ========================================
+  /admin/login:
+    post:
+      tags:
+        - 認証
+      summary: ログイン
+      description: メールアドレスとパスワードで認証し、JWTトークンを取得します。
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: ログイン成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: 認証失敗
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/logout:
+    post:
+      tags:
+        - 認証
+      summary: ログアウト
+      operationId: logout
+      security:
+        - BearerAuth: []
+      responses:
+        "204":
+          description: ログアウト成功
+        "401":
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ========================================
+  # 予約管理API（管理者向け）
+  # ========================================
+  /admin/reservations:
+    get:
+      tags:
+        - 予約管理
+      summary: 予約一覧を取得
+      description: 日付やステータスで絞り込んで予約一覧を取得します。
+      operationId: getReservations
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: date
+          in: query
+          required: false
+          description: 日付で絞り込み（YYYY-MM-DD形式）
+          schema:
+            type: string
+            format: date
+        - name: status
+          in: query
+          required: false
+          description: ステータスで絞り込み
+          schema:
+            $ref: "#/components/schemas/ReservationStatus"
+        - name: source
+          in: query
+          required: false
+          description: 予約経路で絞り込み
+          schema:
+            $ref: "#/components/schemas/ReservationSource"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReservationListResponse"
+        "401":
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      tags:
+        - 予約管理
+      summary: 予約を登録（オーナー用）
+      description: |
+        Instagram/電話/知人経由などの予約をオーナーが登録します。
+        Webからの予約と異なり、ステータスを指定可能です。
+      operationId: createReservationByAdmin
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReservationByAdminRequest"
+      responses:
+        "201":
+          description: 登録成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReservationResponse"
+        "400":
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "401":
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/reservations/{id}/status:
+    patch:
+      tags:
+        - 予約管理
+      summary: 予約ステータスを更新
+      description: |
+        予約のステータスを更新します。
+        
+        ### ステータス遷移ルール
+        | 現在 | 変更可能 |
+        |------|----------|
+        | pending | approved, rejected |
+        | approved | no_show |
+        | rejected | （変更不可） |
+        | no_show | （変更不可） |
+      operationId: updateReservationStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 予約ID
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStatusRequest"
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateStatusResponse"
+        "400":
+          description: 無効なステータス遷移
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 予約が見つからない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ========================================
+  # スケジュール管理API（管理者向け）
+  # ========================================
+  /admin/schedules:
+    get:
+      tags:
+        - スケジュール管理
+      summary: スケジュール一覧を取得
+      description: 指定期間のスケジュール一覧を取得します。
+      operationId: getSchedules
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+            example: 2026
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+            example: 2
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleListResponse"
+        "401":
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/schedules/{date}:
+    get:
+      tags:
+        - スケジュール管理
+      summary: 日別スケジュールを取得
+      operationId: getSchedule
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleResponse"
+        "401":
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    put:
+      tags:
+        - スケジュール管理
+      summary: 日別スケジュールを設定
+      description: 指定日のスケジュールを設定します。
+      operationId: setSchedule
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            format: date
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetScheduleRequest"
+      responses:
+        "200":
+          description: 設定成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleResponse"
+        "400":
+          description: リクエスト不正
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - スケジュール管理
+      summary: 日別スケジュールを削除
+      description: 指定日のスケジュールを削除し、デフォルト設定に戻します。
+      operationId: deleteSchedule
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "204":
+          description: 削除成功
+        "401":
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ========================================
+  # 取引先管理API（管理者向け）
+  # ========================================
+  /admin/suppliers:
+    get:
+      tags:
+        - 取引先管理
+      summary: 取引先一覧を取得
+      description: 全ての取引先（非表示含む）を取得します。
+      operationId: getAdminSuppliers
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSupplierListResponse"
+        "401":
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      tags:
+        - 取引先管理
+      summary: 取引先を登録
+      operationId: createSupplier
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSupplierRequest"
+      responses:
+        "201":
+          description: 登録成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupplierResponse"
+        "400":
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/suppliers/{id}:
+    get:
+      tags:
+        - 取引先管理
+      summary: 取引先を取得
+      operationId: getSupplier
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupplierResponse"
+        "401":
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 取引先が見つからない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    put:
+      tags:
+        - 取引先管理
+      summary: 取引先を更新
+      operationId: updateSupplier
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSupplierRequest"
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupplierResponse"
+        "400":
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 取引先が見つからない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - 取引先管理
+      summary: 取引先を削除
+      operationId: deleteSupplier
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: 削除成功
+        "401":
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 取引先が見つからない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/suppliers/order:
+    put:
+      tags:
+        - 取引先管理
+      summary: 取引先の表示順を更新
+      operationId: updateSuppliersOrder
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSuppliersOrderRequest"
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSupplierListResponse"
+        "400":
+          description: リクエスト不正
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ========================================
+    # Enums
+    # ========================================
+    ReservationStatus:
+      type: string
+      enum: [pending, approved, rejected, no_show]
+      description: |
+        予約ステータス
+        - `pending`: 申請中
+        - `approved`: 承認済み
+        - `rejected`: 拒否
+        - `no_show`: 無断キャンセル
+
+    ReservationSource:
+      type: string
+      enum: [web, instagram, phone, walk_in, other]
+      description: |
+        予約経路
+        - `web`: Webサイトからの予約
+        - `instagram`: Instagram DMからの予約
+        - `phone`: 電話からの予約
+        - `walk_in`: 飛び込み・直接来店
+        - `other`: その他（知人など）
+
+    ScheduleType:
+      type: string
+      enum: [normal, morning, event, special_menu, closed]
+      description: |
+        スケジュールタイプ
+        - `normal`: 通常営業（月火水）
+        - `morning`: 朝営業（土日祝）
+        - `event`: イベント
+        - `special_menu`: 特別メニュー
+        - `closed`: 臨時休業
+
+    # ========================================
+    # 共通
+    # ========================================
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+
+    ValidationErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, details]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+
+    # ========================================
+    # 顧客向け
+    # ========================================
+    AvailabilityResponse:
+      type: object
+      required: [date, capacity, reserved, available, is_holiday]
+      properties:
+        date:
+          type: string
+          format: date
+        capacity:
+          type: integer
+        reserved:
+          type: integer
+        available:
+          type: integer
+        schedule_type:
+          $ref: "#/components/schemas/ScheduleType"
+        event_name:
+          type: string
+          nullable: true
+        event_description:
+          type: string
+          nullable: true
+        is_holiday:
+          type: boolean
+
+    CreateReservationRequest:
+      type: object
+      required: [name, people, visit_date, visit_time, phone, email, recaptcha_token]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        people:
+          type: integer
+          minimum: 1
+          maximum: 7
+        visit_date:
+          type: string
+          format: date
+        visit_time:
+          type: string
+          pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
+        phone:
+          type: string
+        email:
+          type: string
+          format: email
+        note:
+          type: string
+          maxLength: 500
+        recaptcha_token:
+          type: string
+
+    ReservationResponse:
+      type: object
+      required: [id, name, people, visit_date, visit_time, phone, email, status, source, created_at]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        people:
+          type: integer
+        visit_date:
+          type: string
+          format: date
+        visit_time:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        note:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/ReservationStatus"
+        source:
+          $ref: "#/components/schemas/ReservationSource"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    MonthlyScheduleResponse:
+      type: object
+      required: [year, month, schedules]
+      properties:
+        year:
+          type: integer
+        month:
+          type: integer
+        schedules:
+          type: array
+          items:
+            $ref: "#/components/schemas/DaySchedule"
+
+    DaySchedule:
+      type: object
+      required: [date, schedule_type, capacity, available, is_holiday]
+      properties:
+        date:
+          type: string
+          format: date
+        schedule_type:
+          $ref: "#/components/schemas/ScheduleType"
+        capacity:
+          type: integer
+        available:
+          type: integer
+        event_name:
+          type: string
+          nullable: true
+        event_description:
+          type: string
+          nullable: true
+        is_holiday:
+          type: boolean
+
+    SupplierListResponse:
+      type: object
+      required: [suppliers]
+      properties:
+        suppliers:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicSupplier"
+
+    PublicSupplier:
+      type: object
+      required: [id, name, description]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        instagram_url:
+          type: string
+          nullable: true
+        image_url:
+          type: string
+          nullable: true
+
+    # ========================================
+    # 認証
+    # ========================================
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    LoginResponse:
+      type: object
+      required: [token, expires_at, user]
+      properties:
+        token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        user:
+          type: object
+          properties:
+            id:
+              type: integer
+            email:
+              type: string
+            role:
+              type: string
+              enum: [owner, developer]
+
+    # ========================================
+    # 予約管理
+    # ========================================
+    ReservationListResponse:
+      type: object
+      required: [reservations, total]
+      properties:
+        reservations:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReservationResponse"
+        total:
+          type: integer
+
+    CreateReservationByAdminRequest:
+      type: object
+      required: [name, people, visit_date, visit_time, phone, email, source]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        people:
+          type: integer
+          minimum: 1
+          maximum: 7
+        visit_date:
+          type: string
+          format: date
+        visit_time:
+          type: string
+          pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
+        phone:
+          type: string
+        email:
+          type: string
+          format: email
+        note:
+          type: string
+          maxLength: 500
+        source:
+          $ref: "#/components/schemas/ReservationSource"
+        status:
+          $ref: "#/components/schemas/ReservationStatus"
+          description: 省略時はapproved
+
+    UpdateStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [approved, rejected, no_show]
+
+    UpdateStatusResponse:
+      type: object
+      required: [id, status, updated_at]
+      properties:
+        id:
+          type: integer
+        status:
+          $ref: "#/components/schemas/ReservationStatus"
+        updated_at:
+          type: string
+          format: date-time
+
+    # ========================================
+    # スケジュール管理
+    # ========================================
+    ScheduleListResponse:
+      type: object
+      required: [year, month, schedules]
+      properties:
+        year:
+          type: integer
+        month:
+          type: integer
+        schedules:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScheduleResponse"
+
+    ScheduleResponse:
+      type: object
+      required: [date, schedule_type, capacity]
+      properties:
+        date:
+          type: string
+          format: date
+        schedule_type:
+          $ref: "#/components/schemas/ScheduleType"
+        capacity:
+          type: integer
+        event_name:
+          type: string
+          nullable: true
+        event_description:
+          type: string
+          nullable: true
+        open_time:
+          type: string
+          nullable: true
+        last_order_time:
+          type: string
+          nullable: true
+        close_time:
+          type: string
+          nullable: true
+        is_default:
+          type: boolean
+          description: デフォルト設定かどうか
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    SetScheduleRequest:
+      type: object
+      required: [schedule_type]
+      properties:
+        schedule_type:
+          $ref: "#/components/schemas/ScheduleType"
+        capacity:
+          type: integer
+          minimum: 0
+          description: 省略時はデフォルト（10）
+        event_name:
+          type: string
+          maxLength: 100
+          description: イベント・特別メニュー時のみ
+        event_description:
+          type: string
+          maxLength: 500
+          description: イベント・特別メニュー時のみ（顧客に表示）
+        open_time:
+          type: string
+          pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
+          description: 省略時はデフォルト
+        last_order_time:
+          type: string
+          pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
+        close_time:
+          type: string
+          pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
+
+    # ========================================
+    # 取引先管理
+    # ========================================
+    AdminSupplierListResponse:
+      type: object
+      required: [suppliers]
+      properties:
+        suppliers:
+          type: array
+          items:
+            $ref: "#/components/schemas/SupplierResponse"
+
+    SupplierResponse:
+      type: object
+      required: [id, name, description, display_order, is_active, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        instagram_url:
+          type: string
+          nullable: true
+        image_url:
+          type: string
+          nullable: true
+        display_order:
+          type: integer
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateSupplierRequest:
+      type: object
+      required: [name, description]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        instagram_url:
+          type: string
+          format: uri
+        image_url:
+          type: string
+          format: uri
+        display_order:
+          type: integer
+          description: 省略時は最後に追加
+        is_active:
+          type: boolean
+          description: 省略時はtrue
+
+    UpdateSupplierRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        instagram_url:
+          type: string
+          format: uri
+          nullable: true
+        image_url:
+          type: string
+          format: uri
+          nullable: true
+        display_order:
+          type: integer
+        is_active:
+          type: boolean
+
+    UpdateSuppliersOrderRequest:
+      type: object
+      required: [order]
+      properties:
+        order:
+          type: array
+          description: 取引先IDの配列（表示順）
+          items:
+            type: integer
+          example: [3, 1, 2]
