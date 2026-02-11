@@ -1,1 +1,25 @@
+# Environment variables
 .env
+.env.*
+!.env.example
+
+# Build artifacts
+bin/
+tmp/
+
+# Test coverage
+coverage.out
+coverage.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Air (hot reload)
+build-errors.log

@@ -5,9 +5,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
-	"github.com/joho/godotenv"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/joho/godotenv"
 
 	"github.com/cergijame101007/satehits/internal/handler"
 	"github.com/cergijame101007/satehits/internal/repository"
@@ -50,7 +51,15 @@ func main() {
 	port := ":8080"
 	log.Printf("Server starting on %s", port)
 
-	if err := http.ListenAndServe(port, nil); err != nil {
+	srv := &http.Server{
+		Addr:         port,
+		Handler:      nil,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }
@@ -68,5 +77,7 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"message":"Welcome to the Go API","status":"success"}`))
+	if _, err := w.Write([]byte(`{"message":"Welcome to the Go API","status":"success"}`)); err != nil {
+		log.Printf("Error writing response: %v", err)
+	}
 }

@@ -1,0 +1,20 @@
+# 開発用Dockerfile（ホットリロード対応）
+FROM golang:1.24-alpine
+
+WORKDIR /app
+
+# airをインストール（ホットリロード用）
+RUN go install github.com/air-verse/air@latest
+
+# go.mod/go.sumをコピー
+COPY go.mod go.sum ./
+RUN go mod download
+
+# ソースコードをコピー
+COPY . .
+
+# ポートを公開
+EXPOSE 8080
+
+# airでホットリロード実行
+CMD ["air", "-c", ".air.toml"]

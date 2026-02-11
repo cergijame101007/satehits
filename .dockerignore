@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# ドキュメント
+docs/
+*.md
+!README.md
+
+# テストファイル
+*_test.go
+testdata/
+
+# ビルド成果物
+tmp/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# 環境変数ファイル
+.env
+.env.*
+!.env.example
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# CI/CD
+.github/
+
+# Air（ホットリロード）
+.air.toml
+build-errors.log
