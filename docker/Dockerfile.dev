@@ -1,20 +1,20 @@
-# Development Dockerfile with hot reload
+# 開発用Dockerfile（ホットリロード対応）
 FROM golang:1.22-alpine
 
 WORKDIR /app
 
-# Install air for hot reload
+# airをインストール（ホットリロード用）
 RUN go install github.com/air-verse/air@latest
 
-# Copy go mod files
+# go.mod/go.sumをコピー
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source code
+# ソースコードをコピー
 COPY . .
 
-# Expose port
+# ポートを公開
 EXPOSE 8080
 
-# Run with air for hot reload
+# airでホットリロード実行
 CMD ["air", "-c", ".air.toml"]

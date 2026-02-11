@@ -1,33 +1,33 @@
-# Build stage
+# ビルドステージ
 FROM golang:1.22-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies
+# 依存関係のインストール
 RUN apk --no-cache add ca-certificates tzdata
 
-# Copy go mod files first for better caching
+# go.mod/go.sumを先にコピー（キャッシュ効率化）
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source code
+# ソースコードをコピー
 COPY . .
 
-# Build the application
+# アプリケーションをビルド
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o main ./cmd/api
 
-# Runtime stage
+# 実行ステージ
 FROM alpine:3.19
 
 RUN apk --no-cache add ca-certificates tzdata
 
 WORKDIR /app
 
-# Copy binary from builder
+# ビルドしたバイナリをコピー
 COPY --from=builder /app/main .
 
-# Expose port
+# ポートを公開
 EXPOSE 8080
 
-# Run the application
+# アプリケーションを実行
 CMD ["./main"]

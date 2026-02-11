@@ -1,6 +1,6 @@
 .PHONY: dev dev-up dev-build dev-down build run test lint docker-build docker-build-dev clean
 
-# Development (Docker)
+# 開発環境（Docker）
 dev: dev-build dev-up
 
 dev-build:
@@ -12,15 +12,15 @@ dev-up:
 dev-down:
 	docker compose -f docker/docker-compose.local.yml down
 
-# Build
+# ビルド
 build:
 	go build -o bin/api ./cmd/api
 
-# Run locally (without Docker)
+# ローカル実行（Dockerなし）
 run:
 	go run ./cmd/api
 
-# Test
+# テスト
 test:
 	go test -v ./...
 
@@ -32,13 +32,13 @@ test-coverage:
 lint:
 	golangci-lint run
 
-# Docker
+# Dockerイメージビルド
 docker-build:
 	docker build -f docker/Dockerfile -t satehits-api .
 
 docker-build-dev:
 	docker build -f docker/Dockerfile.dev -t satehits-api:dev .
 
-# Clean
+# クリーンアップ
 clean:
 	rm -rf bin/ tmp/ coverage.out coverage.html

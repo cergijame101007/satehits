@@ -8,16 +8,16 @@
 *.swp
 *.swo
 
-# Documentation
+# ドキュメント
 docs/
 *.md
 !README.md
 
-# Test files
+# テストファイル
 *_test.go
 testdata/
 
-# Build artifacts
+# ビルド成果物
 tmp/
 *.exe
 *.exe~
@@ -25,7 +25,7 @@ tmp/
 *.so
 *.dylib
 
-# Environment files
+# 環境変数ファイル
 .env
 .env.*
 !.env.example
@@ -38,6 +38,6 @@ docker-compose*.yml
 # CI/CD
 .github/
 
-# Air (hot reload)
+# Air（ホットリロード）
 .air.toml
 build-errors.log
