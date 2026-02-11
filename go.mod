@@ -1,6 +1,6 @@
 module github.com/cergijame101007/satehits
 
-go 1.25.6
+go 1.24
 
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect

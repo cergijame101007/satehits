@@ -3,7 +3,7 @@
 ## 前提条件
 
 - Docker & Docker Compose
-- Go 1.22+（ローカル開発時）
+- Go 1.24+（ローカル開発時）
 - golangci-lint（ローカルでlint実行時）
 
 ## セットアップ手順

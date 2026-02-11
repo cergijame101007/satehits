@@ -1,5 +1,5 @@
 # 開発用Dockerfile（ホットリロード対応）
-FROM golang:1.22-alpine
+FROM golang:1.24-alpine
 
 WORKDIR /app
 
