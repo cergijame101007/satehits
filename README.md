@@ -27,7 +27,9 @@
 | フロントエンド | Next.js 14 (App Router), TypeScript, Tailwind CSS |
 | バックエンド | Go (net/http), レイヤードアーキテクチャ |
 | データベース | Supabase (PostgreSQL) |
-| インフラ | Vercel, Google Cloud Run, Docker |
+| ドメイン/DNS | Cloudflare Registrar |
+| インフラ | Cloudflare Pages, Google Cloud Run, Docker |
+| メール配信 | Resend |
 | CI/CD | GitHub Actions |
 
 ## ドキュメント

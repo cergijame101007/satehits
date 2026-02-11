@@ -5,12 +5,14 @@
 ```mermaid
 flowchart TB
     subgraph Users[ユーザー]
-        Customer[👤 顧客]
-        Owner[👔 オーナー]
+        Customer[顧客]
+        Owner[オーナー]
     end
 
-    subgraph CDN[CDN / Hosting]
-        Vercel[Vercel<br>Next.js App Router]
+    subgraph Cloudflare[Cloudflare]
+        CFRegistrar[Cloudflare Registrar]
+        CFDNS[Cloudflare DNS / CDN]
+        CFPages[Cloudflare Pages<br>Next.js App Router]
     end
 
     subgraph Google[Google Cloud Platform]
@@ -20,6 +22,7 @@ flowchart TB
     subgraph External[外部サービス]
         ReCaptcha[Google reCAPTCHA v3]
         Supabase[(Supabase<br>PostgreSQL)]
+        Resend[Resend<br>メール配信]
     end
 
     subgraph CI_CD[CI/CD]
@@ -27,15 +30,18 @@ flowchart TB
         Actions[GitHub Actions]
     end
 
-    Customer --> Vercel
-    Owner --> Vercel
-    Vercel -->|API Request| CloudRun
+    CFRegistrar --> CFDNS
+    Customer --> CFDNS
+    Owner --> CFDNS
+    CFDNS --> CFPages
+    CFPages -->|API Request| CloudRun
     CloudRun --> Supabase
-    Vercel -->|Client Side| ReCaptcha
+    CloudRun --> Resend
+    CFPages -->|Client Side| ReCaptcha
     CloudRun -->|Verify| ReCaptcha
 
     GitHub --> Actions
-    Actions -->|Deploy Frontend| Vercel
+    Actions -->|Deploy Frontend| CFPages
     Actions -->|Deploy Backend| CloudRun
 ```
 
@@ -45,10 +51,10 @@ flowchart TB
 
 | 項目 | 技術 |
 |------|------|
-| フレームワーク | Next.js 14 (App Router) |
+| フレームワーク | Next.js 15 (App Router) |
 | 言語 | TypeScript |
 | スタイリング | Tailwind CSS |
-| ホスティング | Vercel |
+| ホスティング | Cloudflare Pages |
 | 状態管理 | React Context / Zustand (必要に応じて) |
 | フォーム | React Hook Form |
 | バリデーション | Zod |
@@ -58,7 +64,7 @@ flowchart TB
 
 | 項目 | 技術 |
 |------|------|
-| 言語 | Go 1.22+ |
+| 言語 | Go 1.24+ |
 | フレームワーク | net/http (標準ライブラリ) |
 | ホスティング | Google Cloud Run |
 | 認証 | JWT (golang-jwt/jwt) |
@@ -72,6 +78,23 @@ flowchart TB
 | サービス | Supabase |
 | DB | PostgreSQL 15 |
 | 接続 | pgx / database/sql |
+
+### メール配信
+
+| 項目 | 技術 |
+|------|------|
+| サービス | Resend |
+| Go SDK | github.com/resend/resend-go/v2 |
+| 無料枠 | 3,000通/月（このプロダクトでは十分） |
+| 送信元ドメイン | satehits.com（Cloudflare DNSでSPF/DKIM/DMARC設定） |
+
+### ドメイン / DNS
+
+| 項目 | 技術 |
+|------|------|
+| ドメイン取得・管理 | Cloudflare Registrar |
+| DNS | Cloudflare DNS |
+| CDN | Cloudflare CDN（自動） |
 
 ### インフラ・ツール
 
@@ -110,8 +133,9 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    subgraph Vercel[Vercel]
-        VercelApp[Next.js App]
+    subgraph CF[Cloudflare]
+        DNS[Cloudflare DNS]
+        Pages[Cloudflare Pages<br>Next.js App]
     end
 
     subgraph GCP[Google Cloud Platform]
@@ -122,9 +146,15 @@ flowchart LR
         DB[(PostgreSQL)]
     end
 
-    Internet[インターネット] --> VercelApp
-    VercelApp --> CloudRun
+    subgraph Mail[メール配信]
+        Resend[Resend]
+    end
+
+    Internet[インターネット] --> DNS
+    DNS --> Pages
+    Pages --> CloudRun
     CloudRun --> DB
+    CloudRun --> Resend
 ```
 
 ## 4. Docker構成
@@ -162,6 +192,8 @@ services:
       - DATABASE_URL=${SUPABASE_DATABASE_URL}
       - JWT_SECRET=${JWT_SECRET}
       - RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_KEY}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}
       - ENVIRONMENT=development
 ```
 
@@ -179,6 +211,8 @@ services:
       - DATABASE_URL=${SUPABASE_DATABASE_URL}
       - JWT_SECRET=${JWT_SECRET}
       - RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_KEY}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}
       - ENVIRONMENT=production
 ```
 
@@ -221,7 +255,7 @@ flowchart TB
     end
 
     subgraph Deploy[デプロイ]
-        DeployFrontend[Deploy to Vercel]
+        DeployFrontend[Deploy to Cloudflare Pages]
         DeployBackend[Deploy to Cloud Run]
     end
 
@@ -294,6 +328,24 @@ on:
     branches: [main]
 
 jobs:
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: cd frontend && npm ci
+      - name: Build
+        run: cd frontend && npm run build
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy frontend/.next --project-name=satehits
+
   deploy-backend:
     runs-on: ubuntu-latest
     steps:
@@ -309,13 +361,11 @@ jobs:
             --region asia-northeast1 \
             --platform managed \
             --allow-unauthenticated
-
-  # Vercelは自動デプロイを使用
 ```
 
 ## 6. 環境変数
 
-### フロントエンド（Vercel）
+### フロントエンド（Cloudflare Pages）
 
 | 変数名 | 説明 |
 |--------|------|
@@ -329,6 +379,8 @@ jobs:
 | DATABASE_URL | Supabase接続URL |
 | JWT_SECRET | JWT署名用シークレット |
 | RECAPTCHA_SECRET_KEY | reCAPTCHAシークレットキー |
+| RESEND_API_KEY | Resend APIキー |
+| MAIL_FROM_ADDRESS | メール送信元アドレス（例: noreply@satehits.com） |
 | ENVIRONMENT | 環境識別子（development/production） |
 | PORT | サーバーポート（Cloud Runは自動設定） |
 
@@ -336,7 +388,7 @@ jobs:
 
 ### 通信
 
-- フロントエンド: HTTPS (Vercel自動)
+- フロントエンド: HTTPS (Cloudflare自動)
 - バックエンド: HTTPS (Cloud Run自動)
 - DB接続: SSL/TLS (Supabase)
 
@@ -351,7 +403,8 @@ jobs:
 ```go
 // 許可するオリジン
 allowedOrigins := []string{
-    "https://satehits.vercel.app",     // 本番
+    "https://satehits.com",             // 本番
+    "https://www.satehits.com",         // 本番（www）
     "http://localhost:3000",            // 開発
 }
 ```
@@ -360,7 +413,7 @@ allowedOrigins := []string{
 
 | 項目 | サービス |
 |------|----------|
-| フロントエンドログ | Vercel Logs |
+| フロントエンドログ | Cloudflare Analytics |
 | バックエンドログ | Cloud Logging |
 | エラートラッキング | (将来: Sentry) |
 | 稼働監視 | (将来: Cloud Monitoring) |
@@ -369,10 +422,97 @@ allowedOrigins := []string{
 
 | サービス | プラン | 想定コスト |
 |----------|--------|------------|
-| Vercel | Hobby (無料) | $0 |
+| Cloudflare Pages | Free | $0 |
+| Cloudflare Registrar | 実費（ドメイン取得費のみ） | 年間 $10 前後 |
 | Cloud Run | 無料枠内 | $0 |
 | Supabase | Free tier | $0 |
+| Resend | 無料枠（3,000通/月） | $0 |
 | reCAPTCHA | 無料 | $0 |
 | GitHub Actions | 無料枠 | $0 |
 
 ※ トラフィックが増えた場合は要見直し
+
+## 10. Cloudflare Pages 設定
+
+### ビルド設定
+
+| 項目 | 値 |
+|------|------|
+| フレームワークプリセット | Next.js |
+| ビルドコマンド | `npm run build` |
+| ビルド出力ディレクトリ | `.next` |
+| ルートディレクトリ | `frontend` |
+| Node.js バージョン | 20 |
+
+### Cloudflare + Next.js の注意点
+
+| 項目 | 注意点 | 対応方法 |
+|------|--------|----------|
+| 画像最適化 | `next/image` のデフォルト最適化はCloudflare Pagesでは動作しない | `@cloudflare/next-on-pages` を使用、または `unoptimized: true` を設定 |
+| ISR | Incremental Static Regeneration はCloudflare Pagesで制限あり | SSR または SSG で代替。必要に応じて `revalidate` の挙動を確認 |
+| Edge Runtime | Cloudflare Pages は Edge Runtime で動作 | Node.js 固有のAPIは使用不可。`runtime: 'edge'` を意識した実装 |
+| ミドルウェア | Next.js Middleware はサポートされる | `@cloudflare/next-on-pages` 経由で動作 |
+
+### `@cloudflare/next-on-pages` の設定
+
+```bash
+# インストール
+npm install --save-dev @cloudflare/next-on-pages
+
+# next.config.js に追加
+# setupDevPlatform() を使用してローカル開発時もCloudflare環境をエミュレート
+```
+
+### カスタムドメイン設定手順
+
+1. **Cloudflare Registrar でドメイン取得**
+   - Cloudflare ダッシュボード → ドメイン登録 → `satehits.com` を取得
+
+2. **Cloudflare Pages にカスタムドメインを追加**
+   - Pages プロジェクト → カスタムドメイン → `satehits.com` と `www.satehits.com` を追加
+   - DNS レコードは自動で設定される（Cloudflare Registrar 利用時）
+
+3. **SSL/TLS 設定**
+   - Cloudflare ダッシュボード → SSL/TLS → 「フル（厳密）」を選択
+   - 自動的にHTTPS化される
+
+## 11. Resend 設定
+
+### 概要
+
+Resend は開発者ファーストのメール配信サービス。シンプルなAPIで信頼性の高いメール送信が可能。
+
+### 送信元ドメインの DNS 設定
+
+Resend でカスタムドメイン（`satehits.com`）からメールを送信するには、Cloudflare DNS に以下のレコードを追加する必要がある:
+
+| レコード種別 | ホスト | 値 | 目的 |
+|-------------|--------|-----|------|
+| TXT | `satehits.com` | `v=spf1 include:_spf.resend.com ~all` | SPF（送信元認証） |
+| CNAME | `resend._domainkey` | Resendダッシュボードで確認 | DKIM（メール署名） |
+| TXT | `_dmarc` | `v=DMARC1; p=none;` | DMARC（認証ポリシー） |
+
+### メール通知の種類
+
+| 種類 | タイミング | 宛先 | 内容 |
+|------|-----------|------|------|
+| 予約申請受付メール | 顧客がWebから予約申請した直後 | 顧客 | 申請を受け付けた旨、オーナー確認後に連絡する旨 |
+| 予約承認メール | オーナーが予約を承認した時 | 顧客 | 予約確定の通知、来店日時、キャンセルポリシー |
+| 予約拒否メール | オーナーが予約を拒否した時 | 顧客 | 予約できなかった旨、Instagramへの誘導 |
+
+### Go SDK の使用例
+
+```go
+import "github.com/resend/resend-go/v2"
+
+client := resend.NewClient(os.Getenv("RESEND_API_KEY"))
+
+params := &resend.SendEmailRequest{
+    From:    os.Getenv("MAIL_FROM_ADDRESS"),
+    To:      []string{customerEmail},
+    Subject: "【さて、羊に戻るとしよう】ご予約を受け付けました",
+    Html:    htmlContent,
+}
+
+sent, err := client.Emails.Send(params)
+```
