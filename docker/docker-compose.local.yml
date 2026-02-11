@@ -1,0 +1,20 @@
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    ports:
+      - "8080:8080"
+    volumes:
+      - ..:/app
+      - go-mod-cache:/go/pkg/mod
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_KEY}
+      - ENVIRONMENT=development
+    env_file:
+      - ../.env
+
+volumes:
+  go-mod-cache:
