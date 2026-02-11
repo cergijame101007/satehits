@@ -77,7 +77,7 @@ func (h *ReservationHandler) handleCreate(w http.ResponseWriter, r *http.Request
 
 	log.Printf("Saved Reservation: Name=%s, People=%d", request.Name, request.People)
 
-	respondWithJSON(w, http.StatusCreated, JsonResponse{
+	respondWithJSON(w, http.StatusCreated, JSONResponse{
 		Message: "Reservation created",
 		Status:  "success",
 	})

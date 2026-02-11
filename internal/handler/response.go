@@ -5,8 +5,8 @@ import (
 	"net/http"
 )
 
-// JsonResponse はAPIレスポンスの共通構造体
-type JsonResponse struct {
+// JSONResponse はAPIレスポンスの共通構造体
+type JSONResponse struct {
 	Message string `json:"message"`
 	Status  string `json:"status"`
 }
@@ -21,5 +21,8 @@ func respondWithJSON(w http.ResponseWriter, status int, payload interface{}) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	w.Write(res)
+	if _, err := w.Write(res); err != nil {
+		// Log the error but don't try to send another response as headers are already written
+		return
+	}
 }
