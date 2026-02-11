@@ -1,0 +1,100 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  default: standard
+  
+  enable:
+    # === バグ検出 ===
+    - errcheck
+    - staticcheck
+    - ineffassign
+    - govet
+    
+    # === リソース管理 ===
+    - bodyclose
+    - sqlclosecheck
+    - rowserrcheck
+    
+    # === コンテキスト ===
+    - contextcheck
+    
+    # === Go 1.22+ 対応 ===
+    - copyloopvar
+    
+    # === エラー処理 ===
+    - nilerr
+    - errorlint
+    
+    # === セキュリティ ===
+    - gosec
+    
+    # === パフォーマンス ===
+    - prealloc
+    
+    # === 可読性 ===
+    - revive
+    - unconvert
+    - unparam
+    - misspell
+    - gocyclo
+    - goconst
+    - whitespace
+    
+    # === テスト ===
+    - testifylint
+    - thelper
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    
+    gocyclo:
+      min-complexity: 15
+    
+    revive:
+      severity: warning
+    
+    staticcheck:
+      checks: ["all"]
+
+  exclusions:
+    generated: lax
+    warn-unused: true
+    
+    presets:
+      - comments
+      - std-error-handling
+      - common-false-positives
+      - legacy
+    
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - gocyclo
+          - dupl
+      
+      - path: (^|\/)vendor\/
+        linters:
+          - all
+
+formatters:
+  enable:
+    - goimports
+    - gofmt
+  
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/cergijame101007/satehits
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
