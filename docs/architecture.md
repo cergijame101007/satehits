@@ -50,6 +50,7 @@ graph TB
     subgraph Infrastructure Layer
         RepoImpl[Repository Implementation]
         ExternalAPI[External API Client]
+        MailClient[Mail Client]
         DB[(Supabase/PostgreSQL)]
     end
 
@@ -63,6 +64,7 @@ graph TB
     RepoInterface -.->|実装| RepoImpl
     RepoImpl --> DB
     ExternalAPI --> reCAPTCHA[reCAPTCHA API]
+    MailClient --> ResendAPI[Resend API]
 ```
 
 ## 4. UseCase と Domain Service の違い
@@ -100,7 +102,8 @@ Q: そのロジックは「エンティティ1つ」で完結する？
 │  2. 入力バリデーション    → DTO / Validator                │
 │  3. 空き確認             → AvailabilityService に委譲      │
 │  4. 予約作成             → ReservationRepository に委譲    │
-│  5. レスポンス組み立て    → DTO                            │
+│  5. 受付メール送信        → MailService に委譲（非同期）    │
+│  6. レスポンス組み立て    → DTO                            │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
@@ -112,6 +115,19 @@ Q: そのロジックは「エンティティ1つ」で完結する？
 │  - 残り食数を計算                                           │
 │  - 定休日判定                                               │
 │  - 予約可否の判定                                           │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  UpdateStatusUseCase（UseCase）                             │
+│  「オーナーが予約ステータスを更新する」操作全体を調整       │
+├─────────────────────────────────────────────────────────────┤
+│  1. 予約取得             → ReservationRepository           │
+│  2. ステータス遷移可否    → Reservation.CanTransitionTo()  │
+│  3. ステータス更新        → ReservationRepository          │
+│  4. メール送信            → MailService に委譲（非同期）    │
+│     - approved → 予約承認メール                            │
+│     - rejected → 予約拒否メール                            │
+│  5. レスポンス組み立て    → DTO                            │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
@@ -203,7 +219,8 @@ backend/
 │   │   │   ├── reservation.go      # インターフェース
 │   │   │   ├── schedule.go
 │   │   │   ├── supplier.go
-│   │   │   └── admin_user.go
+│   │   │   ├── admin_user.go
+│   │   │   └── mail.go            # メール送信インターフェース
 │   │   ├── service/
 │   │   │   ├── availability.go     # 空き状況計算
 │   │   │   └── business_hours.go   # 営業時間判定
@@ -219,8 +236,10 @@ backend/
 │       │       ├── supplier.go
 │       │       └── admin_user.go
 │       └── external/
-│           └── recaptcha/
-│               └── client.go       # reCAPTCHA検証
+│           ├── recaptcha/
+│           │   └── client.go       # reCAPTCHA検証
+│           └── resend/
+│               └── client.go       # Resendメール送信クライアント
 │
 ├── pkg/
 │   ├── config/
