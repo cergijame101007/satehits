@@ -1,15 +1,20 @@
-# Environment variables
+# 環境変数
 .env
 .env.*
 !.env.example
 
-# Build artifacts
+# ビルド成果物 (Go)
 bin/
 tmp/
 
-# Test coverage
+# テストカバレッジ (Go)
 coverage.out
 coverage.html
+
+# フロントエンド
+node_modules/
+.next/
+out/
 
 # IDE
 .idea/
@@ -21,5 +26,5 @@ coverage.html
 .DS_Store
 Thumbs.db
 
-# Air (hot reload)
+# Air (ホットリロード)
 build-errors.log

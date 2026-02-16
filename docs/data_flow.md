@@ -5,12 +5,12 @@
 ```mermaid
 flowchart TB
     subgraph External[外部]
-        Customer[👤 顧客]
-        Owner[👔 オーナー]
+        Customer[顧客]
+        Owner[オーナー]
         ReCaptcha[reCAPTCHA]
     end
 
-    subgraph Frontend[フロントエンド - Vercel]
+    subgraph Frontend[フロントエンド - Cloudflare Pages]
         CustomerUI[顧客画面]
         AdminUI[管理画面]
     end
@@ -21,6 +21,10 @@ flowchart TB
 
     subgraph Database[データベース - Supabase]
         DB[(PostgreSQL)]
+    end
+
+    subgraph Mail[メール配信]
+        Resend[Resend]
     end
 
     Customer -->|予約情報入力| CustomerUI
@@ -35,6 +39,8 @@ flowchart TB
     DB -->|データ| API
     API -->|レスポンス| CustomerUI
     API -->|レスポンス| AdminUI
+    API -->|メール送信| Resend
+    Resend -->|受付・承認・拒否メール| Customer
 ```
 
 ## 2. 予約申請のデータフロー
@@ -64,6 +70,7 @@ flowchart LR
         ReCaptcha[reCAPTCHA検証]
         AvailService[AvailabilityService]
         Create[予約作成]
+        SendMail[受付メール送信]
     end
 
     subgraph Output[出力データ]
@@ -76,7 +83,8 @@ flowchart LR
     V5 --> AvailService
     AvailService --> Create
     Create --> Reservation
-    Reservation --> Response
+    Reservation --> SendMail
+    SendMail --> Response
 ```
 
 ## 3. 残り食数の計算フロー
@@ -244,6 +252,7 @@ flowchart TB
         ReCaptcha[reCAPTCHA検証]
         WebValidation[厳密なバリデーション]
         WebCreate[予約作成 source=web, status=pending]
+        WebMail[受付メール送信]
     end
 
     subgraph AdminReservation[オーナー登録の予約]
@@ -256,7 +265,12 @@ flowchart TB
         ReservationsTable[(reservations)]
     end
 
+    subgraph MailService[メール配信]
+        Resend[Resend]
+    end
+
     WebInput --> ReCaptcha --> WebValidation --> WebCreate --> ReservationsTable
+    WebCreate --> WebMail --> Resend
     AdminInput --> AdminValidation --> AdminCreate --> ReservationsTable
 ```
 

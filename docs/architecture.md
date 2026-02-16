@@ -2,15 +2,123 @@
 
 ## 1. 概要
 
+### フロントエンド
+
+**Astro 5 + React 19（Islands Architecture）** を採用。
+
+- **静的部分**: Astro コンポーネント（`.astro`）で構築し、JavaScript 0KB で配信
+- **動的部分**: React コンポーネント（`.tsx`）を Islands として必要な箇所だけハイドレーション
+- **利点**: ページ全体のバンドルサイズを最小化しつつ、フォーム等のインタラクティブな部分は React で実装
+
+### バックエンド
+
 レイヤードアーキテクチャをベースに、以下の設計パターンを取り入れる：
 
 - **Repository パターン** - データアクセスの抽象化
 - **DI（依存性注入）** - テスト容易性と疎結合
 - **UseCase / Domain Service の分離** - 責務の明確化
 
-## 2. 設計思想
+## 2. フロントエンド構成
 
-### なぜこの構成か
+### 技術スタック
+
+| 項目 | 技術 |
+|------|------|
+| フレームワーク | Astro 5 |
+| UI ライブラリ | React 19（Islands Architecture） |
+| 言語 | TypeScript |
+| スタイリング | Tailwind CSS v4 |
+| ランタイム | bun |
+| リンター | ESLint（Flat Config） |
+| フォーマッター | Prettier |
+| テスト | Vitest + Testing Library |
+
+### Islands Architecture
+
+Astro の Islands Architecture は、ページの大部分を静的 HTML として配信し、インタラクティブな部分（Islands）だけを選択的にハイドレーションするアーキテクチャパターン。
+
+```
+┌───────────────────────────────────────────────────┐
+│  Astro ページ（静的 HTML / JS 0KB）               │
+│                                                    │
+│  ┌──────────────┐  ┌──────────────────────────┐   │
+│  │ 静的ヘッダー  │  │ 静的コンテンツ            │   │
+│  │ (.astro)      │  │ (.astro)                  │   │
+│  └──────────────┘  └──────────────────────────┘   │
+│                                                    │
+│  ┌────────────────────────────────────────────┐   │
+│  │ 🏝️ React Island（client:load）             │   │
+│  │ <ReservationForm client:load />             │   │
+│  │ → カレンダー選択、フォーム入力、API通信     │   │
+│  └────────────────────────────────────────────┘   │
+│                                                    │
+│  ┌──────────────────────────────────────────┐     │
+│  │ 静的フッター (.astro)                     │     │
+│  └──────────────────────────────────────────┘     │
+└───────────────────────────────────────────────────┘
+```
+
+### ハイドレーション戦略
+
+| ディレクティブ | 用途 | 使用例 |
+|---------------|------|--------|
+| `client:load` | ページ読み込み時に即座にハイドレーション | 予約フォーム、ログインフォーム |
+| `client:visible` | 要素が画面内に入った時にハイドレーション | 取引先カード（スクロール後に表示） |
+| `client:idle` | ブラウザがアイドル状態になった時にハイドレーション | ダッシュボードのウィジェット |
+
+### フロントエンドディレクトリ構成
+
+```
+frontend/
+├── src/
+│   ├── components/
+│   │   ├── astro/           # 静的コンポーネント（.astro）
+│   │   └── react/           # React コンポーネント（Islands）
+│   ├── layouts/
+│   │   ├── BaseLayout.astro     # 顧客向けレイアウト
+│   │   └── AdminLayout.astro    # 管理者向けレイアウト
+│   ├── pages/
+│   │   ├── index.astro          # トップページ
+│   │   ├── schedule.astro       # スケジュール確認
+│   │   ├── reservation.astro    # 予約フォーム
+│   │   ├── suppliers.astro      # 取引先紹介
+│   │   └── admin/
+│   │       ├── index.astro      # ダッシュボード
+│   │       ├── login.astro
+│   │       ├── reservations.astro
+│   │       ├── schedules.astro
+│   │       └── suppliers.astro
+│   ├── styles/
+│   │   └── global.css
+│   ├── lib/
+│   │   └── api.ts               # API クライアント
+│   └── types/
+│       └── index.ts             # 型定義
+├── astro.config.mjs
+├── tsconfig.json
+├── vitest.config.ts
+├── eslint.config.mjs
+├── .prettierrc
+└── package.json
+```
+
+### ページ構成とコンポーネント種別
+
+| ページ | ファイル | 動的部分（React Islands） |
+|--------|----------|--------------------------|
+| トップページ | `index.astro` | なし（静的） |
+| スケジュール確認 | `schedule.astro` | カレンダー表示（`client:load`） |
+| 予約フォーム | `reservation.astro` | 予約フォーム全体（`client:load`） |
+| 取引先紹介 | `suppliers.astro` | なし（静的） |
+| ログイン | `admin/login.astro` | ログインフォーム（`client:load`） |
+| ダッシュボード | `admin/index.astro` | サマリーウィジェット（`client:load`） |
+| 予約一覧 | `admin/reservations.astro` | 予約テーブル・操作（`client:load`） |
+| スケジュール設定 | `admin/schedules.astro` | カレンダー・設定フォーム（`client:load`） |
+| 取引先管理 | `admin/suppliers.astro` | CRUD 操作（`client:load`） |
+
+## 3. バックエンド設計思想
+
+### なぜこのバックエンド構成か
 
 | 観点 | 選択 | 理由 |
 |------|------|------|
@@ -27,7 +135,7 @@
 | クリーンアーキテクチャ | ボイラープレートが増えすぎる |
 | CQRS | 読み書きの分離が不要な規模 |
 
-## 3. レイヤー構成図
+## 4. レイヤー構成図
 
 ```mermaid
 graph TB
@@ -50,6 +158,7 @@ graph TB
     subgraph Infrastructure Layer
         RepoImpl[Repository Implementation]
         ExternalAPI[External API Client]
+        MailClient[Mail Client]
         DB[(Supabase/PostgreSQL)]
     end
 
@@ -63,9 +172,10 @@ graph TB
     RepoInterface -.->|実装| RepoImpl
     RepoImpl --> DB
     ExternalAPI --> reCAPTCHA[reCAPTCHA API]
+    MailClient --> ResendAPI[Resend API]
 ```
 
-## 4. UseCase と Domain Service の違い
+## 5. UseCase と Domain Service の違い
 
 ### 責務の違い
 
@@ -100,7 +210,8 @@ Q: そのロジックは「エンティティ1つ」で完結する？
 │  2. 入力バリデーション    → DTO / Validator                │
 │  3. 空き確認             → AvailabilityService に委譲      │
 │  4. 予約作成             → ReservationRepository に委譲    │
-│  5. レスポンス組み立て    → DTO                            │
+│  5. 受付メール送信        → MailService に委譲（非同期）    │
+│  6. レスポンス組み立て    → DTO                            │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
@@ -115,6 +226,19 @@ Q: そのロジックは「エンティティ1つ」で完結する？
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
+│  UpdateStatusUseCase（UseCase）                             │
+│  「オーナーが予約ステータスを更新する」操作全体を調整       │
+├─────────────────────────────────────────────────────────────┤
+│  1. 予約取得             → ReservationRepository           │
+│  2. ステータス遷移可否    → Reservation.CanTransitionTo()  │
+│  3. ステータス更新        → ReservationRepository          │
+│  4. メール送信            → MailService に委譲（非同期）    │
+│     - approved → 予約承認メール                            │
+│     - rejected → 予約拒否メール                            │
+│  5. レスポンス組み立て    → DTO                            │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
 │  Reservation.CanTransitionTo()（Entity メソッド）           │
 │  「このステータスに遷移できるか」という単一エンティティの判定│
 ├─────────────────────────────────────────────────────────────┤
@@ -124,7 +248,7 @@ Q: そのロジックは「エンティティ1つ」で完結する？
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 5. DI（依存性注入）
+## 6. DI（依存性注入）
 
 ### なぜDIを使うか
 
@@ -142,7 +266,7 @@ graph LR
     RepoImpl -.->|実装| RepoInterface
 ```
 
-## 6. ディレクトリ構成
+## 7. バックエンドディレクトリ構成
 
 ```
 backend/
@@ -203,7 +327,8 @@ backend/
 │   │   │   ├── reservation.go      # インターフェース
 │   │   │   ├── schedule.go
 │   │   │   ├── supplier.go
-│   │   │   └── admin_user.go
+│   │   │   ├── admin_user.go
+│   │   │   └── mail.go            # メール送信インターフェース
 │   │   ├── service/
 │   │   │   ├── availability.go     # 空き状況計算
 │   │   │   └── business_hours.go   # 営業時間判定
@@ -219,8 +344,10 @@ backend/
 │       │       ├── supplier.go
 │       │       └── admin_user.go
 │       └── external/
-│           └── recaptcha/
-│               └── client.go       # reCAPTCHA検証
+│           ├── recaptcha/
+│           │   └── client.go       # reCAPTCHA検証
+│           └── resend/
+│               └── client.go       # Resendメール送信クライアント
 │
 ├── pkg/
 │   ├── config/
@@ -247,7 +374,7 @@ backend/
 └── README.md
 ```
 
-## 7. 依存関係図
+## 8. 依存関係図
 
 ```mermaid
 graph TB
@@ -296,7 +423,7 @@ graph TB
 - Presentation層はApplication層に依存
 - main.goで全ての依存を解決
 
-## 8. エラーハンドリング
+## 9. エラーハンドリング
 
 ### ドメインエラー
 
@@ -306,7 +433,27 @@ graph TB
 
 Presentation 層の `HandleError` 関数で、`DomainError` の `Code` に応じて適切な HTTP ステータスコードにマッピングする。`NOT_FOUND` → 404、`CAPACITY_EXCEEDED` / `HOLIDAY` → 409、`INVALID_TRANSITION` / `INVALID_RECAPTCHA` → 400、`UNAUTHORIZED` → 401 とし、想定外のエラーは 500 を返す。
 
-## 9. テスト戦略
+## 10. 外部サービス連携
+
+| サービス | 用途 | 連携レイヤー |
+|----------|------|-------------|
+| Supabase (PostgreSQL) | データベース | Infrastructure Layer（Repository実装） |
+| Google reCAPTCHA v3 | Bot対策 | Infrastructure Layer（External API Client） |
+| Resend | メール配信（予約受付・承認・拒否通知） | Infrastructure Layer（Mail Client） |
+
+### Resend（メール配信）
+
+バックエンドの Infrastructure Layer に `resend/client.go` を配置し、Domain Layer の `repository/mail.go` インターフェースを実装する。UseCase からはインターフェース経由で呼び出すため、テスト時にはモックに差し替え可能。
+
+送信するメールの種類:
+
+| メール種別 | トリガー | 宛先 |
+|-----------|----------|------|
+| 予約申請受付メール | 顧客がWebから予約申請した直後 | 顧客 |
+| 予約承認メール | オーナーが予約を承認した時 | 顧客 |
+| 予約拒否メール | オーナーが予約を拒否した時 | 顧客 |
+
+## 11. テスト戦略
 
 ### モックを使ったUseCaseテスト
 

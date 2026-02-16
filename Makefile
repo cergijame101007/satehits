@@ -1,44 +1,49 @@
-.PHONY: dev dev-up dev-build dev-down build run test lint docker-build docker-build-dev clean
+.PHONY: dev dev-build dev-down dev-front prod prod-build prod-down build run test test-coverage lint clean
 
-# 開発環境（Docker）
-dev: dev-build dev-up
+# ===== 開発環境（Docker） =====
+dev: dev-build
+	docker compose up
 
 dev-build:
-	docker compose -f docker/docker-compose.local.yml build
-
-dev-up:
-	docker compose -f docker/docker-compose.local.yml up
+	docker compose build
 
 dev-down:
-	docker compose -f docker/docker-compose.local.yml down
+	docker compose down
 
-# ビルド
+# ===== フロントエンド開発 =====
+dev-front:
+	cd frontend && bun run dev
+
+# ===== 本番シミュレーション =====
+prod: prod-build
+	docker compose -f docker-compose.prod.yml up
+
+prod-build:
+	docker compose -f docker-compose.prod.yml build
+
+prod-down:
+	docker compose -f docker-compose.prod.yml down
+
+# ===== バックエンドビルド =====
 build:
-	go build -o bin/api ./cmd/api
+	cd backend && go build -o bin/api ./cmd/api
 
-# ローカル実行（Dockerなし）
+# ===== ローカル実行（Dockerなし） =====
 run:
-	go run ./cmd/api
+	cd backend && go run ./cmd/api
 
-# テスト
+# ===== テスト =====
 test:
-	go test -v ./...
+	cd backend && go test -v ./...
 
 test-coverage:
-	go test -v -race -coverprofile=coverage.out ./...
-	go tool cover -html=coverage.out -o coverage.html
+	cd backend && go test -v -race -coverprofile=coverage.out ./...
+	cd backend && go tool cover -html=coverage.out -o coverage.html
 
-# Lint
+# ===== Lint =====
 lint:
-	golangci-lint run
+	cd backend && golangci-lint run
 
-# Dockerイメージビルド
-docker-build:
-	docker build -f docker/Dockerfile -t satehits-api .
-
-docker-build-dev:
-	docker build -f docker/Dockerfile.dev -t satehits-api:dev .
-
-# クリーンアップ
+# ===== クリーンアップ =====
 clean:
-	rm -rf bin/ tmp/ coverage.out coverage.html
+	rm -rf backend/bin/ backend/tmp/ backend/coverage.out backend/coverage.html

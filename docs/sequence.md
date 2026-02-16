@@ -50,7 +50,9 @@ sequenceDiagram
     participant ReCaptcha as reCAPTCHA
     participant AvailService as AvailabilityService
     participant ReservationRepo as ReservationRepository
+    participant MailService as MailService
     participant DB as Supabase
+    participant Resend as Resend
 
     Customer->>Frontend: 予約情報を入力して送信
     Frontend->>Frontend: reCAPTCHA実行
@@ -72,6 +74,11 @@ sequenceDiagram
     ReservationRepo->>DB: INSERT INTO reservations
     DB-->>ReservationRepo: OK (id=123)
     ReservationRepo-->>UseCase: reservation
+    
+    UseCase->>MailService: SendReservationReceived(reservation)
+    MailService->>Resend: POST /emails（予約申請受付メール）
+    Resend-->>MailService: OK
+    Note right of MailService: 宛先: 顧客メールアドレス
     
     UseCase-->>Handler: ReservationResponse
     Handler-->>Frontend: 201 Created
@@ -178,7 +185,9 @@ sequenceDiagram
     participant Handler as ReservationHandler
     participant UseCase as UpdateStatusUseCase
     participant ReservationRepo as ReservationRepository
+    participant MailService as MailService
     participant DB as Supabase
+    participant Resend as Resend
 
     Owner->>Frontend: 「承認」ボタンをクリック
     Frontend->>Middleware: PATCH /admin/reservations/123/status (with JWT)
@@ -200,12 +209,131 @@ sequenceDiagram
     ReservationRepo->>DB: UPDATE reservations SET status = 'approved' WHERE id = 123
     DB-->>ReservationRepo: OK
     
+    UseCase->>MailService: SendReservationApproved(reservation)
+    MailService->>Resend: POST /emails（予約承認メール）
+    Resend-->>MailService: OK
+    Note right of MailService: 宛先: 顧客メールアドレス<br>内容: 予約確定、来店日時、キャンセルポリシー
+    
     UseCase-->>Handler: UpdateStatusResponse
     Handler-->>Frontend: 200 OK {id: 123, status: "approved"}
     Frontend-->>Owner: ステータス更新を反映
 ```
 
-## 7. スケジュール設定（オーナー）
+## 7. 予約拒否（オーナー）
+
+```mermaid
+sequenceDiagram
+    participant Owner as オーナー
+    participant Frontend as フロントエンド
+    participant Middleware as AuthMiddleware
+    participant Handler as ReservationHandler
+    participant UseCase as UpdateStatusUseCase
+    participant ReservationRepo as ReservationRepository
+    participant MailService as MailService
+    participant DB as Supabase
+    participant Resend as Resend
+
+    Owner->>Frontend: 「拒否」ボタンをクリック
+    Frontend->>Middleware: PATCH /admin/reservations/123/status (with JWT)
+    
+    Middleware->>Middleware: JWT検証
+    Middleware->>Handler: Request
+    
+    Handler->>UseCase: Execute(id=123, status="rejected")
+    
+    UseCase->>ReservationRepo: FindByID(123)
+    ReservationRepo->>DB: SELECT * FROM reservations WHERE id = 123
+    DB-->>ReservationRepo: reservation
+    ReservationRepo-->>UseCase: Reservation{status: "pending"}
+    
+    UseCase->>UseCase: reservation.CanTransitionTo("rejected") → true
+    UseCase->>UseCase: reservation.TransitionTo("rejected")
+    
+    UseCase->>ReservationRepo: Update(reservation)
+    ReservationRepo->>DB: UPDATE reservations SET status = 'rejected' WHERE id = 123
+    DB-->>ReservationRepo: OK
+    
+    UseCase->>MailService: SendReservationRejected(reservation)
+    MailService->>Resend: POST /emails（予約拒否メール）
+    Resend-->>MailService: OK
+    Note right of MailService: 宛先: 顧客メールアドレス<br>内容: 予約不可の旨、Instagramへの誘導
+    
+    UseCase-->>Handler: UpdateStatusResponse
+    Handler-->>Frontend: 200 OK {id: 123, status: "rejected"}
+    Frontend-->>Owner: ステータス更新を反映
+```
+
+## 8. メール送信シーケンス
+
+予約に関する各種メール通知は、バックエンドの UseCase から MailService（Resend）を経由して顧客に送信される。
+
+### 8.1 予約申請受付メール（顧客へ）
+
+顧客がWebから予約を申請した直後に送信される。
+
+```mermaid
+sequenceDiagram
+    participant UseCase as CreateUseCase
+    participant MailService as MailService
+    participant Resend as Resend API
+
+    UseCase->>MailService: SendReservationReceived(reservation)
+    
+    MailService->>MailService: メールテンプレート組み立て
+    Note right of MailService: 件名: 【さて、羊に戻るとしよう】<br>ご予約を受け付けました
+    Note right of MailService: 本文:<br>・予約申請を受け付けた旨<br>・来店日時・人数<br>・オーナー確認後に連絡する旨
+    
+    MailService->>Resend: POST /emails
+    Note right of Resend: From: noreply@satehits.com<br>To: 顧客メールアドレス
+    Resend-->>MailService: 200 OK (email_id)
+    MailService-->>UseCase: OK
+```
+
+### 8.2 予約承認メール（顧客へ）
+
+オーナーが予約を承認した時に送信される。
+
+```mermaid
+sequenceDiagram
+    participant UseCase as UpdateStatusUseCase
+    participant MailService as MailService
+    participant Resend as Resend API
+
+    UseCase->>MailService: SendReservationApproved(reservation)
+    
+    MailService->>MailService: メールテンプレート組み立て
+    Note right of MailService: 件名: 【さて、羊に戻るとしよう】<br>ご予約が確定しました
+    Note right of MailService: 本文:<br>・予約確定の通知<br>・来店日時・人数<br>・キャンセルポリシー<br>・変更はInstagramへ
+    
+    MailService->>Resend: POST /emails
+    Note right of Resend: From: noreply@satehits.com<br>To: 顧客メールアドレス
+    Resend-->>MailService: 200 OK (email_id)
+    MailService-->>UseCase: OK
+```
+
+### 8.3 予約拒否メール（顧客へ）
+
+オーナーが予約を拒否した時に送信される。
+
+```mermaid
+sequenceDiagram
+    participant UseCase as UpdateStatusUseCase
+    participant MailService as MailService
+    participant Resend as Resend API
+
+    UseCase->>MailService: SendReservationRejected(reservation)
+    
+    MailService->>MailService: メールテンプレート組み立て
+    Note right of MailService: 件名: 【さて、羊に戻るとしよう】<br>ご予約についてのお知らせ
+    Note right of MailService: 本文:<br>・予約できなかった旨<br>・理由（定員超過等）<br>・別日程のご案内<br>・Instagramへの誘導
+    
+    MailService->>Resend: POST /emails
+    Note right of Resend: From: noreply@satehits.com<br>To: 顧客メールアドレス
+    Resend-->>MailService: 200 OK (email_id)
+    MailService-->>UseCase: OK
+```
+
+## 9. スケジュール設定（オーナー）
 
 ```mermaid
 sequenceDiagram
@@ -238,7 +366,7 @@ sequenceDiagram
     Frontend-->>Owner: 設定完了を表示
 ```
 
-## 8. 予約登録（オーナー）
+## 10. 予約登録（オーナー）
 
 ```mermaid
 sequenceDiagram
@@ -271,7 +399,7 @@ sequenceDiagram
     Frontend-->>Owner: 登録完了を表示
 ```
 
-## 9. 認証エラー
+## 11. 認証エラー
 
 ```mermaid
 sequenceDiagram
@@ -287,7 +415,7 @@ sequenceDiagram
     Middleware-->>Client: 401 Unauthorized { code: "UNAUTHORIZED" }
 ```
 
-## 10. 取引先登録（オーナー）
+## 12. 取引先登録（オーナー）
 
 ```mermaid
 sequenceDiagram

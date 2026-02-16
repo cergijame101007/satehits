@@ -1,7 +1,7 @@
 services:
   backend:
     build:
-      context: ..
+      context: ./backend
       dockerfile: docker/Dockerfile
     ports:
       - "8080:8080"
@@ -10,4 +10,6 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_KEY}
       - ENVIRONMENT=production
+    env_file:
+      - .env
     restart: unless-stopped
