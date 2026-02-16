@@ -12,7 +12,7 @@ flowchart TB
     subgraph Cloudflare[Cloudflare]
         CFRegistrar[Cloudflare Registrar]
         CFDNS[Cloudflare DNS / CDN]
-        CFPages[Cloudflare Pages<br>Next.js App Router]
+        CFPages[Cloudflare Pages<br>Astro + React]
     end
 
     subgraph Google[Google Cloud Platform]
@@ -51,13 +51,15 @@ flowchart TB
 
 | 項目 | 技術 |
 |------|------|
-| フレームワーク | Next.js 15 (App Router) |
+| フレームワーク | Astro 5 |
+| UI ライブラリ | React 19（Islands Architecture） |
 | 言語 | TypeScript |
-| スタイリング | Tailwind CSS |
+| スタイリング | Tailwind CSS v4 |
+| ランタイム | bun |
 | ホスティング | Cloudflare Pages |
-| 状態管理 | React Context / Zustand (必要に応じて) |
-| フォーム | React Hook Form |
-| バリデーション | Zod |
+| リンター | ESLint（Flat Config） |
+| フォーマッター | Prettier |
+| テスト | Vitest + Testing Library |
 | HTTPクライアント | fetch API |
 
 ### バックエンド
@@ -111,7 +113,7 @@ flowchart TB
 ```mermaid
 flowchart LR
     subgraph Local[ローカルマシン]
-        Frontend[Next.js<br>localhost:3000]
+        Frontend[Astro + React<br>localhost:4321]
         Backend[Go API<br>localhost:8080]
     end
 
@@ -135,7 +137,7 @@ flowchart LR
 flowchart LR
     subgraph CF[Cloudflare]
         DNS[Cloudflare DNS]
-        Pages[Cloudflare Pages<br>Next.js App]
+        Pages[Cloudflare Pages<br>Astro + React]
     end
 
     subgraph GCP[Google Cloud Platform]
@@ -170,13 +172,13 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.dev
     ports:
-      - "3000:3000"
+      - "4321:4321"
     volumes:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8080
-      - NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${RECAPTCHA_SITE_KEY}
+      - PUBLIC_API_URL=http://localhost:8080
+      - PUBLIC_RECAPTCHA_SITE_KEY=${RECAPTCHA_SITE_KEY}
     depends_on:
       - backend
 
@@ -301,21 +303,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: cd frontend && npm ci
-      - run: cd frontend && npm run lint
+      - uses: oven-sh/setup-bun@v2
+      - run: cd frontend && bun install --frozen-lockfile
+      - run: cd frontend && bun run lint
 
   build-frontend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: cd frontend && npm ci
-      - run: cd frontend && npm run build
+      - uses: oven-sh/setup-bun@v2
+      - run: cd frontend && bun install --frozen-lockfile
+      - run: cd frontend && bun run build
 ```
 
 #### `.github/workflows/deploy.yml`
@@ -332,19 +330,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+      - uses: oven-sh/setup-bun@v2
       - name: Install dependencies
-        run: cd frontend && npm ci
+        run: cd frontend && bun install --frozen-lockfile
       - name: Build
-        run: cd frontend && npm run build
+        run: cd frontend && bun run build
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy frontend/.next --project-name=satehits
+          command: pages deploy frontend/dist --project-name=satehits
 
   deploy-backend:
     runs-on: ubuntu-latest
@@ -369,8 +365,10 @@ jobs:
 
 | 変数名 | 説明 |
 |--------|------|
-| NEXT_PUBLIC_API_URL | バックエンドAPIのURL |
-| NEXT_PUBLIC_RECAPTCHA_SITE_KEY | reCAPTCHAサイトキー |
+| PUBLIC_API_URL | バックエンドAPIのURL |
+| PUBLIC_RECAPTCHA_SITE_KEY | reCAPTCHAサイトキー |
+
+> **注**: Astro では `PUBLIC_` プレフィックスを付けた環境変数がクライアントサイドに公開される（Next.js の `NEXT_PUBLIC_` に相当）。
 
 ### バックエンド（Cloud Run）
 
@@ -405,7 +403,7 @@ jobs:
 allowedOrigins := []string{
     "https://satehits.com",             // 本番
     "https://www.satehits.com",         // 本番（www）
-    "http://localhost:3000",            // 開発
+    "http://localhost:4321",            // 開発
 }
 ```
 
@@ -438,29 +436,29 @@ allowedOrigins := []string{
 
 | 項目 | 値 |
 |------|------|
-| フレームワークプリセット | Next.js |
-| ビルドコマンド | `npm run build` |
-| ビルド出力ディレクトリ | `.next` |
+| フレームワークプリセット | Astro |
+| ビルドコマンド | `bun run build` |
+| ビルド出力ディレクトリ | `dist` |
 | ルートディレクトリ | `frontend` |
-| Node.js バージョン | 20 |
 
-### Cloudflare + Next.js の注意点
+### Cloudflare + Astro の注意点
 
 | 項目 | 注意点 | 対応方法 |
 |------|--------|----------|
-| 画像最適化 | `next/image` のデフォルト最適化はCloudflare Pagesでは動作しない | `@cloudflare/next-on-pages` を使用、または `unoptimized: true` を設定 |
-| ISR | Incremental Static Regeneration はCloudflare Pagesで制限あり | SSR または SSG で代替。必要に応じて `revalidate` の挙動を確認 |
-| Edge Runtime | Cloudflare Pages は Edge Runtime で動作 | Node.js 固有のAPIは使用不可。`runtime: 'edge'` を意識した実装 |
-| ミドルウェア | Next.js Middleware はサポートされる | `@cloudflare/next-on-pages` 経由で動作 |
+| SSR | デフォルトは静的サイト生成（SSG） | 必要な場合は `@astrojs/cloudflare` アダプターを追加 |
+| 画像最適化 | Astro の `<Image>` コンポーネントはビルド時最適化 | 静的ビルドでは問題なし。SSR時は外部サービスを検討 |
+| Node.js API | Cloudflare Workers ランタイムでは Node.js API が制限される | SSR を使う場合は `@astrojs/cloudflare` で互換レイヤーを利用 |
 
-### `@cloudflare/next-on-pages` の設定
+### Astro 設定ファイル（`astro.config.mjs`）
 
-```bash
-# インストール
-npm install --save-dev @cloudflare/next-on-pages
+```javascript
+import { defineConfig } from 'astro/config';
+import react from '@astrojs/react';
+import tailwindcss from '@astrojs/tailwind';
 
-# next.config.js に追加
-# setupDevPlatform() を使用してローカル開発時もCloudflare環境をエミュレート
+export default defineConfig({
+  integrations: [react(), tailwindcss()],
+});
 ```
 
 ### カスタムドメイン設定手順
