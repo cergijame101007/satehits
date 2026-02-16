@@ -515,7 +515,76 @@ flowchart TB
 | 提供数設定 | ダッシュボード | 「戻る」ボタン |
 | 任意の管理画面 | ログイン | ログアウト |
 
-## 5. レスポンシブ対応
+## 5. ファイル構成（Astro + React）
+
+### ディレクトリ構成
+
+```
+frontend/src/
+├── pages/                          # ファイルベースルーティング
+│   ├── index.astro                 # / （トップページ）
+│   ├── reservation.astro           # /reservation （予約フォーム）
+│   ├── suppliers.astro             # /suppliers （取引先紹介）
+│   └── admin/
+│       ├── index.astro             # /admin （ダッシュボード）
+│       ├── login.astro             # /admin/login
+│       ├── reservations.astro      # /admin/reservations
+│       └── schedules.astro         # /admin/schedules
+│       └── suppliers.astro         # /admin/suppliers
+├── components/
+│   ├── astro/                      # 静的コンポーネント（.astro）
+│   │   ├── Header.astro
+│   │   ├── Footer.astro
+│   │   ├── HeroSection.astro
+│   │   └── SupplierCard.astro
+│   └── react/                      # React Islands（.tsx）
+│       ├── ReservationForm.tsx      # 予約フォーム（カレンダー + 入力）
+│       ├── LoginForm.tsx            # ログインフォーム
+│       ├── ReservationTable.tsx     # 予約一覧テーブル
+│       ├── ScheduleCalendar.tsx     # スケジュールカレンダー
+│       ├── ScheduleSettingForm.tsx  # スケジュール設定フォーム
+│       ├── SupplierManager.tsx      # 取引先 CRUD
+│       └── DashboardSummary.tsx     # ダッシュボードサマリー
+└── layouts/
+    ├── BaseLayout.astro             # 顧客向け共通レイアウト
+    └── AdminLayout.astro            # 管理者向け共通レイアウト
+```
+
+### ページとコンポーネントの対応
+
+| パス | ページファイル（.astro） | React Island（.tsx） | ハイドレーション |
+|------|-------------------------|---------------------|-----------------|
+| `/` | `index.astro` | なし | - |
+| `/reservation` | `reservation.astro` | `ReservationForm.tsx` | `client:load` |
+| `/suppliers` | `suppliers.astro` | なし | - |
+| `/admin/login` | `admin/login.astro` | `LoginForm.tsx` | `client:load` |
+| `/admin` | `admin/index.astro` | `DashboardSummary.tsx` | `client:load` |
+| `/admin/reservations` | `admin/reservations.astro` | `ReservationTable.tsx` | `client:load` |
+| `/admin/schedules` | `admin/schedules.astro` | `ScheduleCalendar.tsx` / `ScheduleSettingForm.tsx` | `client:load` |
+| `/admin/suppliers` | `admin/suppliers.astro` | `SupplierManager.tsx` | `client:load` |
+
+### ファイル配置の考え方
+
+- **`.astro` ファイル（ページ・静的コンポーネント）**: JavaScript を一切含まない静的 HTML として配信。ヘッダー、フッター、テキストコンテンツなど。
+- **`.tsx` ファイル（React Islands）**: ユーザー操作が必要な部分だけ React でハイドレーション。フォーム入力、API 通信、状態管理が必要な箇所。
+
+#### Astro ページでの React Island 使用例
+
+```astro
+---
+// reservation.astro
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ReservationForm from '../components/react/ReservationForm.tsx';
+---
+
+<BaseLayout title="予約">
+  <h1>予約</h1>
+  <!-- React Island: ページ読み込み時にハイドレーション -->
+  <ReservationForm client:load />
+</BaseLayout>
+```
+
+## 6. レスポンシブ対応
 
 | 画面 | PC | タブレット | スマホ |
 |------|-----|------------|--------|
