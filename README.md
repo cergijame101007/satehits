@@ -45,6 +45,7 @@
 | [画面遷移図](./docs/screen_transition.md) | 画面一覧、遷移図、ワイヤーフレーム |
 | [インフラ構成](./docs/infrastructure.md) | 技術スタック、環境構成、CI/CD |
 | [テスト設計](./docs/test_design.md) | テスト方針、テストケース一覧 |
+| [技術選定理由書](./docs/adr.md) | ADR（Architecture Decision Records） |
 
 ## クイックスタート
 
