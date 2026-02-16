@@ -24,7 +24,7 @@
 
 | レイヤー | 技術 |
 |----------|------|
-| フロントエンド | Next.js 14 (App Router), TypeScript, Tailwind CSS |
+| フロントエンド | Astro 5 + React 19 (Islands Architecture), TypeScript, Tailwind CSS v4 |
 | バックエンド | Go (net/http), レイヤードアーキテクチャ |
 | データベース | Supabase (PostgreSQL) |
 | ドメイン/DNS | Cloudflare Registrar |
@@ -41,7 +41,10 @@
 | [API設計](./docs/api_design.md) | API仕様の概要 |
 | [OpenAPI仕様](./docs/openapi.yaml) | OpenAPI 3.0形式のAPI仕様 |
 | [アーキテクチャ](./docs/architecture.md) | レイヤー構成、ディレクトリ構成 |
+| [シーケンス図](./docs/sequence.md) | 主要機能のシーケンス図 |
+| [画面遷移図](./docs/screen_transition.md) | 画面一覧、遷移図、ワイヤーフレーム |
 | [インフラ構成](./docs/infrastructure.md) | 技術スタック、環境構成、CI/CD |
+| [テスト設計](./docs/test_design.md) | テスト方針、テストケース一覧 |
 
 ## クイックスタート
 
