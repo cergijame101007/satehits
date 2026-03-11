@@ -1,0 +1,137 @@
+---
+import AccordionItem from './AccordionItem.astro';
+import SectionReveal from './SectionReveal.astro';
+---
+
+<section id="attention" class="py-20 md:py-28 section-light">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <SectionReveal>
+      <h2
+        class="text-2xl md:text-3xl font-medium text-center mb-4"
+        style="font-family: 'Noto Serif JP', serif; color: #43676B;"
+      >
+        ご来店の方へ
+      </h2>
+      <p class="text-center text-gray-500 mb-12">Attention</p>
+    </SectionReveal>
+
+    <SectionReveal delay={0.2}>
+      <div class="glass rounded-2xl p-6 md:p-8 shadow-lg">
+        <AccordionItem title="営業について" defaultOpen={true}>
+          <div class="space-y-3 text-sm md:text-base">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="p-4 bg-gray-50 rounded-lg">
+                <p class="font-medium text-gray-800 mb-2">平日（月・火・水）</p>
+                <p>11:30 - 15:00</p>
+                <p class="text-gray-500 text-sm">ラストオーダー 14:00</p>
+              </div>
+              <div class="p-4 bg-gray-50 rounded-lg">
+                <p class="font-medium text-gray-800 mb-2">土日祝</p>
+                <p>8:30 - 15:00</p>
+                <p class="text-gray-500 text-sm">ラストオーダー 14:00</p>
+              </div>
+            </div>
+            <p class="text-gray-500 pt-2">※ 定休日は木曜・金曜です</p>
+          </div>
+        </AccordionItem>
+
+        <AccordionItem title="ご予約について">
+          <div class="space-y-4 text-sm md:text-base">
+            <div class="flex items-start gap-3 p-4 bg-amber-50 rounded-lg border border-amber-100">
+              <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <p class="text-amber-800 font-medium">1日10食限定</p>
+            </div>
+
+            <ul class="space-y-2 text-gray-600">
+              <li class="flex items-start gap-2">
+                <span style="color: #43676B;" class="mt-1">•</span>
+                <span>予約可能期間: 前日〜2週間先まで</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span style="color: #43676B;" class="mt-1">•</span>
+                <span>予約可能人数: 1〜7名</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span style="color: #43676B;" class="mt-1">•</span>
+                <span>土日祝の朝営業（8:30〜）は予約不可、来店順でのご案内</span>
+              </li>
+            </ul>
+
+            <div class="mt-4 p-4 bg-red-50 rounded-lg border border-red-100">
+              <p class="font-medium text-red-800 mb-2">キャンセルポリシー</p>
+              <ul class="text-red-700 text-sm space-y-1">
+                <li>
+                  • キャンセルは前日までに
+                  <a
+                    href="https://www.instagram.com/satehits/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="font-bold underline hover:no-underline ml-1"
+                  >
+                    Instagram DM（@satehits）
+                  </a>
+                  へ直接ご連絡ください
+                </li>
+                <li>• <strong>当日キャンセルは100%のキャンセル料</strong>が発生します</li>
+              </ul>
+            </div>
+
+            <p class="text-gray-500 text-sm">
+              ※ 8名以上の団体、当日予約、2週間以上先のご予約は
+              <a
+                href="https://www.instagram.com/satehits/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style="color: #43676B;"
+                class="underline hover:no-underline ml-1"
+              >
+                Instagram DM（@satehits）
+              </a>
+              へ直接ご連絡ください
+            </p>
+          </div>
+        </AccordionItem>
+
+        <AccordionItem title="お席について">
+          <div class="space-y-3 text-sm md:text-base text-gray-600">
+            <p>原則<strong class="text-gray-800">カウンター席（10席）</strong>でのご案内となります。</p>
+            <p>
+              テーブル席をご希望の場合は、事前にご相談ください。
+              <span class="text-gray-500">（妊婦の方、お年寄りの方向け）</span>
+            </p>
+            <p class="text-gray-500">※ 冬場はブランケットの貸し出しがございます</p>
+          </div>
+        </AccordionItem>
+
+        <AccordionItem title="駐車場について">
+          <div class="space-y-4 text-sm md:text-base text-gray-600">
+            <p>当店には専用駐車場がございません。</p>
+
+            <div
+              class="p-4 rounded-lg border"
+              style="background-color: rgba(67, 103, 107, 0.05); border-color: rgba(67, 103, 107, 0.2);"
+            >
+              <p class="font-medium mb-2" style="color: #43676B;">最寄りの駐車場</p>
+              <p class="text-gray-700">NPC24H 高岡駅南第2パーキング</p>
+              <p class="text-gray-500 text-sm">（店舗裏側にあります）</p>
+              <p class="mt-2 font-medium" style="color: #43676B;">
+                パーキングチケット持参で1台につき100円引き
+              </p>
+            </div>
+
+            <div class="flex items-start gap-3 p-4 bg-red-50 rounded-lg border border-red-100">
+              <svg class="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+              <p class="text-red-700">
+                隣接店舗「ゆいまーる」の駐車場は<strong>ご利用いただけません</strong>
+              </p>
+            </div>
+          </div>
+        </AccordionItem>
+      </div>
+    </SectionReveal>
+  </div>
+</section>

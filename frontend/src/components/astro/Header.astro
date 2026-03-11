@@ -1,0 +1,212 @@
+---
+interface Props {
+  isTransparent?: boolean;
+}
+
+const { isTransparent = true } = Astro.props;
+
+const navItems = [
+  { href: '#concept', label: 'Concept' },
+  { href: '#menu', label: 'Menu' },
+  { href: '#attention', label: 'Attention' },
+  { href: '#store-info', label: 'Store Info' },
+];
+
+const externalLinks = [
+  { href: '/reservation', label: '予約する', isPrimary: true },
+  { href: '/suppliers', label: 'お取り引き先' },
+];
+---
+
+<header
+  id="header"
+  class:list={[
+    'fixed top-0 left-0 right-0 z-50 transition-all duration-300',
+    isTransparent ? 'bg-transparent' : 'glass shadow-sm',
+  ]}
+>
+  <nav class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="relative z-50 flex items-center justify-between h-16 md:h-20">
+      <!-- Logo -->
+      <a href="/" class="flex items-center space-x-2 group">
+        <span class="text-lg md:text-xl font-medium text-white group-hover:opacity-80 transition-opacity header-logo">
+          さて、羊に戻るとしよう
+        </span>
+      </a>
+
+      <!-- Desktop Navigation -->
+      <div class="hidden md:flex items-center space-x-1">
+        {navItems.map((item) => (
+          <a
+            href={item.href}
+            class="px-3 py-2 text-sm text-white/90 hover:text-white transition-colors header-nav-link"
+          >
+            {item.label}
+          </a>
+        ))}
+        <div class="w-px h-6 bg-white/30 mx-2"></div>
+        {externalLinks.map((item) => (
+          <a
+            href={item.href}
+            class:list={[
+              'px-4 py-2 text-sm transition-all',
+              item.isPrimary
+                ? 'bg-white/90 text-primary rounded-full hover:bg-white font-medium'
+                : 'text-white/90 hover:text-white header-nav-link',
+            ]}
+          >
+            {item.label}
+          </a>
+        ))}
+      </div>
+
+      <!-- Mobile Menu Button (Hamburger only) -->
+      <button
+        id="mobile-menu-btn"
+        type="button"
+        class="md:hidden flex items-center justify-center w-10 h-10 text-white"
+        aria-label="メニューを開く"
+      >
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M4 6h16M4 12h16M4 18h16"
+          />
+        </svg>
+      </button>
+    </div>
+  </nav>
+
+</header>
+
+<!-- Mobile Menu (Full Screen Overlay) - Outside header for proper z-index -->
+<div id="mobile-menu" class="mobile-menu fixed inset-0 z-[100] md:hidden flex flex-col items-center justify-center">
+  <!-- Close button in top right -->
+  <button
+    id="mobile-menu-close"
+    type="button"
+    class="absolute top-4 right-4 w-10 h-10 flex items-center justify-center text-white"
+    aria-label="メニューを閉じる"
+  >
+    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  </button>
+  
+  <nav class="flex flex-col items-center gap-8 text-center">
+    {navItems.map((item) => (
+      <a
+        href={item.href}
+        class="text-2xl font-medium tracking-widest text-white/90 hover:text-white transition-colors mobile-nav-link"
+        style="font-family: 'Noto Serif JP', serif;"
+      >
+        {item.label}
+      </a>
+    ))}
+    <div class="w-10 h-px my-2 bg-white/30"></div>
+    {externalLinks.map((item) => (
+      <a
+        href={item.href}
+        class:list={[
+          'transition-all mobile-nav-link',
+          item.isPrimary
+            ? 'px-8 py-3 border border-white text-sm tracking-widest rounded-full text-white hover:bg-white hover:text-primary'
+            : 'text-lg tracking-widest text-white/70 hover:text-white',
+        ]}
+      >
+        {item.label}
+      </a>
+    ))}
+  </nav>
+</div>
+
+<script>
+  // Mobile menu toggle
+  const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+  const mobileMenuClose = document.getElementById('mobile-menu-close');
+  const mobileMenu = document.getElementById('mobile-menu');
+
+  function openMenu() {
+    mobileMenu?.classList.add('is-open');
+    document.documentElement.style.overflow = 'hidden';
+  }
+
+  function closeMenu() {
+    mobileMenu?.classList.remove('is-open');
+    document.documentElement.style.overflow = '';
+  }
+
+  mobileMenuBtn?.addEventListener('click', openMenu);
+  mobileMenuClose?.addEventListener('click', closeMenu);
+
+  document.querySelectorAll('.mobile-nav-link').forEach((link) => {
+    link.addEventListener('click', closeMenu);
+  });
+
+  // Close menu on escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && mobileMenu?.classList.contains('is-open')) {
+      closeMenu();
+    }
+  });
+
+  // Header scroll effect
+  const header = document.getElementById('header');
+
+  window.addEventListener('scroll', () => {
+    const currentScroll = window.scrollY;
+    
+    if (currentScroll > 100) {
+      header?.classList.remove('bg-transparent');
+      header?.classList.add('glass', 'shadow-sm');
+      document.querySelectorAll('.header-logo, .header-nav-link').forEach((el) => {
+        el.classList.remove('text-white', 'text-white/90');
+        el.classList.add('text-primary');
+      });
+      mobileMenuBtn?.classList.remove('text-white');
+      mobileMenuBtn?.classList.add('text-primary');
+    } else {
+      header?.classList.add('bg-transparent');
+      header?.classList.remove('glass', 'shadow-sm');
+      document.querySelectorAll('.header-logo').forEach((el) => {
+        el.classList.add('text-white');
+        el.classList.remove('text-primary');
+      });
+      document.querySelectorAll('.header-nav-link').forEach((el) => {
+        el.classList.add('text-white/90');
+        el.classList.remove('text-primary');
+      });
+      mobileMenuBtn?.classList.add('text-white');
+      mobileMenuBtn?.classList.remove('text-primary');
+    }
+  });
+</script>
+
+<style>
+  .text-primary {
+    color: #43676B;
+  }
+
+  .mobile-menu {
+    background-color: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.35s ease, visibility 0.35s ease;
+    overscroll-behavior: contain;
+    touch-action: none;
+  }
+
+  .mobile-menu.is-open {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  :global(html) {
+    scroll-behavior: auto;
+  }
+
+</style>
