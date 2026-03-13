@@ -1,0 +1,8 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import ReservationTable from '../../components/react/ReservationTable.tsx';
+---
+
+<AdminLayout title="予約一覧">
+  <ReservationTable client:load />
+</AdminLayout>
