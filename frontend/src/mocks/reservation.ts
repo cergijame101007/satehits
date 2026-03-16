@@ -189,6 +189,22 @@ export const statusColors: Record<string, string> = {
   no_show: '#6B7280',
 };
 
+/** ステータスバッジの背景色 */
+export const statusBadgeBg: Record<string, string> = {
+  pending: '#FEF3C7',
+  approved: '#DCFCE7',
+  rejected: '#FEE2E2',
+  no_show: '#F3F4F6',
+};
+
+/** ステータスバッジの文字色 */
+export const statusBadgeText: Record<string, string> = {
+  pending: '#92400E',
+  approved: '#166534',
+  rejected: '#991B1B',
+  no_show: '#374151',
+};
+
 /** スケジュールタイプの表示ラベル */
 export const scheduleTypeLabels: Record<ScheduleType, string> = {
   normal: '通常',

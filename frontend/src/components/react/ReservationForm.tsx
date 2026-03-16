@@ -156,9 +156,9 @@ function Calendar({ selectedDate, onSelect, availabilityMap }: CalendarProps) {
               onClick={() => isSelectable && onSelect(dateStr)}
               className={`relative flex flex-col items-center py-1.5 rounded-lg text-sm transition-colors ${
                 isSelected
-                  ? 'bg-[#43676B] text-white'
+                  ? 'bg-primary text-white'
                   : isSelectable
-                    ? 'hover:bg-[#43676B]/10 cursor-pointer'
+                    ? 'hover:bg-primary/10 cursor-pointer'
                     : 'text-gray-300 cursor-not-allowed'
               } ${isHoliday && !isSelected ? 'bg-gray-50' : ''}`}
             >
@@ -166,7 +166,7 @@ function Calendar({ selectedDate, onSelect, availabilityMap }: CalendarProps) {
               {isInRange && !isHoliday && availability && (
                 <span
                   className={`text-[10px] leading-none ${
-                    isSelected ? 'text-white/80' : availability.available <= 3 ? 'text-red-500' : 'text-[#43676B]'
+                    isSelected ? 'text-white/80' : availability.available <= 3 ? 'text-red-500' : 'text-primary'
                   }`}
                 >
                   残{availability.available}
@@ -305,7 +305,7 @@ export default function ReservationForm() {
   const inputClass = (fieldName: string) =>
     `w-full px-4 py-3 rounded-lg border ${
       errors[fieldName] ? 'border-red-400 bg-red-50/50' : 'border-gray-200 bg-white'
-    } focus:outline-none focus:ring-2 focus:ring-[#43676B]/30 focus:border-[#43676B] transition-colors text-base`;
+    } focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors text-base`;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
@@ -319,7 +319,7 @@ export default function ReservationForm() {
         />
         {errors.visit_date && <p className="text-red-500 text-sm mt-2">{errors.visit_date}</p>}
         {selectedDate && (
-          <p className="text-sm text-[#43676B] mt-2 font-medium">
+          <p className="text-sm text-primary mt-2 font-medium">
             選択中: {formatDateJa(selectedDate)}
             {availabilityMap.get(selectedDate) && (
               <span className="ml-2">（残り {availabilityMap.get(selectedDate)!.available} 食）</span>
@@ -364,7 +364,7 @@ export default function ReservationForm() {
             href="https://www.instagram.com/satehits/"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[#43676B] underline"
+            className="text-primary underline"
           >
             Instagram DM
           </a>
@@ -463,7 +463,7 @@ export default function ReservationForm() {
         className={`w-full py-4 rounded-xl text-white font-medium text-lg transition-all ${
           isSubmitting
             ? 'bg-gray-400 cursor-not-allowed'
-            : 'bg-[#43676B] hover:bg-[#365558] active:scale-[0.98] shadow-lg hover:shadow-xl'
+            : 'bg-primary hover:bg-primary-dark active:scale-[0.98] shadow-lg hover:shadow-xl'
         }`}
       >
         {isSubmitting ? (

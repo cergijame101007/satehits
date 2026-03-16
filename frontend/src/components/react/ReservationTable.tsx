@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import type { Reservation, ReservationStatus } from '../../types/reservation';
-import { getReservations, getAvailability, statusLabels, statusColors } from '../../mocks/reservation';
+import { getReservations, getAvailability, statusLabels, statusColors, statusBadgeBg, statusBadgeText } from '../../mocks/reservation';
 
 function formatDate(date: Date): string {
   const y = date.getFullYear();
@@ -69,7 +69,7 @@ export default function ReservationTable() {
         <h1 className="text-2xl font-medium">予約一覧</h1>
         <a
           href="/admin/reservations/new"
-          className="px-4 py-2 bg-[#43676B] text-white text-sm rounded-lg hover:bg-[#365558] transition-colors"
+          className="px-4 py-2 bg-primary text-white text-sm rounded-lg hover:bg-primary-dark transition-colors"
         >
           + 予約登録
         </a>
@@ -81,12 +81,12 @@ export default function ReservationTable() {
           type="date"
           value={selectedDate}
           onChange={(e) => setSelectedDate(e.target.value)}
-          className="px-4 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#43676B]/30 focus:border-[#43676B] transition-colors"
+          className="px-4 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
         />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-4 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#43676B]/30 focus:border-[#43676B] transition-colors"
+          className="px-4 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
         >
           <option value="">すべてのステータス</option>
           <option value="pending">申請中</option>
@@ -104,7 +104,7 @@ export default function ReservationTable() {
           ) : (
             <>
               <span>
-                残り: <strong className="text-[#43676B]">{availability.available}食</strong> / {availability.capacity}食
+                残り: <strong className="text-primary">{availability.available}食</strong> / {availability.capacity}食
               </span>
               <span className="text-gray-400">
                 予約済み: {availability.reserved}食
@@ -143,22 +143,8 @@ export default function ReservationTable() {
                 <span
                   className="text-xs px-2.5 py-1 rounded-full font-medium"
                   style={{
-                    backgroundColor:
-                      r.status === 'pending'
-                        ? '#FEF3C7'
-                        : r.status === 'approved'
-                          ? '#DCFCE7'
-                          : r.status === 'rejected'
-                            ? '#FEE2E2'
-                            : '#F3F4F6',
-                    color:
-                      r.status === 'pending'
-                        ? '#92400E'
-                        : r.status === 'approved'
-                          ? '#166534'
-                          : r.status === 'rejected'
-                            ? '#991B1B'
-                            : '#374151',
+                    backgroundColor: statusBadgeBg[r.status],
+                    color: statusBadgeText[r.status],
                   }}
                 >
                   {statusLabels[r.status]}

@@ -37,7 +37,7 @@ export default function LoginForm() {
   };
 
   const inputClass =
-    'w-full px-4 py-3 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#43676B]/30 focus:border-[#43676B] transition-colors text-base';
+    'w-full px-4 py-3 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors text-base';
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
@@ -81,7 +81,7 @@ export default function LoginForm() {
             className={`w-full py-3 rounded-xl text-white font-medium transition-all ${
               isSubmitting
                 ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-[#43676B] hover:bg-[#365558] active:scale-[0.98] shadow-lg'
+                : 'bg-primary hover:bg-primary-dark active:scale-[0.98] shadow-lg'
             }`}
           >
             {isSubmitting ? 'ログイン中...' : 'ログイン'}

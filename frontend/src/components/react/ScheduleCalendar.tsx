@@ -120,7 +120,7 @@ export default function ScheduleCalendar() {
   const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
 
   const inputClass =
-    'w-full px-4 py-3 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#43676B]/30 focus:border-[#43676B] transition-colors text-base';
+    'w-full px-4 py-3 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors text-base';
 
   return (
     <div className="space-y-6">
@@ -178,7 +178,7 @@ export default function ScheduleCalendar() {
                   type="button"
                   onClick={() => handleSelectDay(schedule)}
                   className={`flex flex-col items-center py-2 rounded-lg text-sm transition-colors cursor-pointer ${
-                    isSelected ? 'ring-2 ring-[#43676B] ring-offset-1' : 'hover:bg-gray-50'
+                    isSelected ? 'ring-2 ring-primary ring-offset-1' : 'hover:bg-gray-50'
                   }`}
                   style={{ backgroundColor: isSelected ? typeColors[schedule.type] + '80' : undefined }}
                 >
@@ -287,7 +287,7 @@ export default function ScheduleCalendar() {
                 className={`w-full py-3 rounded-xl text-white font-medium transition-all ${
                   isSaving
                     ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-[#43676B] hover:bg-[#365558] active:scale-[0.98] shadow-lg'
+                    : 'bg-primary hover:bg-primary-dark active:scale-[0.98] shadow-lg'
                 }`}
               >
                 {isSaving ? '保存中...' : '保存する'}

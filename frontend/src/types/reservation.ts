@@ -78,3 +78,4 @@ export interface AdminReservationRequest {
   note: string;
   status: ReservationStatus;
 }
+

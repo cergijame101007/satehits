@@ -45,7 +45,7 @@ import Footer from '../../components/astro/Footer.astro';
           href="https://www.instagram.com/satehits/"
           target="_blank"
           rel="noopener noreferrer"
-          class="text-primary-link font-medium hover:underline"
+          class="text-primary font-medium hover:underline"
         >
           @satehits
         </a>
@@ -54,7 +54,7 @@ import Footer from '../../components/astro/Footer.astro';
       <!-- トップに戻るボタン -->
       <a
         href="/"
-        class="inline-block w-full max-w-xs py-3 rounded-xl bg-primary-btn text-white font-medium hover:bg-primary-btn-hover transition-colors shadow-lg"
+        class="inline-block w-full max-w-xs py-3 rounded-xl bg-primary text-white font-medium hover:bg-primary-dark transition-colors shadow-lg"
       >
         トップに戻る
       </a>
@@ -94,15 +94,3 @@ import Footer from '../../components/astro/Footer.astro';
     container.innerHTML = '<p class="text-gray-400 text-center py-4">予約情報を取得できませんでした</p>';
   }
 </script>
-
-<style>
-  .text-primary-link {
-    color: #43676B;
-  }
-  .bg-primary-btn {
-    background-color: #43676B;
-  }
-  .bg-primary-btn-hover {
-    background-color: #365558;
-  }
-</style>
