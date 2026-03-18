@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import type { DailySchedule, ScheduleType } from '../../types/reservation';
 import { getMonthlySchedules, scheduleTypeLabels, scheduleTypeShort } from '../../mocks/reservation';
 
@@ -39,7 +39,7 @@ export default function ScheduleCalendar() {
     getMonthlySchedules(viewYear, viewMonth),
   );
 
-  useMemo(() => {
+  useEffect(() => {
     setSchedules(getMonthlySchedules(viewYear, viewMonth));
     setSelectedSchedule(null);
   }, [viewYear, viewMonth]);
