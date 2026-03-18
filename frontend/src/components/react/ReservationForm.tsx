@@ -33,7 +33,7 @@ function getTimeSlots(dateStr: string): string[] {
   const date = new Date(dateStr);
   const dayOfWeek = date.getDay();
 
-  // 土日祝: 8:30-14:00, 月火水: 11:30-14:00
+  // 土日: 8:30-14:00, 平日: 11:30-14:00
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
   const startHour = isWeekend ? 8 : 11;
   const startMinute = isWeekend ? 30 : 30;
