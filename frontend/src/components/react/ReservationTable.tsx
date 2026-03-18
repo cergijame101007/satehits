@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import type { Reservation, ReservationStatus } from '../../types/reservation';
 import { getReservations, getAvailability, statusLabels, statusColors, statusBadgeBg, statusBadgeText } from '../../mocks/reservation';
 
@@ -38,7 +38,7 @@ export default function ReservationTable() {
   const [isLoaded, setIsLoaded] = useState(false);
 
   // 日付変更時にデータ再取得
-  useMemo(() => {
+  useEffect(() => {
     // TODO: GET /api/v1/admin/reservations?date=YYYY-MM-DD&status=xxx に置き換え
     const data = getReservations(selectedDate, statusFilter || undefined);
     setReservationList(data);
