@@ -69,28 +69,41 @@ import Footer from '../../components/astro/Footer.astro';
   const data = sessionStorage.getItem('reservation_complete');
   const container = document.getElementById('summary-content');
 
+  function createRow(label: string, value: string, suffix: string = '', hasBorder: boolean = true): HTMLDivElement {
+    const row = document.createElement('div');
+    row.className = `flex justify-between py-2${hasBorder ? ' border-b border-gray-100' : ''}`;
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'text-gray-500';
+    labelEl.textContent = label;
+
+    const valueEl = document.createElement('span');
+    valueEl.className = 'font-medium';
+    valueEl.textContent = `${value}${suffix}`;
+
+    row.appendChild(labelEl);
+    row.appendChild(valueEl);
+    return row;
+  }
+
   if (data && container) {
-    const info = JSON.parse(data);
-    container.innerHTML = `
-      <div class="flex justify-between py-2 border-b border-gray-100">
-        <span class="text-gray-500">来店日</span>
-        <span class="font-medium">${info.visit_date}</span>
-      </div>
-      <div class="flex justify-between py-2 border-b border-gray-100">
-        <span class="text-gray-500">時間</span>
-        <span class="font-medium">${info.visit_time}</span>
-      </div>
-      <div class="flex justify-between py-2 border-b border-gray-100">
-        <span class="text-gray-500">人数</span>
-        <span class="font-medium">${info.people}名</span>
-      </div>
-      <div class="flex justify-between py-2">
-        <span class="text-gray-500">お名前</span>
-        <span class="font-medium">${info.name} 様</span>
-      </div>
-    `;
-    sessionStorage.removeItem('reservation_complete');
+    try {
+      const info = JSON.parse(data);
+      container.appendChild(createRow('来店日', info.visit_date));
+      container.appendChild(createRow('時間', info.visit_time));
+      container.appendChild(createRow('人数', info.people, '名'));
+      container.appendChild(createRow('お名前', info.name, ' 様', false));
+      sessionStorage.removeItem('reservation_complete');
+    } catch {
+      const msg = document.createElement('p');
+      msg.className = 'text-gray-400 text-center py-4';
+      msg.textContent = '予約情報を取得できませんでした';
+      container.appendChild(msg);
+    }
   } else if (container) {
-    container.innerHTML = '<p class="text-gray-400 text-center py-4">予約情報を取得できませんでした</p>';
+    const msg = document.createElement('p');
+    msg.className = 'text-gray-400 text-center py-4';
+    msg.textContent = '予約情報を取得できませんでした';
+    container.appendChild(msg);
   }
 </script>
