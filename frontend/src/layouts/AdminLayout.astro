@@ -1,0 +1,61 @@
+---
+interface Props {
+  title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/images/top-icon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>{title} | 管理画面</title>
+  </head>
+  <body class="min-h-screen bg-bg-light">
+    <header class="bg-primary text-white shadow-sm">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
+        <a href="/admin" class="text-sm font-medium hover:opacity-80 transition-opacity">
+          さて、羊に戻るとしよう - 管理画面
+        </a>
+        <nav class="flex items-center gap-4 text-sm">
+          <a href="/admin/reservations" class="hover:opacity-80 transition-opacity">予約一覧</a>
+          <a href="/admin/reservations/new" class="hover:opacity-80 transition-opacity">予約登録</a>
+          <a href="/admin/schedules" class="hover:opacity-80 transition-opacity">スケジュール</a>
+          <a href="/admin/suppliers" class="hover:opacity-80 transition-opacity">取引先</a>
+          <button
+            id="logout-btn"
+            class="px-3 py-1 border border-white/40 rounded text-xs hover:bg-white/10 transition-colors"
+          >
+            ログアウト
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <slot />
+    </main>
+
+    <script>
+      // TODO: JWT認証チェック - トークンがなければログインページにリダイレクト
+      const token = localStorage.getItem('auth_token');
+      if (!token && !window.location.pathname.includes('/admin/login')) {
+        window.location.href = '/admin/login';
+      }
+
+      document.getElementById('logout-btn')?.addEventListener('click', () => {
+        // TODO: POST /api/v1/admin/logout でトークン無効化
+        localStorage.removeItem('auth_token');
+        window.location.href = '/admin/login';
+      });
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  @import '../styles/global.css';
+</style>

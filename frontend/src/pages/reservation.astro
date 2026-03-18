@@ -1,0 +1,18 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/astro/Header.astro';
+import Footer from '../components/astro/Footer.astro';
+import ReservationForm from '../components/react/ReservationForm.tsx';
+---
+
+<BaseLayout title="予約 | さて、羊に戻るとしよう">
+  <Header isTransparent={false} />
+
+  <main class="pt-24 pb-16 px-4">
+    <div class="max-w-lg mx-auto">
+      <ReservationForm client:load />
+    </div>
+  </main>
+
+  <Footer />
+</BaseLayout>

@@ -1,0 +1,94 @@
+---
+---
+
+<section class="relative h-screen w-full overflow-hidden">
+  <!-- Background Image -->
+  <div class="absolute inset-0">
+    <img
+      src="/images/top-view-high.jpg"
+      alt="さて、羊に戻るとしよう - 料理の俯瞰写真"
+      class="w-full h-full object-cover"
+    />
+    <div class="absolute inset-0 bg-black/30"></div>
+  </div>
+
+  <!-- Content -->
+  <div class="relative z-10 h-full flex flex-col items-center justify-center text-center px-4">
+    <h1
+      class="hero-title text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-medium text-white mb-4 tracking-wider"
+      style="font-family: 'Noto Serif JP', serif;"
+    >
+      さて、羊に戻るとしよう
+    </h1>
+
+    <p
+      class="hero-subtitle text-lg sm:text-xl md:text-2xl text-white/90 tracking-widest"
+      style="font-family: 'Noto Serif JP', serif;"
+    >
+      ー和紅茶とお野菜と富山湾の幸ー
+    </p>
+
+    <!-- Scroll Indicator -->
+    <div class="hero-scroll absolute bottom-8 left-1/2 -translate-x-1/2">
+      <div class="scroll-bounce flex flex-col items-center text-white/70">
+        <span class="text-xs tracking-widest mb-2">SCROLL</span>
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+            d="M19 14l-7 7m0 0l-7-7m7 7V3"
+          />
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes scrollBounce {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(10px);
+    }
+  }
+
+  .hero-title {
+    animation: fadeInUp 1s ease-out 0.3s both;
+  }
+
+  .hero-subtitle {
+    animation: fadeInUp 1s ease-out 0.7s both;
+  }
+
+  .hero-scroll {
+    animation: fadeIn 1s ease-out 1.5s both;
+  }
+
+  .scroll-bounce {
+    animation: scrollBounce 2s ease-in-out infinite;
+  }
+</style>

@@ -1,17 +1,284 @@
 ---
-
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/astro/Header.astro';
+import Footer from '../components/astro/Footer.astro';
+import HeroSection from '../components/astro/HeroSection.astro';
+import SectionReveal from '../components/astro/SectionReveal.astro';
+import AttentionSection from '../components/astro/AttentionSection.astro';
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<BaseLayout title="さて、羊に戻るとしよう | 和紅茶とお野菜と富山湾の幸">
+  <Header />
+
+  <main>
+    <!-- Hero Section -->
+    <HeroSection />
+
+    <!-- Concept Section -->
+    <section id="concept" class="py-20 md:py-28 section-white">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <SectionReveal>
+          <h2 class="text-2xl md:text-3xl font-medium text-center mb-4 text-primary">
+            コンセプト
+          </h2>
+          <p class="text-center text-gray-500 mb-12">Concept</p>
+        </SectionReveal>
+
+        <SectionReveal delay={0.2}>
+          <div class="space-y-8 text-center">
+            <p class="text-xl md:text-2xl text-primary font-medium">
+              「和紅茶とお野菜と富山湾の幸」
+            </p>
+            
+            <div class="max-w-2xl mx-auto space-y-6 text-gray-700 leading-loose">
+              <p>
+                近年、色んな分野で新しいものが次々と生まれ、
+                無意識にそれらを追っていくうちに
+                人はとてもせわしなく日々を過ごしている。
+              </p>
+              <p>
+                食という生きる上で一番重要な部分を
+                コンビニ弁当やファストフードなどによって
+                疎かにしていることから抜け出せずにいる。
+              </p>
+              <p>
+                そんな慌ただしく過ごす日々の中で
+                【食】という生きてゆくうえで欠かすことができない部分を通じて、
+                生き物としての原点回帰をし、
+                様々な事柄について本質的なアプローチをしていく
+                カルチャーを発信していく。
+              </p>
+            </div>
+          </div>
+        </SectionReveal>
+      </div>
+    </section>
+
+    <!-- Menu Section -->
+    <section id="menu" class="py-20 md:py-28 section-light">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <SectionReveal>
+          <h2 class="text-2xl md:text-3xl font-medium text-center mb-4 text-primary">
+            お料理について
+          </h2>
+          <p class="text-center text-gray-500 mb-12">Menu</p>
+        </SectionReveal>
+
+        <SectionReveal delay={0.2}>
+          <div class="glass rounded-2xl p-8 md:p-12 shadow-lg">
+            <div class="space-y-8">
+              <!-- こだわり -->
+              <div>
+                <h3 class="text-lg font-medium text-primary mb-4">食材へのこだわり</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div class="flex items-start gap-3">
+                    <span class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                      </svg>
+                    </span>
+                    <div>
+                      <p class="font-medium text-gray-800">不使用</p>
+                      <p class="text-sm text-gray-600">小麦、乳製品、卵、添加物</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-3">
+                    <span class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </span>
+                    <div>
+                      <p class="font-medium text-gray-800">魚</p>
+                      <p class="text-sm text-gray-600">必ず富山県産の魚を使用</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-3">
+                    <span class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </span>
+                    <div>
+                      <p class="font-medium text-gray-800">野菜</p>
+                      <p class="text-sm text-gray-600">富山県の無農薬栽培農家と契約</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-3">
+                    <span class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </span>
+                    <div>
+                      <p class="font-medium text-gray-800">米</p>
+                      <p class="text-sm text-gray-600">富山県産を使用</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="h-px bg-gray-200"></div>
+
+              <!-- 料理について -->
+              <div>
+                <h3 class="text-lg font-medium text-primary mb-4">料理について</h3>
+                <ul class="space-y-3 text-gray-700">
+                  <li class="flex items-start gap-3">
+                    <span class="text-primary mt-1">•</span>
+                    <span>毎週、旬の食材でメニューを構成しています</span>
+                  </li>
+                  <li class="flex items-start gap-3">
+                    <span class="text-primary mt-1">•</span>
+                    <span>お食事の最後に<strong class="text-primary">豆花と和紅茶</strong>をお出ししています</span>
+                  </li>
+                  <li class="flex items-start gap-3">
+                    <span class="text-primary mt-1">•</span>
+                    <span>魚の火入れ等のご要望は対応可能です（備考欄にご記載ください）</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="h-px bg-gray-200"></div>
+
+              <!-- 注意事項 -->
+              <div class="p-6 bg-amber-50/80 rounded-xl border border-amber-200">
+                <div class="flex items-start gap-3">
+                  <svg class="w-6 h-6 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div>
+                    <p class="font-medium text-amber-800 mb-1">アレルギー・苦手食材について</p>
+                    <p class="text-amber-700 text-sm">
+                      誠に申し訳ございませんが、
+                      <strong>アレルギー対応・苦手食材の対応は行っておりません。</strong>
+                      ご了承ください。
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </SectionReveal>
+      </div>
+    </section>
+
+    <!-- Attention Section -->
+    <AttentionSection />
+
+    <!-- Store Info Section -->
+    <section id="store-info" class="py-20 md:py-28 section-white">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <SectionReveal>
+          <h2 class="text-2xl md:text-3xl font-medium text-center mb-4 text-primary">
+            店舗情報
+          </h2>
+          <p class="text-center text-gray-500 mb-12">Store Info</p>
+        </SectionReveal>
+
+        <SectionReveal delay={0.2}>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
+            <!-- Info Card -->
+            <div class="glass rounded-2xl p-6 md:p-8 shadow-lg space-y-6">
+              <div>
+                <h3 class="text-xl font-medium text-primary mb-2">
+                  さて、羊に戻るとしよう
+                </h3>
+                <p class="text-gray-500 text-sm">間借りレストラン @ WINE LAB</p>
+              </div>
+
+              <div class="space-y-4">
+                <div class="flex items-start gap-3">
+                  <svg class="w-5 h-5 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <div>
+                    <p class="text-gray-800">〒933-0871</p>
+                    <p class="text-gray-800">富山県高岡市駅南5丁目4-7</p>
+                  </div>
+                </div>
+
+                <div class="flex items-start gap-3">
+                  <svg class="w-5 h-5 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div class="text-gray-800">
+                    <p>月火水 11:30 - 15:00 (LO 14:00)</p>
+                    <p>土日祝 8:30 - 15:00 (LO 14:00)</p>
+                    <p class="text-gray-500 text-sm mt-1">定休日: 木・金</p>
+                  </div>
+                </div>
+
+                <div class="flex items-start gap-3">
+                  <svg class="w-5 h-5 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <div>
+                    <p class="text-gray-800">Instagram DM</p>
+                    <a 
+                      href="https://www.instagram.com/satehits/" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      class="text-primary hover:underline"
+                    >
+                      @satehits
+                    </a>
+                  </div>
+                </div>
+
+                <div class="flex items-start gap-3">
+                  <svg class="w-5 h-5 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <div>
+                    <p class="text-gray-800">席数</p>
+                    <p class="text-gray-600">10席（カウンター）</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Map / CTA -->
+            <div class="flex flex-col gap-6">
+              <!-- Google Maps Embed -->
+              <div class="aspect-video md:aspect-square rounded-2xl overflow-hidden shadow-lg">
+                <iframe 
+                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3197.3213536161534!2d137.0101020907012!3d36.7388568996518!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x5ff783002a4fdeff%3A0x594538c166027598!2zV0lORSBMQUIu77yI44Ov44Kk44Oz44Op44Oc77yJ!5e0!3m2!1sja!2sfr!4v1771260505106!5m2!1sja!2sfr" 
+                  width="600" 
+                  height="600" 
+                  style="border:0;" 
+                  allowfullscreen="" 
+                  loading="lazy" 
+                  referrerpolicy="no-referrer-when-downgrade"
+                ></iframe>
+              </div>
+
+              <!-- Reservation CTA -->
+              <a
+                href="/reservation"
+                class="block w-full py-4 px-6 bg-primary text-white text-center rounded-xl font-medium hover:bg-primary-dark transition-colors shadow-lg hover:shadow-xl"
+              >
+                予約する
+              </a>
+              <p class="text-center text-gray-500 text-sm">
+                ※ 8名以上・当日予約・2週間以上先は
+                <a 
+                  href="https://www.instagram.com/satehits/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  class="text-primary hover:underline"
+                >
+                  Instagram
+                </a>
+                へ
+              </p>
+            </div>
+          </div>
+        </SectionReveal>
+      </div>
+    </section>
+  </main>
+
+  <Footer />
+</BaseLayout>

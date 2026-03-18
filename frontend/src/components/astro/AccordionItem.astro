@@ -1,0 +1,86 @@
+---
+interface Props {
+  title: string;
+  defaultOpen?: boolean;
+}
+
+const { title, defaultOpen = false } = Astro.props;
+---
+
+<details class="accordion border-b border-gray-200 last:border-b-0" open={defaultOpen}>
+  <summary class="flex items-center justify-between py-4 px-2 text-left hover:bg-gray-50/50 transition-colors cursor-pointer list-none">
+    <span class="text-lg font-medium text-gray-800" style="font-family: 'Noto Serif JP', serif;">
+      {title}
+    </span>
+    <svg
+      class="chevron w-5 h-5 flex-shrink-0 text-primary"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+    </svg>
+  </summary>
+  <div class="accordion-content overflow-hidden">
+    <div class="px-2 pb-4 text-gray-600 leading-relaxed">
+      <slot />
+    </div>
+  </div>
+</details>
+
+<style>
+  details summary {
+    list-style: none;
+  }
+  details summary::-webkit-details-marker {
+    display: none;
+  }
+  details[open] .chevron {
+    transform: rotate(180deg);
+  }
+  .chevron {
+    transition: transform 0.3s ease;
+  }
+</style>
+
+<script>
+  function initAccordions() {
+    document.querySelectorAll<HTMLDetailsElement>('details.accordion').forEach((details) => {
+      if (details.dataset.initialized) return;
+      details.dataset.initialized = 'true';
+
+      const summary = details.querySelector('summary');
+      const content = details.querySelector<HTMLElement>('.accordion-content');
+
+      summary?.addEventListener('click', (e) => {
+        e.preventDefault();
+
+        if (details.open) {
+          const anim = content?.animate(
+            [
+              { height: content.scrollHeight + 'px', opacity: '1' },
+              { height: '0px', opacity: '0' },
+            ],
+            { duration: 300, easing: 'ease-in-out', fill: 'forwards' }
+          );
+          anim?.addEventListener('finish', () => {
+            details.removeAttribute('open');
+            content?.getAnimations().forEach((a) => a.cancel());
+          });
+        } else {
+          details.setAttribute('open', '');
+          content?.animate(
+            [
+              { height: '0px', opacity: '0' },
+              { height: content.scrollHeight + 'px', opacity: '1' },
+            ],
+            { duration: 300, easing: 'ease-in-out', fill: 'forwards' }
+          );
+        }
+      });
+    });
+  }
+
+  initAccordions();
+  document.addEventListener('astro:page-load', initAccordions);
+</script>
