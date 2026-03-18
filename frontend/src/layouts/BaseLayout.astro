@@ -23,12 +23,12 @@ const { title, description = 'さて、羊に戻るとしよう - 和紅茶と�
     <meta property="og:image" content="/images/top-view-high.jpg" />
     
     <title>{title}</title>
+
+    <style is:global>
+      @import '../styles/global.css';
+    </style>
   </head>
   <body class="min-h-screen flex flex-col">
     <slot />
   </body>
 </html>
-
-<style is:global>
-  @import '../styles/global.css';
-</style>
