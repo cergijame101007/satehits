@@ -7,14 +7,34 @@ import (
 
 // Reservation はドメインエンティティ
 type Reservation struct {
-	ID        int       `json:"id"`
-	Name      string    `json:"name"`
-	People    int       `json:"people"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        int
+	Name      string
+	People    int
+	VisitDate time.Time
+	VisitTime time.Time
+	Phone     string
+	Email     string
+	Note      string
+	Status    string
+	Source    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type CreateReservationInput struct {
+	Name      string
+	People    int
+	VisitDate time.Time
+	VisitTime time.Time
+	Phone     string
+	Email     string
+	Note      string
+	Status    string
+	Source    string
 }
 
 // ReservationRepository は予約データを永続化するためのインターフェース
 type ReservationRepository interface {
-	Create(ctx context.Context, name string, people int) error
+	Create(ctx context.Context, r CreateReservationInput) error
 	GetAll(ctx context.Context) ([]Reservation, error)
 }

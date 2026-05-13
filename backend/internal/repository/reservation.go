@@ -18,15 +18,21 @@ func NewPostgresReservationRepository(db *sql.DB) *PostgresReservationRepository
 }
 
 // Create は予約データを永続化する
-func (r *PostgresReservationRepository) Create(ctx context.Context, name string, people int) error {
-	query := `INSERT INTO reservations (name, people) VALUES ($1, $2)`
-	_, err := r.db.ExecContext(ctx, query, name, people)
+func (r *PostgresReservationRepository) Create(ctx context.Context, in domain.CreateReservationInput) error {
+	query := `
+INSERT INTO reservations (
+    name, people, visit_date, visit_time, phone, email, note, status, source
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+	_, err := r.db.ExecContext(ctx, query, in.Name, in.People, in.VisitDate, in.VisitTime, in.Phone, in.Email, in.Note, in.Status, in.Source)
 	return err
 }
 
 // GetAll は全ての予約データを取得する
 func (r *PostgresReservationRepository) GetAll(ctx context.Context) ([]domain.Reservation, error) {
-	query := `SELECT id, name, people, created_at FROM reservations`
+	query := `
+SELECT id, name, people, visit_date, visit_time, phone, email,
+       COALESCE(note, ''), status, source, created_at, updated_at
+FROM reservations`
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -36,7 +42,20 @@ func (r *PostgresReservationRepository) GetAll(ctx context.Context) ([]domain.Re
 	var reservations []domain.Reservation
 	for rows.Next() {
 		var reservation domain.Reservation
-		if err := rows.Scan(&reservation.ID, &reservation.Name, &reservation.People, &reservation.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&reservation.ID,
+			&reservation.Name,
+			&reservation.People,
+			&reservation.VisitDate,
+			&reservation.VisitTime,
+			&reservation.Phone,
+			&reservation.Email,
+			&reservation.Note,
+			&reservation.Status,
+			&reservation.Source,
+			&reservation.CreatedAt,
+			&reservation.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		reservations = append(reservations, reservation)

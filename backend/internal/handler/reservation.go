@@ -4,14 +4,22 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/cergijame101007/satehits/internal/domain"
 )
 
 // ReservationRequest は予約作成リクエストのDTO
 type ReservationRequest struct {
-	Name   string `json:"name"`
-	People int    `json:"people"`
+	Name   	  string    `json:"name"`
+	People    int       `json:"people"`
+	VisitDate time.Time `json:"visit_date"`
+	VisitTime time.Time `json:"visit_time"`
+	Phone     string    `json:"phone"`
+	Email     string    `json:"email"`
+	Note      string    `json:"note"`
+	Status    string    `json:"status"`
+	Source    string    `json:"source"`
 }
 
 // ReservationHandler は予約に関するHTTPハンドラ
@@ -64,18 +72,29 @@ func (h *ReservationHandler) handleCreate(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if request.Name == "" || request.People <= 0 {
-		http.Error(w, "Name and valid people count required", http.StatusBadRequest)
+	if request.Name == "" || request.People <= 0 || request.VisitDate.IsZero() || request.VisitTime.IsZero() || request.Phone == "" || request.Email == "" {
+		http.Error(w, "Name, people count, visit date, visit time, phone, and email are required", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.repo.Create(r.Context(), request.Name, request.People); err != nil {
+	in := domain.CreateReservationInput{
+		Name:      request.Name,
+		People:    request.People,
+		VisitDate: request.VisitDate,
+		VisitTime: request.VisitTime,
+		Phone:     request.Phone,
+		Email:     request.Email,
+		Note:      request.Note,
+		Status:    "pending",
+		Source:    "web",
+	}
+	if err := h.repo.Create(r.Context(), in); err != nil {
 		log.Printf("Failed to create reservation: %v", err)
 		http.Error(w, "Failed to create reservation", http.StatusInternalServerError)
 		return
 	}
 
-	log.Printf("Saved Reservation: Name=%s, People=%d", request.Name, request.People)
+	log.Printf("Saved Reservation: Name=%s, People=%d, VisitDate=%s, VisitTime=%s, Phone=%s, Email=%s, Note=%s, Status=%s, Source=%s", request.Name, request.People, request.VisitDate, request.VisitTime, request.Phone, request.Email, request.Note, request.Status, request.Source)
 
 	respondWithJSON(w, http.StatusCreated, JSONResponse{
 		Message: "Reservation created",
