@@ -19,12 +19,12 @@ sequenceDiagram
     
     UseCase->>AvailService: GetAvailability(date)
     
-    AvailService->>AvailService: 定休日チェック（木・金）
-    
     AvailService->>ScheduleRepo: FindByDate(date)
     ScheduleRepo->>DB: SELECT * FROM daily_schedules WHERE date = ?
     DB-->>ScheduleRepo: schedule (or null)
-    ScheduleRepo-->>AvailService: Schedule{type, capacity, event_name...}
+    ScheduleRepo-->>AvailService: Schedule row or null
+    
+    AvailService->>AvailService: その日の営業設定（有効なスケジュール）の解決（DB行を正、無ければドメイン既定で合成）
     
     AvailService->>ReservationRepo: CountApprovedPeopleByDate(date)
     ReservationRepo->>DB: SELECT SUM(people) FROM reservations WHERE visit_date = ? AND status = 'approved'

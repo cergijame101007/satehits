@@ -221,8 +221,7 @@ Q: そのロジックは「エンティティ1つ」で完結する？
 │  - 提供可能数を取得（ScheduleRepository）                   │
 │  - 承認済み予約の人数を集計（ReservationRepository）        │
 │  - 残り食数を計算                                           │
-│  - 定休日判定                                               │
-│  - 予約可否の判定                                           │
+│  - 予約可否（休業含む／その日の営業設定（有効なスケジュール）／行優先・無行時既定） │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
@@ -427,7 +426,7 @@ graph TB
 
 ### ドメインエラー
 
-ドメイン固有のエラーを `Code`（識別用文字列）と `Message`（日本語メッセージ）を持つ `DomainError` 型として定義する。予約不在（`NOT_FOUND`）、定員超過（`CAPACITY_EXCEEDED`）、定休日予約（`HOLIDAY`）、不正なステータス遷移（`INVALID_TRANSITION`）、reCAPTCHA失敗（`INVALID_RECAPTCHA`）、未認証（`UNAUTHORIZED`）などを事前定義しておく。
+ドメイン固有のエラーを `Code`（識別用文字列）と `Message`（日本語メッセージ）を持つ `DomainError` 型として定義する。予約不在（`NOT_FOUND`）、定員超過（`CAPACITY_EXCEEDED`）、休業・予約不可日への予約（`HOLIDAY`）、不正なステータス遷移（`INVALID_TRANSITION`）、reCAPTCHA失敗（`INVALID_RECAPTCHA`）、未認証（`UNAUTHORIZED`）などを事前定義しておく。
 
 ### エラーレスポンス変換
 

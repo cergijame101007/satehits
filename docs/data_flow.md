@@ -61,7 +61,7 @@ flowchart LR
     subgraph Validation[バリデーション]
         V1[人数: 1-7]
         V2[日付: 翌日〜14日後]
-        V3[定休日チェック]
+        V3[営業可否<br/>その日の営業設定（有効なスケジュール）]
         V4[営業時間チェック]
         V5[空き確認]
     end
@@ -89,19 +89,22 @@ flowchart LR
 
 ## 3. 残り食数の計算フロー
 
+`daily_schedules` に該当日の行がある場合はその行を正とし、**行がない場合**はドメイン既定（店の定例に基づく曜日別の既定など）で**その日の営業設定（有効なスケジュール）**を合成する。`AvailabilityService` はその内容から `capacity`・休業相当かどうかを決め、`reservations` の承認済人数と組み合わせて残りを算出する。
+
 ```mermaid
 flowchart TB
     subgraph Input[入力]
         Date[指定日付]
     end
 
-    subgraph HolidayCheck[定休日チェック]
-        IsHoliday{木 or 金?}
+    subgraph Resolve[その日の営業設定（有効なスケジュール）の解決]
+        RowExists{daily_schedules に<br/>該当日の行がある?}
+        FromRow[行の schedule_type / capacity を採用]
+        FromDefault[無い場合はドメイン既定で合成]
     end
 
-    subgraph ScheduleData[スケジュールデータ取得]
-        Schedule[daily_schedules]
-        DefaultCapacity[デフォルト: 10食]
+    subgraph Effective[当該日の capacity・種別]
+        Eff[その日の営業設定<br/>（有効なスケジュール）]
     end
 
     subgraph ReservationData[予約データ集計]
@@ -117,11 +120,10 @@ flowchart TB
         Result[AvailabilityResponse]
     end
 
-    Date --> IsHoliday
-    IsHoliday -->|Yes| Result
-    IsHoliday -->|No| Schedule
-    Schedule -->|存在| Calc
-    Schedule -->|なし| DefaultCapacity --> Calc
+    Date --> RowExists
+    RowExists -->|Yes| FromRow --> Eff
+    RowExists -->|No| FromDefault --> Eff
+    Eff --> Calc
     Reservations --> SumPeople --> Calc
     Calc --> Result
 ```
@@ -177,15 +179,17 @@ stateDiagram-v2
 
 ## 6. スケジュールタイプと予約可否
 
+**その日の営業設定（有効なスケジュール）**（DB 行または行なし時の合成結果）に応じて予約可否を決める。`closed` や `capacity: 0` に相当する日、および**既定解決の結果として休業相当となった日**は予約不可となる。
+
 ```mermaid
 flowchart TB
-    subgraph ScheduleType[スケジュールタイプ]
+    subgraph ScheduleType[その日の営業設定（有効なスケジュール）に応じた区分]
         Normal[normal: 通常営業]
         Morning[morning: 朝営業]
         Event[event: イベント]
         Special[special_menu: 特別メニュー]
-        Closed[closed: 臨時休業]
-        Holiday[定休日: 木・金]
+        Closed[closed: 臨時休業等]
+        NoBook[その他 予約不可と解決された日]
     end
 
     subgraph Reservable[予約可否]
@@ -199,7 +203,7 @@ flowchart TB
     Event --> YesWithNote
     Special --> YesWithNote
     Closed --> No
-    Holiday --> No
+    NoBook --> No
 ```
 
 ## 7. API と テーブルの関係
