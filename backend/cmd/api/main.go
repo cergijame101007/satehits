@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -43,9 +44,11 @@ func main() {
 	repo := repository.NewPostgresReservationRepository(db)
 	reservationHandler := handler.NewReservationHandler(repo)
 
+	const VERSION = "v1"
+	apiPath := fmt.Sprintf("api/%s", VERSION)
 	// ルーティング
 	http.HandleFunc("/", handleRoot)
-	http.HandleFunc("/reservations", reservationHandler.HandleReservations)
+	http.HandleFunc(fmt.Sprintf("%s/reservations", apiPath), reservationHandler.HandleReservations)
 
 	// サーバー起動
 	port := ":8080"
