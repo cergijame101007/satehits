@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -31,16 +32,12 @@ func main() {
 		log.Fatal("DATABASE_URL is not set")
 	}
 
-	db, err := sql.Open("pgx", dbURL)
+	ctx := context.Background()
+	db, err := openAndPingDB(ctx, dbURL)
 	if err != nil {
-		log.Fatalf("Unable to parse DB URL: %v", err)
+		log.Fatal(err)
 	}
 	defer db.Close()
-
-	ctx := context.Background()
-	if err := db.PingContext(ctx); err != nil {
-		log.Fatalf("Unable to connect to database: %v", err)
-	}
 	log.Println("Connected to Database!")
 
 	if err := ensureSchemaMigrationsTable(ctx, db); err != nil {
@@ -48,12 +45,43 @@ func main() {
 	}
 
 	dir := filepath.Clean("migrations")
-	entries, err := os.ReadDir(dir)
+	migrationFiles, err := loadMigrationFiles(dir)
 	if err != nil {
-		log.Fatalf("read migrations directory: %v", err)
+		log.Fatal(err)
 	}
 
-	var migrationFiles []MigrationFile
+	applied, err := appliedVersions(ctx, db)
+	if err != nil {
+		log.Fatalf("applied versions: %v", err)
+	}
+
+	if err := runMigrations(ctx, db, migrationFiles, applied); err != nil {
+		log.Fatalf("migrate: %v", err)
+	}
+
+	log.Println("Migrations completed")
+}
+
+func openAndPingDB(ctx context.Context, dbURL string) (*sql.DB, error) {
+	db, err := sql.Open("pgx", dbURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse DB URL: %w", err)
+	}
+	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("connect to database: %w", err)
+	}
+	return db, nil
+}
+
+func loadMigrationFiles(dir string) ([]MigrationFile, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("read migrations directory: %w", err)
+	}
+
+	// マイグレーションファイル数は既知なので、事前容量を確保
+	migrationFiles := make([]MigrationFile, 0, len(entries))
 	seen := make(map[int64]string)
 	for _, e := range entries {
 		if e.IsDir() {
@@ -67,10 +95,10 @@ func main() {
 		path := filepath.Join(dir, name)
 		version, err := versionFromPath(name)
 		if err != nil {
-			log.Fatalf("invalid migration filename: %s: %v", name, err)
+			return nil, fmt.Errorf("invalid migration filename %s: %w", name, err)
 		}
 		if _, ok := seen[version]; ok {
-			log.Fatalf("duplicate migration version %d: %s", version, name)
+			return nil, fmt.Errorf("duplicate migration version %d: %s", version, name)
 		}
 		seen[version] = name
 		migrationFiles = append(migrationFiles, MigrationFile{
@@ -81,12 +109,10 @@ func main() {
 	slices.SortFunc(migrationFiles, func(i, j MigrationFile) int {
 		return cmp.Compare(i.version, j.version)
 	})
+	return migrationFiles, nil
+}
 
-	applied, err := appliedVersions(ctx, db)
-	if err != nil {
-		log.Fatalf("applied versions: %v", err)
-	}
-
+func runMigrations(ctx context.Context, db *sql.DB, migrationFiles []MigrationFile, applied map[int64]bool) error {
 	for _, mf := range migrationFiles {
 		if applied[mf.version] {
 			continue
@@ -94,16 +120,15 @@ func main() {
 		log.Printf("Applying %s ...", filepath.Base(mf.path))
 		body, err := os.ReadFile(mf.path)
 		if err != nil {
-			log.Fatalf("read %s: %v", mf.path, err)
+			return fmt.Errorf("read %s: %w", mf.path, err)
 		}
 		if err := applyMigration(ctx, db, mf.version, body); err != nil {
-			log.Fatalf("apply %s: %v", mf.path, err)
+			return fmt.Errorf("apply %s: %w", mf.path, err)
 		}
 		applied[mf.version] = true
 		log.Printf("Applied migration version %d", mf.version)
 	}
-
-	log.Println("Migrations completed")
+	return nil
 }
 
 // ensureSchemaMigrationsTable: schema_migrationsテーブルが存在するか確認
@@ -156,7 +181,11 @@ func applyMigration(ctx context.Context, db *sql.DB, version int64, body []byte)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+			log.Printf("transaction rollback: %v", rbErr)
+		}
+	}()
 
 	// PostgreSQL は複数ステートメントを1回の Exec に渡すことが可能
 	// strings.Split(";") による分割はリテラル内の ';' や DO $$ ... $$ 等で壊れるため行わない
