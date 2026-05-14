@@ -7,14 +7,14 @@ import (
 	"github.com/cergijame101007/satehits/internal/domain"
 )
 
-// FieldViolation はバリデーションで蓄えるフィールドごとのエラー
-// handler の ErrorDetail と同じ形の別定義
+// FieldViolation はフィールド単位のバリデーションエラー
+// handler.ErrorDetail と同形の別定義（handler 非依存のため）
 type FieldViolation struct {
 	Field   string
 	Message string
 }
 
-// ValidationError はユースケース入力の検証に失敗したときに返すエラー。
+// ValidationError はユースケース入力の検証失敗
 type ValidationError struct {
 	Violations []FieldViolation
 }
@@ -23,7 +23,7 @@ func (e *ValidationError) Error() string {
 	return "入力内容に誤りがあります"
 }
 
-// CreateReservationCommand は顧客による Web 予約申請の入力。
+// CreateReservationCommand は顧客向け Web 予約申請の入力
 type CreateReservationCommand struct {
 	Name      string
 	People    int
@@ -34,17 +34,17 @@ type CreateReservationCommand struct {
 	Note      string
 }
 
-// CreateReservationUseCase は予約作成（顧客向け）を実行する。
+// CreateReservationUseCase は顧客向け予約作成
 type CreateReservationUseCase struct {
 	repo domain.ReservationRepository
 }
 
-// NewCreateReservationUseCase は CreateReservationUseCase を生成する。
+// NewCreateReservationUseCase は CreateReservationUseCase の生成
 func NewCreateReservationUseCase(repo domain.ReservationRepository) *CreateReservationUseCase {
 	return &CreateReservationUseCase{repo: repo}
 }
 
-// Execute は入力検証のうえ Repository に永続化を委譲する。
+// Execute は入力検証および Repository への永続化
 func (u *CreateReservationUseCase) Execute(ctx context.Context, cmd CreateReservationCommand) error {
 	var violations []FieldViolation
 	if cmd.Name == "" {
@@ -69,6 +69,8 @@ func (u *CreateReservationUseCase) Execute(ctx context.Context, cmd CreateReserv
 		return &ValidationError{Violations: violations}
 	}
 
+	// ドメイン入力への変換
+	// Status/Source はサーバー側管理（クライアント非公開）
 	in := domain.CreateReservationInput{
 		Name:      cmd.Name,
 		People:    cmd.People,
