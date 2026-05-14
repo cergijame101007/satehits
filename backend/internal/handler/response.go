@@ -31,13 +31,14 @@ type ErrorResponse struct {
 
 // errorResponseBody はエラーレスポンスのボディ
 type errorResponseBody struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Details []errorDetail `json:"details,omitempty"`
+	Code    string        `json:"code"`
+	Message string        `json:"message"`
+	Details []ErrorDetail `json:"details,omitempty"`
 }
 
-// errorDetail はエラーレスポンスの詳細
-type errorDetail struct {
+// ErrorDetail は API の error.details 用のフィールドごとの詳細
+// usecase の FieldViolation と同じ形の別定義
+type ErrorDetail struct {
 	Field   string `json:"field"`
 	Message string `json:"message"`
 }
@@ -62,7 +63,7 @@ func respondWithJSON[T any](w http.ResponseWriter, status int, payload T) {
 	}
 }
 
-func respondWithError(w http.ResponseWriter, status int, code string, message string, details []errorDetail) {
+func respondWithError(w http.ResponseWriter, status int, code string, message string, details []ErrorDetail) {
 	payload := ErrorResponse{
 		Error: errorResponseBody{
 			Code:    code,

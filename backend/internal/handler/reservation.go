@@ -2,9 +2,11 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 
+	"github.com/cergijame101007/satehits/internal/application/usecase"
 	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
 )
@@ -24,14 +26,23 @@ type ReservationRequest struct {
 
 // ReservationHandler は予約に関するHTTPハンドラ
 type ReservationHandler struct {
-	repo             domain.ReservationRepository
-	reservationsPath string
+	repo              domain.ReservationRepository
+	createReservation *usecase.CreateReservationUseCase
+	reservationsPath  string
 }
 
 // NewReservationHandler はReservationHandlerのインスタンスを作成する
 // reservationsPath は net/http の ServeMux に登録する完全パス（例: /api/v1/reservations）と一致させること
-func NewReservationHandler(repo domain.ReservationRepository, reservationsPath string) *ReservationHandler {
-	return &ReservationHandler{repo: repo, reservationsPath: reservationsPath}
+func NewReservationHandler(
+	repo domain.ReservationRepository,
+	createReservation *usecase.CreateReservationUseCase,
+	reservationsPath string,
+) *ReservationHandler {
+	return &ReservationHandler{
+		repo:              repo,
+		createReservation: createReservation,
+		reservationsPath:  reservationsPath,
+	}
 }
 
 // HandleReservations はGET/POSTリクエストをルーティングする
@@ -74,33 +85,7 @@ func (h *ReservationHandler) handleCreate(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// TODO: バリデーションルールを定義
-	// 今は最低限のバリデーションのみ
-	var details []errorDetail
-	if request.Name == "" {
-		details = append(details, errorDetail{Field: "name", Message: "名前は必須です"})
-	}
-	if request.People <= 0 {
-		details = append(details, errorDetail{Field: "people", Message: "人数は1名以上で指定してください"})
-	}
-	if request.VisitDate.IsZero() {
-		details = append(details, errorDetail{Field: "visit_date", Message: "来店日は必須です"})
-	}
-	if request.VisitTime.IsZero() {
-		details = append(details, errorDetail{Field: "visit_time", Message: "来店時間は必須です"})
-	}
-	if request.Phone == "" {
-		details = append(details, errorDetail{Field: "phone", Message: "電話番号は必須です"})
-	}
-	if request.Email == "" {
-		details = append(details, errorDetail{Field: "email", Message: "メールアドレスは必須です"})
-	}
-	if len(details) > 0 {
-		respondWithError(w, http.StatusBadRequest, ValidationErrorCode, "入力内容に誤りがあります", details)
-		return
-	}
-
-	in := domain.CreateReservationInput{
+	err := h.createReservation.Execute(r.Context(), usecase.CreateReservationCommand{
 		Name:      request.Name,
 		People:    request.People,
 		VisitDate: request.VisitDate,
@@ -108,17 +93,25 @@ func (h *ReservationHandler) handleCreate(w http.ResponseWriter, r *http.Request
 		Phone:     request.Phone,
 		Email:     request.Email,
 		Note:      request.Note,
-		Status:    "pending",
-		Source:    "web",
-	}
-	if err := h.repo.Create(r.Context(), in); err != nil {
+	})
+	if err != nil {
+		var vErr *usecase.ValidationError
+		if errors.As(err, &vErr) {
+			details := make([]ErrorDetail, len(vErr.Violations))
+			for i, v := range vErr.Violations {
+				details[i] = ErrorDetail{Field: v.Field, Message: v.Message}
+			}
+			respondWithError(w, http.StatusBadRequest, ValidationErrorCode, "入力内容に誤りがあります", details)
+			return
+		}
 		log.Printf("Failed to create reservation: %v", err)
 		respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
 		return
 	}
 
 	// TODO: Phone/Emailは個人情報なのでマスキングが必要
-	log.Printf("Saved Reservation: Name=%s, People=%d, VisitDate=%s, VisitTime=%s, Phone=%s, Email=%s, Note=%s, Status=%s, Source=%s", in.Name, in.People, in.VisitDate, in.VisitTime, in.Phone, in.Email, in.Note, in.Status, in.Source)
+	log.Printf("Saved Reservation: Name=%s, People=%d, VisitDate=%s, VisitTime=%s, Phone=%s, Email=%s, Note=%s, Status=%s, Source=%s",
+		request.Name, request.People, request.VisitDate, request.VisitTime, request.Phone, request.Email, request.Note, "pending", "web")
 
 	respondWithJSON(w, http.StatusCreated, JSONResponse{
 		Message: "Reservation created",
