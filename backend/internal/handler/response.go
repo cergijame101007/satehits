@@ -50,7 +50,9 @@ func respondWithJSON[T any](w http.ResponseWriter, status int, payload T) {
 		log.Printf("Failed to marshal JSON: %v", err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(`{"error":{"code":"INTERNAL_ERROR","message":"レスポンスの生成に失敗しました"}}`))
+		if _, err := w.Write([]byte(`{"error":{"code":"INTERNAL_ERROR","message":"レスポンスの生成に失敗しました"}}`)); err != nil {
+			log.Printf("Failed to write error fallback response: %v", err)
+		}
 		return
 	}
 

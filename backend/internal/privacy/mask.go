@@ -6,6 +6,9 @@ import (
 	"unicode/utf8"
 )
 
+// maskShort は桁・メール等の短いマスク表示に使う固定文字列。
+const maskShort = "***"
+
 // MaskName は氏名をマスキングする（先頭1文字のみ残す。1文字のみの場合は *）。
 func MaskName(name string) string {
 	name = strings.TrimSpace(name)
@@ -34,12 +37,12 @@ func MaskPhone(phone string) string {
 	digits := b.String()
 	n := len(digits)
 	if n == 0 {
-		return "***"
+		return maskShort
 	}
 	if n <= 4 {
 		return "****"
 	}
-	return "***" + digits[n-4:]
+	return maskShort + digits[n-4:]
 }
 
 // MaskEmail はメールアドレスをマスキングする（ローカル先頭1文字 + ドメインはTLDのみ）。
@@ -47,20 +50,20 @@ func MaskEmail(email string) string {
 	email = strings.TrimSpace(email)
 	at := strings.LastIndex(email, "@")
 	if at <= 0 || at >= len(email)-1 {
-		return "***"
+		return maskShort
 	}
 	local, domain := email[:at], email[at+1:]
 	if domain == "" {
-		return "***"
+		return maskShort
 	}
 	first, size := utf8.DecodeRuneInString(local)
 	maskedLocal := "*"
 	if size > 0 && first != utf8.RuneError {
-		maskedLocal = string(first) + "***"
+		maskedLocal = string(first) + maskShort
 	}
 	lastDot := strings.LastIndex(domain, ".")
 	if lastDot > 0 && lastDot < len(domain)-1 {
-		return maskedLocal + "@***" + domain[lastDot:]
+		return maskedLocal + "@" + maskShort + domain[lastDot:]
 	}
-	return maskedLocal + "@***"
+	return maskedLocal + "@" + maskShort
 }

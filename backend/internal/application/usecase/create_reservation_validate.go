@@ -39,10 +39,10 @@ const (
 
 	// 来店受付の境界（店舗ローカルタイム基準・分単位）
 	// "BookingCutoff" は予約として受け付ける最終時刻
-	weekdayBookingCutoffMinutes = 14 * 60      // 14:00
-	weekendBookingCutoffMinutes = 14 * 60      // 14:00
-	weekdayBookingOpenMinutes   = 11*60 + 30   // 11:30
-	weekendBookingOpenMinutes   = 8*60 + 30    // 08:30
+	weekdayBookingCutoffMinutes = 14 * 60    // 14:00
+	weekendBookingCutoffMinutes = 14 * 60    // 14:00
+	weekdayBookingOpenMinutes   = 11*60 + 30 // 11:30
+	weekendBookingOpenMinutes   = 8*60 + 30  // 08:30
 )
 
 // 電話番号フィールドに許す文字: 数字・+ () - 半角スペース・およびフォームでよく使われる全角スペース（U+3000 IDEOGRAPHIC SPACE）
