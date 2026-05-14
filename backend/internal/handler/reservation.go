@@ -10,6 +10,7 @@ import (
 	"github.com/cergijame101007/satehits/internal/application/usecase"
 	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
+	"github.com/cergijame101007/satehits/internal/privacy"
 )
 
 // 予約作成 POST のボディ上限（64KB）
@@ -121,9 +122,9 @@ func (h *ReservationHandler) handleCreate(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// TODO: Phone/Emailは個人情報なのでマスキングが必要
-	log.Printf("Saved Reservation id=%d name=%s people=%d visitDate=%s visitTime=%s status=%s source=%s",
-		created.ID, created.Name, created.People, created.VisitDate, created.VisitTime, created.Status, created.Source)
+	log.Printf("Saved Reservation id=%d name=%s phone=%s email=%s people=%d visitDate=%s visitTime=%s status=%s source=%s",
+		created.ID, privacy.MaskName(created.Name), privacy.MaskPhone(created.Phone), privacy.MaskEmail(created.Email),
+		created.People, created.VisitDate, created.VisitTime, created.Status, created.Source)
 
 	respondWithJSON(w, http.StatusCreated, created)
 }
