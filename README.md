@@ -54,15 +54,15 @@
 git clone https://github.com/cergijame101007/satehits.git
 cd satehits
 
-# 環境変数の設定
-cp .env.example .env
-# .env を編集
+# バックエンド用
+cp backend/.env.example backend/.env
+# backend/.env を編集
 
-# 開発サーバーの起動
+# 開発サーバーの起動（初回のみ `make dev-build` が必要な場合あり）
 make dev
 ```
 
-詳細は [セットアップガイド](./docs/setup.md) を参照してください。
+フロント単体やリポジトリ全体の変数一覧は、リポジトリ直下の [`.env.example`](./.env.example) も参照してください。手順の詳細は [セットアップガイド](./docs/setup.md) にあります。
 
 ## 関連リンク
 

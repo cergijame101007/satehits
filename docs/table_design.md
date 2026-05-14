@@ -53,6 +53,11 @@ erDiagram
         timestamp updated_at "更新日時"
     }
 
+    schema_migrations {
+        bigint version PK "マイグレーション番号"
+        timestamp applied_at "適用日時"
+    }
+
     daily_schedules ||--o{ reservations : "date"
 ```
 
@@ -125,9 +130,9 @@ erDiagram
 | special_menu | 特別メニュー（リゾットランチ等） | 可（注意書き表示） | 通常と同じ |
 | closed | 臨時休業 | 不可 | - |
 
-**備考:**
-- 定休日（木金）はレコードを作成しない（システムで判定）
-- レコードが存在しない営業日はデフォルト設定を適用
+**備考（営業可否・提供数の「正」）:**
+- **該当日付に行が存在する場合** — その行の `schedule_type`・`capacity`・時刻などが**唯一の正**（顧客向け空き・カレンダー・予約可否はこれに従う）。
+- **行が存在しない場合** — アプリケーションがドメイン既定（店の定例カレンダーに基づく曜日別の既定 `schedule_type` / `capacity` など）で**その日の営業設定（有効なスケジュール）**を合成する。臨時変更や例外は、オーナーが `PUT /admin/schedules/{date}` 等で行を作成し、`daily_schedules` に永続化する。
 
 ### 2.3 admin_users（管理者ユーザー）
 
@@ -166,9 +171,27 @@ erDiagram
 - `idx_suppliers_display_order`: display_order（表示順ソート用）
 - `idx_suppliers_is_active`: is_active（表示フィルタ用）
 
+### 2.5 schema_migrations（スキーママイグレーション履歴）
+
+`backend/cmd/migrate` が `migrations/*.sql` を適用した際に、適用済みのバージョン番号を記録するテーブル。`ensureSchemaMigrationsTable` で `CREATE TABLE IF NOT EXISTS` により初回接続時に自動作成される。業務テーブルとは外部キーで結ばない。
+
+| カラム名 | データ型 | NULL | デフォルト | 説明 |
+|----------|----------|------|------------|------|
+| version | BIGINT | NO | - | マイグレーションファイル名の先頭番号（例: `000001_...sql` → `1`）。主キー |
+| applied_at | TIMESTAMPTZ | NO | NOW() | 当該バージョンを適用した日時（行 INSERT 時） |
+
+**備考:**
+- 1ファイルの SQL をトランザクションで実行し、成功後に `INSERT INTO schema_migrations (version) VALUES (...)` で記録する（実装は `applyMigration`）。
+
 ## 3. DDL
 
 ```sql
+-- マイグレーション履歴
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version     BIGINT PRIMARY KEY,
+    applied_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- 予約テーブル
 CREATE TABLE IF NOT EXISTS reservations (
     id          SERIAL PRIMARY KEY,

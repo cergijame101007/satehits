@@ -1,10 +1,10 @@
 # 開発用Dockerfile（ホットリロード対応）
-FROM golang:1.24-alpine
+FROM golang:1.24
 
 WORKDIR /app
 
 # airをインストール（ホットリロード用）
-RUN go install github.com/air-verse/air@latest
+RUN go install github.com/air-verse/air@v1.61.7
 
 # go.mod/go.sumをコピー
 COPY go.mod go.sum ./
