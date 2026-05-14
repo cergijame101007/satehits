@@ -8,23 +8,23 @@ import (
 	"time"
 )
 
-// TimeFormat は時刻の入出力形式（分まで）。
+// TimeFormat は時刻の入出力レイアウト（分まで）
 const TimeFormat = "15:04"
 
-// timeRef は時刻のみを保持するための固定日付（ドメイン意味は持たない）。
+// timeRef は時刻のみ保持するための参照日付（ドメイン意味なし）
 var timeRef = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 
-// Time はその日の時刻のみを表す（日付・タイムゾーンの意味は持たない）。
+// Time はその日の時刻のみ（日付・タイムゾーンなし）
 type Time struct {
 	time.Time
 }
 
-// NewTime は時・分から Time を返す（秒は 0）。
+// NewTime は時・分からの構築（秒は常に 0）
 func NewTime(hour, minute int) Time {
 	return Time{Time: time.Date(timeRef.Year(), timeRef.Month(), timeRef.Day(), hour, minute, 0, 0, time.UTC)}
 }
 
-// ParseTime は "HH:MM" 形式の文字列を Time にパースする。
+// ParseTime は "HH:MM" のパース（秒付き文字列はエラー）
 func ParseTime(s string) (Time, error) {
 	parsed, err := time.ParseInLocation(TimeFormat, s, time.UTC)
 	if err != nil {
@@ -33,7 +33,7 @@ func ParseTime(s string) (Time, error) {
 	return Time{Time: time.Date(timeRef.Year(), timeRef.Month(), timeRef.Day(), parsed.Hour(), parsed.Minute(), 0, 0, time.UTC)}, nil
 }
 
-// MustParseTime は ParseTime の panic 版（テスト専用）。
+// MustParseTime は ParseTime の panic 版（テスト専用）
 func MustParseTime(s string) Time {
 	tm, err := ParseTime(s)
 	if err != nil {
@@ -42,7 +42,7 @@ func MustParseTime(s string) Time {
 	return tm
 }
 
-// String は "HH:MM" を返す（ゼロ値は空文字）。
+// String は "HH:MM" 表現（ゼロ値は空文字）
 func (tm Time) String() string {
 	if tm.IsZero() {
 		return ""
@@ -51,7 +51,7 @@ func (tm Time) String() string {
 	return time.Date(timeRef.Year(), timeRef.Month(), timeRef.Day(), u.Hour(), u.Minute(), 0, 0, time.UTC).Format(TimeFormat)
 }
 
-// MarshalJSON は "HH:MM" 形式の JSON 文字列にする。
+// MarshalJSON は JSON への "HH:MM" 文字列化
 func (tm Time) MarshalJSON() ([]byte, error) {
 	if tm.IsZero() {
 		return []byte("null"), nil
@@ -59,7 +59,7 @@ func (tm Time) MarshalJSON() ([]byte, error) {
 	return json.Marshal(tm.String())
 }
 
-// UnmarshalJSON は "HH:MM" または null を受け取る。
+// UnmarshalJSON は JSON からの "HH:MM" または null
 func (tm *Time) UnmarshalJSON(b []byte) error {
 	s := strings.TrimSpace(string(b))
 	if s == "" || s == "null" {
@@ -79,7 +79,9 @@ func (tm *Time) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// Scan は database/sql からの値を Time に読み込む。
+// Scan は database/sql からの読み込み
+// HH:MM:SS 文字列および秒付き time.Time の可能性
+// ドメインは分粒度のため秒は切り捨て
 func (tm *Time) Scan(value any) error {
 	if value == nil {
 		tm.Time = time.Time{}
@@ -91,7 +93,7 @@ func (tm *Time) Scan(value any) error {
 			tm.Time = time.Time{}
 			return nil
 		}
-		tm.Time = time.Date(timeRef.Year(), timeRef.Month(), timeRef.Day(), v.Hour(), v.Minute(), v.Second(), 0, time.UTC)
+		tm.Time = time.Date(timeRef.Year(), timeRef.Month(), timeRef.Day(), v.Hour(), v.Minute(), 0, 0, time.UTC)
 		return nil
 	case []byte:
 		return tm.Scan(string(v))
@@ -100,7 +102,7 @@ func (tm *Time) Scan(value any) error {
 			tm.Time = time.Time{}
 			return nil
 		}
-		// "HH:MM:SS" や "HH:MM" のどちらでも受け取れるようにする
+		// "15:04:05" と TimeFormat の順でレイアウト試行
 		layouts := []string{"15:04:05", TimeFormat}
 		var lastErr error
 		for _, layout := range layouts {
@@ -109,7 +111,7 @@ func (tm *Time) Scan(value any) error {
 				lastErr = err
 				continue
 			}
-			tm.Time = time.Date(timeRef.Year(), timeRef.Month(), timeRef.Day(), parsed.Hour(), parsed.Minute(), parsed.Second(), 0, time.UTC)
+			tm.Time = time.Date(timeRef.Year(), timeRef.Month(), timeRef.Day(), parsed.Hour(), parsed.Minute(), 0, 0, time.UTC)
 			return nil
 		}
 		return fmt.Errorf("parse time from string %q: %w", v, lastErr)
@@ -118,11 +120,11 @@ func (tm *Time) Scan(value any) error {
 	}
 }
 
-// Value は DB ドライバ向けの値を返す（TIME 相当の文字列）。
+// Value は DB ドライバ向け値（TIME 相当の "HH:MM:SS" 文字列）
 func (tm Time) Value() (driver.Value, error) {
 	if tm.IsZero() {
 		return nil, nil
 	}
 	u := tm.UTC()
-	return time.Date(timeRef.Year(), timeRef.Month(), timeRef.Day(), u.Hour(), u.Minute(), u.Second(), 0, time.UTC).Format("15:04:05"), nil
+	return time.Date(timeRef.Year(), timeRef.Month(), timeRef.Day(), u.Hour(), u.Minute(), 0, 0, time.UTC).Format("15:04:05"), nil
 }

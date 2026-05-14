@@ -156,7 +156,7 @@ func TestTime_Value(t *testing.T) {
 		want any
 	}{
 		{name: "valid time", tm: MustParseTime("12:30"), want: "12:30:00"},
-		{name: "time with seconds from Scan", tm: mustScanTime(t, "09:15:30"), want: "09:15:30"},
+		{name: "time with seconds from Scan truncated", tm: mustScanTime(t, "09:15:30"), want: "09:15:00"},
 		{name: "zero time", tm: Time{}, want: nil},
 	}
 	for _, tc := range tests {
