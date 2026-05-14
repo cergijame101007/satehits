@@ -1,4 +1,4 @@
-.PHONY: dev dev-build dev-down dev-front prod prod-build prod-down build run test test-coverage lint clean
+.PHONY: dev dev-build dev-down dev-front prod prod-build prod-down build run test test-coverage lint clean migrate
 
 # ===== 開発環境（Docker） =====
 dev: dev-build
@@ -27,6 +27,11 @@ prod-down:
 # ===== バックエンドビルド =====
 build:
 	cd backend && go build -o bin/api ./cmd/api
+
+# ===== マイグレーション =====
+# DATABASE_URL などは backend/.env（コンテナでは /app/.env）を godotenv が読む。
+migrate:
+	docker compose run --rm backend go run ./cmd/migrate
 
 # ===== ローカル実行（Dockerなし） =====
 run:
