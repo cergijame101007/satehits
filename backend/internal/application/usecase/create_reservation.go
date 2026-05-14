@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"time"
 
 	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
@@ -46,25 +47,7 @@ func NewCreateReservationUseCase(repo domain.ReservationRepository) *CreateReser
 
 // Execute は入力検証および Repository への永続化
 func (u *CreateReservationUseCase) Execute(ctx context.Context, cmd CreateReservationCommand) (*domain.Reservation, error) {
-	var violations []FieldViolation
-	if cmd.Name == "" {
-		violations = append(violations, FieldViolation{Field: "name", Message: "名前は必須です"})
-	}
-	if cmd.People < 1 || cmd.People > 7 {
-		violations = append(violations, FieldViolation{Field: "people", Message: "人数は1〜7名で指定してください"})
-	}
-	if cmd.VisitDate.IsZero() {
-		violations = append(violations, FieldViolation{Field: "visit_date", Message: "来店日は必須です"})
-	}
-	if cmd.VisitTime.IsZero() {
-		violations = append(violations, FieldViolation{Field: "visit_time", Message: "来店時間は必須です"})
-	}
-	if cmd.Phone == "" {
-		violations = append(violations, FieldViolation{Field: "phone", Message: "電話番号は必須です"})
-	}
-	if cmd.Email == "" {
-		violations = append(violations, FieldViolation{Field: "email", Message: "メールアドレスは必須です"})
-	}
+	violations := validateCreateReservation(cmd, time.Now())
 	if len(violations) > 0 {
 		return nil, &ValidationError{Violations: violations}
 	}
