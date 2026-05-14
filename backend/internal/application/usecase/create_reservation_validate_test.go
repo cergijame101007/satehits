@@ -53,6 +53,22 @@ func TestValidPhone(t *testing.T) {
 	}
 }
 
+func TestValidateCreateReservation_nameWhitespaceOnly(t *testing.T) {
+	now := time.Date(2026, 5, 13, 12, 0, 0, 0, storeLocation)
+	cmd := CreateReservationCommand{
+		Name:      " \t　 ",
+		People:    2,
+		VisitDate: datetime.MustParseDate("2026-05-16"),
+		VisitTime: datetime.MustParseTime("12:00"),
+		Phone:     "090-1234-5678",
+		Email:     "a@example.com",
+	}
+	v := validateCreateReservation(cmd, now)
+	if len(v) != 1 || v[0].Field != "name" {
+		t.Fatalf("expected single name violation, got %#v", v)
+	}
+}
+
 func TestValidateCreateReservation_visitDateRange(t *testing.T) {
 	// 2026-05-15 は金曜（JST）→ 来店日としては定休扱いだが、範囲外チェックは min=5/16 max=5/29
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, storeLocation)

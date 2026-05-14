@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/cergijame101007/satehits/internal/datetime"
@@ -57,13 +58,14 @@ func (u *CreateReservationUseCase) Execute(ctx context.Context, cmd CreateReserv
 
 	// ドメイン入力への変換
 	// Status/Source はサーバー側管理（クライアント非公開）
+	// 名前・電話・メールはバリデーションで TrimSpace 相当の基準で見ているため、保存値も同じ正規化を適用する
 	in := domain.CreateReservationInput{
-		Name:      cmd.Name,
+		Name:      strings.TrimSpace(cmd.Name),
 		People:    cmd.People,
 		VisitDate: cmd.VisitDate,
 		VisitTime: cmd.VisitTime,
-		Phone:     cmd.Phone,
-		Email:     cmd.Email,
+		Phone:     strings.TrimSpace(cmd.Phone),
+		Email:     strings.TrimSpace(cmd.Email),
 		Note:      cmd.Note,
 		Status:    "pending",
 		Source:    "web",

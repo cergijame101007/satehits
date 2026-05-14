@@ -53,7 +53,8 @@ var phonePattern = regexp.MustCompile(`^[0-9+()\- 　]+$`)
 func validateCreateReservation(cmd CreateReservationCommand, now time.Time) []FieldViolation {
 	var violations []FieldViolation
 
-	nameRunes := utf8.RuneCountInString(cmd.Name)
+	name := strings.TrimSpace(cmd.Name)
+	nameRunes := utf8.RuneCountInString(name)
 	if nameRunes == 0 {
 		violations = append(violations, FieldViolation{Field: "name", Message: "名前は必須です"})
 	} else if nameRunes > maxNameRunes {
@@ -78,15 +79,17 @@ func validateCreateReservation(cmd CreateReservationCommand, now time.Time) []Fi
 		violations = append(violations, validateVisitTime(cmd.VisitDate, cmd.VisitTime)...)
 	}
 
-	if cmd.Phone == "" {
+	phone := strings.TrimSpace(cmd.Phone)
+	if phone == "" {
 		violations = append(violations, FieldViolation{Field: "phone", Message: "電話番号は必須です"})
-	} else if !validPhone(cmd.Phone) {
+	} else if !validPhone(phone) {
 		violations = append(violations, FieldViolation{Field: "phone", Message: "電話番号の形式が正しくありません"})
 	}
 
-	if cmd.Email == "" {
+	email := strings.TrimSpace(cmd.Email)
+	if email == "" {
 		violations = append(violations, FieldViolation{Field: "email", Message: "メールアドレスは必須です"})
-	} else if !validEmail(cmd.Email) {
+	} else if !validEmail(email) {
 		violations = append(violations, FieldViolation{Field: "email", Message: "メールアドレスの形式が正しくありません"})
 	}
 
