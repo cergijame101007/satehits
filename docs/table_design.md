@@ -53,6 +53,11 @@ erDiagram
         timestamp updated_at "更新日時"
     }
 
+    schema_migrations {
+        bigint version PK "マイグレーション番号"
+        timestamp applied_at "適用日時"
+    }
+
     daily_schedules ||--o{ reservations : "date"
 ```
 
@@ -166,9 +171,27 @@ erDiagram
 - `idx_suppliers_display_order`: display_order（表示順ソート用）
 - `idx_suppliers_is_active`: is_active（表示フィルタ用）
 
+### 2.5 schema_migrations（スキーママイグレーション履歴）
+
+`backend/cmd/migrate` が `migrations/*.sql` を適用した際に、適用済みのバージョン番号を記録するテーブル。`ensureSchemaMigrationsTable` で `CREATE TABLE IF NOT EXISTS` により初回接続時に自動作成される。業務テーブルとは外部キーで結ばない。
+
+| カラム名 | データ型 | NULL | デフォルト | 説明 |
+|----------|----------|------|------------|------|
+| version | BIGINT | NO | - | マイグレーションファイル名の先頭番号（例: `000001_...sql` → `1`）。主キー |
+| applied_at | TIMESTAMPTZ | NO | NOW() | 当該バージョンを適用した日時（行 INSERT 時） |
+
+**備考:**
+- 1ファイルの SQL をトランザクションで実行し、成功後に `INSERT INTO schema_migrations (version) VALUES (...)` で記録する（実装は `applyMigration`）。
+
 ## 3. DDL
 
 ```sql
+-- マイグレーション履歴
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version     BIGINT PRIMARY KEY,
+    applied_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- 予約テーブル
 CREATE TABLE IF NOT EXISTS reservations (
     id          SERIAL PRIMARY KEY,
