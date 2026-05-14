@@ -1,4 +1,6 @@
 ---
+import MockBanner from './MockBanner.astro';
+
 interface Props {
   isTransparent?: boolean;
 }
@@ -23,10 +25,11 @@ const externalLinks = [
   id="header"
   data-transparent={isTransparent}
   class:list={[
-    'fixed top-0 left-0 right-0 z-50 border transition-[background-color,box-shadow,color,opacity] duration-300',
-    isTransparent ? 'bg-transparent border-transparent' : 'glass shadow-sm border-white/75',
+    'fixed top-0 left-0 right-0 z-50 transition-[background-color,box-shadow,color,opacity] duration-300',
+    isTransparent ? 'bg-transparent' : 'glass shadow-sm',
   ]}
 >
+  <MockBanner variant="inline" />
   <nav class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="relative z-50 flex items-center justify-between h-16 md:h-20">
       <!-- Logo -->
@@ -91,7 +94,6 @@ const externalLinks = [
       </button>
     </div>
   </nav>
-
 </header>
 
 <!-- Mobile Menu (Full Screen Overlay) - Outside header for proper z-index -->
@@ -173,8 +175,8 @@ const externalLinks = [
     const currentScroll = window.scrollY;
     
     if (currentScroll > 100) {
-      header?.classList.remove('bg-transparent', 'border-transparent');
-      header?.classList.add('glass', 'shadow-sm', 'border-white/75');
+      header?.classList.remove('bg-transparent');
+      header?.classList.add('glass', 'shadow-sm');
       document.querySelectorAll('.header-logo, .header-nav-link').forEach((el) => {
         el.classList.remove('text-white', 'text-white/90', 'text-primary/80', 'hover:text-white', 'hover:text-primary');
         el.classList.add('text-primary');
@@ -183,8 +185,8 @@ const externalLinks = [
       mobileMenuBtn?.classList.add('text-primary');
     } else {
       if (isTransparentPage) {
-        header?.classList.add('bg-transparent', 'border-transparent');
-        header?.classList.remove('glass', 'shadow-sm', 'border-white/75');
+        header?.classList.add('bg-transparent');
+        header?.classList.remove('glass', 'shadow-sm');
         document.querySelectorAll('.header-logo').forEach((el) => {
           el.classList.add('text-white');
           el.classList.remove('text-primary');
