@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"time"
 
+	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
 )
 
@@ -13,8 +13,8 @@ import (
 type ReservationRequest struct {
 	Name      string    `json:"name"`
 	People    int       `json:"people"`
-	VisitDate time.Time `json:"visit_date"`
-	VisitTime time.Time `json:"visit_time"`
+	VisitDate datetime.Date      `json:"visit_date"`
+	VisitTime datetime.Time `json:"visit_time"`
 	Phone     string    `json:"phone"`
 	Email     string    `json:"email"`
 	Note      string    `json:"note"`

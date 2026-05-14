@@ -3,6 +3,8 @@ package domain
 import (
 	"context"
 	"time"
+
+	"github.com/cergijame101007/satehits/internal/datetime"
 )
 
 // Reservation はドメインエンティティ
@@ -10,8 +12,8 @@ type Reservation struct {
 	ID        int       `json:"id"`
 	Name      string    `json:"name"`
 	People    int       `json:"people"`
-	VisitDate time.Time `json:"visit_date"`
-	VisitTime time.Time `json:"visit_time"`
+	VisitDate datetime.Date      `json:"visit_date"`
+	VisitTime datetime.Time `json:"visit_time"`
 	Phone     string    `json:"phone"`
 	Email     string    `json:"email"`
 	Note      string    `json:"note"`
@@ -24,8 +26,8 @@ type Reservation struct {
 type CreateReservationInput struct {
 	Name      string
 	People    int
-	VisitDate time.Time
-	VisitTime time.Time
+	VisitDate datetime.Date
+	VisitTime datetime.Time
 	Phone     string
 	Email     string
 	Note      string
