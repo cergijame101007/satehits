@@ -55,7 +55,7 @@ func (h *ReservationHandler) handleList(w http.ResponseWriter, r *http.Request) 
 	reservations, err := h.repo.GetAll(r.Context())
 	if err != nil {
 		log.Printf("Failed to get reservations: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
 		return
 	}
 
@@ -70,16 +70,33 @@ func (h *ReservationHandler) handleList(w http.ResponseWriter, r *http.Request) 
 func (h *ReservationHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	var request ReservationRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		// TODO: エラーレスポンス用のヘルパーを作成
-		// DOCS: docs/api_design.md のエラーレスポンスを参考に作成
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		respondWithError(w, http.StatusBadRequest, InvalidRequestCode, "リクエスト形式が不正です", nil)
 		return
 	}
 
 	// TODO: バリデーションルールを定義
 	// 今は最低限のバリデーションのみ
-	if request.Name == "" || request.People <= 0 || request.VisitDate.IsZero() || request.VisitTime.IsZero() || request.Phone == "" || request.Email == "" {
-		http.Error(w, "Name, people count, visit date, visit time, phone, and email are required", http.StatusBadRequest)
+	var details []errorDetail
+	if request.Name == "" {
+		details = append(details, errorDetail{Field: "name", Message: "名前は必須です"})
+	}
+	if request.People <= 0 {
+		details = append(details, errorDetail{Field: "people", Message: "人数は1名以上で指定してください"})
+	}
+	if request.VisitDate.IsZero() {
+		details = append(details, errorDetail{Field: "visit_date", Message: "来店日は必須です"})
+	}
+	if request.VisitTime.IsZero() {
+		details = append(details, errorDetail{Field: "visit_time", Message: "来店時間は必須です"})
+	}
+	if request.Phone == "" {
+		details = append(details, errorDetail{Field: "phone", Message: "電話番号は必須です"})
+	}
+	if request.Email == "" {
+		details = append(details, errorDetail{Field: "email", Message: "メールアドレスは必須です"})
+	}
+	if len(details) > 0 {
+		respondWithError(w, http.StatusBadRequest, ValidationErrorCode, "入力内容に誤りがあります", details)
 		return
 	}
 
@@ -96,7 +113,7 @@ func (h *ReservationHandler) handleCreate(w http.ResponseWriter, r *http.Request
 	}
 	if err := h.repo.Create(r.Context(), in); err != nil {
 		log.Printf("Failed to create reservation: %v", err)
-		http.Error(w, "Failed to create reservation", http.StatusInternalServerError)
+		respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
 		return
 	}
 

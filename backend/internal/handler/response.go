@@ -2,7 +2,20 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
+)
+
+// エラーコード
+const (
+	InvalidRequestCode   = "INVALID_REQUEST"
+	ValidationErrorCode  = "VALIDATION_ERROR"
+	UnauthorizedCode     = "UNAUTHORIZED"
+	InvalidTokenCode     = "INVALID_TOKEN"
+	ForbiddenCode        = "FORBIDDEN"
+	NotFoundCode         = "NOT_FOUND"
+	CapacityExceededCode = "CAPACITY_EXCEEDED"
+	InternalErrorCode    = "INTERNAL_ERROR"
 )
 
 // JSONResponse はAPIレスポンスの共通構造体
@@ -11,18 +24,51 @@ type JSONResponse struct {
 	Status  string `json:"status"`
 }
 
+// ErrorResponse はエラーレスポンスの共通構造体
+type ErrorResponse struct {
+	Error errorResponseBody `json:"error"`
+}
+
+// errorResponseBody はエラーレスポンスのボディ
+type errorResponseBody struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Details []errorDetail `json:"details,omitempty"`
+}
+
+// errorDetail はエラーレスポンスの詳細
+type errorDetail struct {
+	Field   string `json:"field"`
+	Message string `json:"message"`
+}
+
 // respondWithJSON はJSONレスポンスを返すヘルパー関数
-func respondWithJSON(w http.ResponseWriter, status int, payload interface{}) {
+func respondWithJSON[T any](w http.ResponseWriter, status int, payload T) {
 	res, err := json.Marshal(payload)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("Failed to marshal JSON: %v", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":{"code":"INTERNAL_ERROR","message":"レスポンスの生成に失敗しました"}}`))
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if _, err := w.Write(res); err != nil {
-		// Log the error but don't try to send another response as headers are already written
+		// ヘッダ送信後のため追加のレスポンスは不可
+		log.Printf("Failed to write response: %v", err)
 		return
 	}
+}
+
+func respondWithError(w http.ResponseWriter, status int, code string, message string, details []errorDetail) {
+	payload := ErrorResponse{
+		Error: errorResponseBody{
+			Code:    code,
+			Message: message,
+			Details: details,
+		},
+	}
+	respondWithJSON(w, status, payload)
 }
