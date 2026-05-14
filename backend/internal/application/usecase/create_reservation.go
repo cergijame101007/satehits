@@ -45,7 +45,7 @@ func NewCreateReservationUseCase(repo domain.ReservationRepository) *CreateReser
 }
 
 // Execute は入力検証および Repository への永続化
-func (u *CreateReservationUseCase) Execute(ctx context.Context, cmd CreateReservationCommand) error {
+func (u *CreateReservationUseCase) Execute(ctx context.Context, cmd CreateReservationCommand) (*domain.Reservation, error) {
 	var violations []FieldViolation
 	if cmd.Name == "" {
 		violations = append(violations, FieldViolation{Field: "name", Message: "名前は必須です"})
@@ -66,8 +66,11 @@ func (u *CreateReservationUseCase) Execute(ctx context.Context, cmd CreateReserv
 		violations = append(violations, FieldViolation{Field: "email", Message: "メールアドレスは必須です"})
 	}
 	if len(violations) > 0 {
-		return &ValidationError{Violations: violations}
+		return nil, &ValidationError{Violations: violations}
 	}
+
+	// TODO: daily_schedules と AvailabilityService 実装後にここで残席・営業可否を検証する
+	// 設計どおり提供数超過は 409 CAPACITY_EXCEEDED、不可日時はバリデーションで弾く（現状は未チェック）
 
 	// ドメイン入力への変換
 	// Status/Source はサーバー側管理（クライアント非公開）
@@ -82,5 +85,9 @@ func (u *CreateReservationUseCase) Execute(ctx context.Context, cmd CreateReserv
 		Status:    "pending",
 		Source:    "web",
 	}
-	return u.repo.Create(ctx, in)
+	res, err := u.repo.Create(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return &res, nil
 }

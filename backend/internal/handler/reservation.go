@@ -85,7 +85,7 @@ func (h *ReservationHandler) handleCreate(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	err := h.createReservation.Execute(r.Context(), usecase.CreateReservationCommand{
+	created, err := h.createReservation.Execute(r.Context(), usecase.CreateReservationCommand{
 		Name:      request.Name,
 		People:    request.People,
 		VisitDate: request.VisitDate,
@@ -110,11 +110,8 @@ func (h *ReservationHandler) handleCreate(w http.ResponseWriter, r *http.Request
 	}
 
 	// TODO: Phone/Emailは個人情報なのでマスキングが必要
-	log.Printf("Saved Reservation: Name=%s, People=%d, VisitDate=%s, VisitTime=%s, Phone=%s, Email=%s, Note=%s, Status=%s, Source=%s",
-		request.Name, request.People, request.VisitDate, request.VisitTime, request.Phone, request.Email, request.Note, "pending", "web")
+	log.Printf("Saved Reservation id=%d name=%s people=%d visitDate=%s visitTime=%s status=%s source=%s",
+		created.ID, created.Name, created.People, created.VisitDate, created.VisitTime, created.Status, created.Source)
 
-	respondWithJSON(w, http.StatusCreated, JSONResponse{
-		Message: "Reservation created",
-		Status:  "success",
-	})
+	respondWithJSON(w, http.StatusCreated, created)
 }
