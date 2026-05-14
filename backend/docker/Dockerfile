@@ -4,7 +4,8 @@ FROM golang:1.24 AS builder
 WORKDIR /app
 
 # 依存関係のインストール
-RUN apk --no-cache add ca-certificates tzdata
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata \
+    && rm -rf /var/lib/apt/lists/*
 
 # go.mod/go.sumを先にコピー（キャッシュ効率化）
 COPY go.mod go.sum ./
