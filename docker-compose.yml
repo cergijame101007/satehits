@@ -8,6 +8,8 @@ services:
     volumes:
       - ./backend:/app
       - go-mod-cache:/go/pkg/mod
+    env_file:
+      - ./backend/.env
     environment:
       - ENVIRONMENT=development
 

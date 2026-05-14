@@ -5,6 +5,8 @@ services:
       dockerfile: docker/Dockerfile
     ports:
       - "8080:8080"
+    env_file:
+      - ./backend/.env
     environment:
       - ENVIRONMENT=production
     restart: unless-stopped

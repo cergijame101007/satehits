@@ -44,7 +44,12 @@ func main() {
 		log.Fatalf("schema_migrations table: %v", err)
 	}
 
-	dir := filepath.Clean("migrations")
+	dir := os.Getenv("MIGRATIONS_DIR")
+	if dir == "" {
+		// デフォルトは backend 直下の migrations ディレクトリ
+		dir = "migrations"
+	}
+	dir = filepath.Clean(dir)
 	migrationFiles, err := loadMigrationFiles(dir)
 	if err != nil {
 		log.Fatal(err)
