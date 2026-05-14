@@ -4,12 +4,16 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"mime"
 	"net/http"
 
 	"github.com/cergijame101007/satehits/internal/application/usecase"
 	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
 )
+
+// 予約作成 POST のボディ上限（64KB）
+const maxCreateReservationBodyBytes = 64 << 10
 
 // ReservationRequest は予約作成リクエストのDTO
 type ReservationRequest struct {
@@ -79,6 +83,14 @@ func (h *ReservationHandler) handleList(w http.ResponseWriter, r *http.Request) 
 
 // handleCreate は予約を作成する
 func (h *ReservationHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" {
+		respondWithError(w, http.StatusBadRequest, InvalidRequestCode, "リクエスト形式が不正です", nil)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxCreateReservationBodyBytes)
+
 	var request ReservationRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		respondWithError(w, http.StatusBadRequest, InvalidRequestCode, "リクエスト形式が不正です", nil)
