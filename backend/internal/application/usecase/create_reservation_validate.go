@@ -46,9 +46,9 @@ const (
 )
 
 // 電話番号フィールドに許す文字: 数字・+ () - 半角スペース・およびフォームでよく使われる全角スペース（U+3000 IDEOGRAPHIC SPACE）
-var phonePattern = regexp.MustCompile(
-	fmt.Sprintf(`^[0-9+()\-\s　]{%d,%d}$`, phoneFieldMinRunes, phoneFieldMaxRunes),
-)
+// 長さは rune 数で validPhone が検証する。Go の regexp の {n,m} は UTF-8 上の解釈でも誤解を招きやすいため、
+// ここでは許容文字のみを判定し、\s（タブ・改行等）は含めない。
+var phonePattern = regexp.MustCompile(`^[0-9+()\- 　]+$`)
 
 func validateCreateReservation(cmd CreateReservationCommand, now time.Time) []FieldViolation {
 	var violations []FieldViolation
@@ -174,6 +174,10 @@ func visitMinutes(t datetime.Time) int {
 }
 
 func validPhone(s string) bool {
+	n := utf8.RuneCountInString(s)
+	if n < phoneFieldMinRunes || n > phoneFieldMaxRunes {
+		return false
+	}
 	if !phonePattern.MatchString(s) {
 		return false
 	}

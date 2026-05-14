@@ -27,6 +27,32 @@ func TestValidEmail(t *testing.T) {
 	}
 }
 
+func TestValidPhone(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		in   string
+		want bool
+	}{
+		{"standard", "090-1234-5678", true},
+		{"fullwidth_space", "090　1234　5678", true},
+		{"intl_format", "+81 (90) 1234-5678", true},
+		{"tab", "090\t1234-5678", false},
+		{"newline", "090\n1234-5678", false},
+		{"too_few_runes", strings.Repeat("0", 9), false},
+		{"min_runes_digits", strings.Repeat("0", 10), true},
+		{"over_max_runes", strings.Repeat("0-", 10) + strings.Repeat("-", 11), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := validPhone(tt.in); got != tt.want {
+				t.Errorf("validPhone(%q) = %v, want %v", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestValidateCreateReservation_visitDateRange(t *testing.T) {
 	// 2026-05-15 は金曜（JST）→ 来店日としては定休扱いだが、範囲外チェックは min=5/16 max=5/29
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, storeLocation)
