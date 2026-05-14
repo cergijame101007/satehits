@@ -97,6 +97,7 @@ satehits/
 │   │   ├── api/main.go          # エントリーポイント・DI
 │   │   └── migrate/main.go      # DB マイグレーション実行
 │   ├── internal/
+│   │   ├── datetime/            # Date / Time（JSON・SQL 対応）
 │   │   ├── domain/
 │   │   │   └── reservation.go   # エンティティ + Repository インターフェース
 │   │   ├── handler/
