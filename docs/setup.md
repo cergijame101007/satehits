@@ -17,11 +17,13 @@ cd satehits
 
 ### 2. 環境変数の設定
 
+バックエンドは **`backend/.env`** を参照します（`docker compose` の `env_file` と、`go run` 実行時の `godotenv` 用）。
+
 ```bash
-cp .env.example .env
+cp backend/.env.example backend/.env
 ```
 
-`.env` を編集して実際の値を設定：
+`backend/.env` を編集して実際の値を設定：
 
 | 変数名 | 説明 |
 |--------|------|
@@ -29,11 +31,17 @@ cp .env.example .env
 | `JWT_SECRET` | JWT署名用のシークレットキー |
 | `RECAPTCHA_SECRET_KEY` | Google reCAPTCHA v3 のシークレットキー |
 | `ENVIRONMENT` | `development` または `production` |
+| `MIGRATIONS_DIR` | （任意）マイグレーション SQL のディレクトリで未設定時は `migrations`（実行時のカレントディレクトリ基準） |
+
+フロントエンド用の `NEXT_PUBLIC_*` などは、リポジトリ直下の [`.env.example`](../.env.example) に記載があります。`frontend/` で `bun run dev` する場合は、必要な変数を `frontend/.env` などに置いてください。
 
 ### 3. 開発サーバーの起動
 
 ```bash
-# Docker で起動（ホットリロード対応）
+# ビルド（イメージ未作成時）+ 起動
+make dev-build
+
+# 起動
 make dev
 
 # 停止
@@ -42,15 +50,29 @@ make dev-down
 
 サーバーが `http://localhost:8080` で起動します。
 
+### マイグレーション
+
+`backend/.env` に `DATABASE_URL` が入っている前提です。
+
+```bash
+make migrate
+```
+
+リポジトリルートから `go run ./backend/cmd/migrate` などカレントが `backend/` でない場合は、`MIGRATIONS_DIR` に `backend/migrations` のようにパスを指定してください。
+
 ## Makefile コマンド一覧
 
 | コマンド | 説明 |
 |----------|------|
-| `make dev` | Docker でビルド＆起動（ホットリロード対応） |
-| `make dev-up` | Docker で起動のみ（ビルド済みの場合） |
-| `make dev-build` | Docker イメージのビルドのみ |
+| `make dev` | Docker で起動（ホットリロード対応）。ビルドはしない |
+| `make dev-build` | 開発用 Docker イメージのビルド（初回・Dockerfile 変更時など） |
 | `make dev-down` | Docker コンテナの停止 |
-| `make run` | ローカルで直接起動（Docker なし） |
+| `make migrate` | マイグレーション実行（一時コンテナで `go run ./cmd/migrate`） |
+| `make prod` | 本番用イメージのビルド＆ `docker-compose.prod.yml` で起動 |
+| `make prod-build` | 本番用 Docker イメージのビルドのみ |
+| `make prod-down` | 本番 compose の停止 |
+| `make dev-front` | フロントエンド開発サーバー（`frontend/` で `bun run dev`） |
+| `make run` | バックエンドをローカルで直接起動（Docker なし、`cd backend` 相当） |
 | `make build` | バイナリをビルド |
 | `make test` | テスト実行 |
 | `make lint` | golangci-lint 実行 |
@@ -58,7 +80,7 @@ make dev-down
 
 ## ローカル開発（Docker なし）
 
-Docker を使わずに直接実行する場合：
+リポジトリルートから Makefile 経由で起動する場合（内部で `cd backend` します）：
 
 ```bash
 # 依存関係のダウンロード
@@ -66,10 +88,17 @@ go mod download
 
 # 直接実行
 make run
+```
 
-# または
+手動で `backend/` に入って動かす場合：
+
+```bash
+cd backend
+go mod download
 go run ./cmd/api
 ```
+
+いずれも **`backend/.env`** を置き、カレントが `backend/` であるか、環境変数で `DATABASE_URL` 等を渡してください。
 
 ## テスト
 
@@ -97,15 +126,16 @@ make lint
 
 ```bash
 # ログを確認
-docker compose -f docker/docker-compose.local.yml logs
+docker compose logs
 
-# コンテナを削除して再ビルド
+# コンテナを削除して再ビルドして起動
 make dev-down
+make dev-build
 make dev
 ```
 
 ### データベースに接続できない
 
-- `.env` の `DATABASE_URL` が正しいか確認
+- `backend/.env` の `DATABASE_URL` が正しいか確認（`docker compose` は `env_file: ./backend/.env` で読み込みます）
 - Supabase のプロジェクトが起動しているか確認
 - ネットワーク接続を確認

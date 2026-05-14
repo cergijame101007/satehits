@@ -250,7 +250,7 @@ Presentation  →  Application  →  Domain  ←  Infrastructure
 ### Makefile（ルート）
 
 ```bash
-make dev          # バックエンド開発サーバー起動（Docker + Air ホットリロード）
+make dev          # バックエンド開発サーバー起動（Docker + Air）
 make dev-build    # バックエンド Docker イメージビルド
 make dev-down     # バックエンド Docker 停止
 make dev-front    # フロントエンド開発サーバー起動（bun run dev）
