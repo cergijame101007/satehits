@@ -17,14 +17,31 @@ func NewPostgresReservationRepository(db *sql.DB) *PostgresReservationRepository
 	return &PostgresReservationRepository{db: db}
 }
 
-// Create は予約データを永続化する
-func (r *PostgresReservationRepository) Create(ctx context.Context, in domain.CreateReservationInput) error {
+// Create は予約データを永続化し挿入結果を返す
+func (r *PostgresReservationRepository) Create(ctx context.Context, in domain.CreateReservationInput) (domain.Reservation, error) {
 	query := `
 INSERT INTO reservations (
     name, people, visit_date, visit_time, phone, email, note, status, source
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
-	_, err := r.db.ExecContext(ctx, query, in.Name, in.People, in.VisitDate, in.VisitTime, in.Phone, in.Email, in.Note, in.Status, in.Source)
-	return err
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, name, people, visit_date, visit_time, phone, email, COALESCE(note, ''), status, source, created_at, updated_at`
+	var out domain.Reservation
+	err := r.db.QueryRowContext(ctx, query,
+		in.Name, in.People, in.VisitDate, in.VisitTime, in.Phone, in.Email, in.Note, in.Status, in.Source,
+	).Scan(
+		&out.ID,
+		&out.Name,
+		&out.People,
+		&out.VisitDate,
+		&out.VisitTime,
+		&out.Phone,
+		&out.Email,
+		&out.Note,
+		&out.Status,
+		&out.Source,
+		&out.CreatedAt,
+		&out.UpdatedAt,
+	)
+	return out, err
 }
 
 // GetAll は全ての予約データを取得する

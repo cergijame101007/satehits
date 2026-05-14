@@ -11,6 +11,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
 
+	"github.com/cergijame101007/satehits/internal/application/usecase"
 	"github.com/cergijame101007/satehits/internal/handler"
 	"github.com/cergijame101007/satehits/internal/repository"
 )
@@ -40,11 +41,12 @@ func main() {
 	}
 	log.Println("Connected to Database!")
 
-	// DI: Repository -> Handler
+	// DI: Repository -> UseCase -> Handler
 	repo := repository.NewPostgresReservationRepository(db)
+	createReservation := usecase.NewCreateReservationUseCase(repo)
 	const apiVersion = "v1"
 	reservationsPath := fmt.Sprintf("/api/%s/reservations", apiVersion)
-	reservationHandler := handler.NewReservationHandler(repo, reservationsPath)
+	reservationHandler := handler.NewReservationHandler(repo, createReservation, reservationsPath)
 
 	// ルーティング（公開 API は /api/v1/...）
 	http.HandleFunc("/", handleRoot)
