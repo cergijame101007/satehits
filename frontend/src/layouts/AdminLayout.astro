@@ -1,4 +1,6 @@
 ---
+import MockBanner from '../components/astro/MockBanner.astro';
+
 interface Props {
   title: string;
 }
@@ -16,6 +18,7 @@ const { title } = Astro.props;
     <title>{title} | 管理画面</title>
   </head>
   <body class="min-h-screen bg-bg-light">
+    <MockBanner variant="static" />
     <header class="bg-primary text-white shadow-sm">
       <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
         <a href="/admin" class="text-sm font-medium hover:opacity-80 transition-opacity">

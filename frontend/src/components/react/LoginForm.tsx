@@ -89,7 +89,7 @@ export default function LoginForm() {
         </form>
 
         <p className="text-xs text-gray-400 text-center mt-6">
-          モック: owner@example.com / password123
+          見本用のログイン例: owner@example.com / password123
         </p>
       </div>
     </div>

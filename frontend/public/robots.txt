@@ -1,0 +1,5 @@
+# 現状はモック実装かつ Cloudflare Access で保護中のため、
+# 検索エンジンには一切インデックスさせない
+# 本番公開時に Disallow を見直すこと。
+User-agent: *
+Disallow: /
