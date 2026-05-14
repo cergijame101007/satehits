@@ -11,13 +11,13 @@ import (
 
 // ReservationRequest は予約作成リクエストのDTO
 type ReservationRequest struct {
-	Name      string    `json:"name"`
-	People    int       `json:"people"`
-	VisitDate datetime.Date      `json:"visit_date"`
+	Name      string        `json:"name"`
+	People    int           `json:"people"`
+	VisitDate datetime.Date `json:"visit_date"`
 	VisitTime datetime.Time `json:"visit_time"`
-	Phone     string    `json:"phone"`
-	Email     string    `json:"email"`
-	Note      string    `json:"note"`
+	Phone     string        `json:"phone"`
+	Email     string        `json:"email"`
+	Note      string        `json:"note"`
 	// NOTE: Status/Sourceはサーバー側で管理するのでクライアントには返さない
 	// 管理者用 API では Status/Source を指定する
 }
