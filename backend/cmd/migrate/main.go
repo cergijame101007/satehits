@@ -120,6 +120,7 @@ func loadMigrationFiles(dir string) ([]MigrationFile, error) {
 func runMigrations(ctx context.Context, db *sql.DB, migrationFiles []MigrationFile, applied map[int64]bool) error {
 	for _, mf := range migrationFiles {
 		if applied[mf.version] {
+			log.Printf("Already applied, skipping: %s (version=%d)", filepath.Base(mf.path), mf.version)
 			continue
 		}
 		log.Printf("Applying %s ...", filepath.Base(mf.path))
