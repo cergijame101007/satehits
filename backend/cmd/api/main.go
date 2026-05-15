@@ -11,7 +11,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
 
-	"github.com/cergijame101007/satehits/internal/application/usecase"
+	"github.com/cergijame101007/satehits/internal/application/usecase/reservation"
 	"github.com/cergijame101007/satehits/internal/handler"
 	"github.com/cergijame101007/satehits/internal/repository"
 )
