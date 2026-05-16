@@ -33,15 +33,16 @@ type SetScheduleRequest struct {
 }
 
 // ScheduleResponse は日別スケジュールのレスポンス DTO（OpenAPI ScheduleResponse）
+// NOTE: 営業時刻に omitempty は付けない（datetime.Time は構造体のため omitempty が効かず、ゼロ値は MarshalJSON で null になる）
 type ScheduleResponse struct {
 	Date             datetime.Date `json:"date"`
 	ScheduleType     string        `json:"schedule_type"`
 	Capacity         int           `json:"capacity"`
 	EventName        string        `json:"event_name,omitempty"`
 	EventDescription string        `json:"event_description,omitempty"`
-	OpenTime         datetime.Time `json:"open_time,omitempty"`
-	LastOrderTime    datetime.Time `json:"last_order_time,omitempty"`
-	CloseTime        datetime.Time `json:"close_time,omitempty"`
+	OpenTime         datetime.Time `json:"open_time"`
+	LastOrderTime    datetime.Time `json:"last_order_time"`
+	CloseTime        datetime.Time `json:"close_time"`
 	IsDefault        bool          `json:"is_default"`
 	CreatedAt        *time.Time    `json:"created_at,omitempty"`
 	UpdatedAt        *time.Time    `json:"updated_at,omitempty"`

@@ -11,6 +11,8 @@ import (
 	"github.com/cergijame101007/satehits/internal/domain/service"
 )
 
+// NOTE: open_time 等は DB 未設定時 NULL。ドメインは datetime.Time のゼロ値、API レスポンスは JSON null（closed / event 未指定時など）
+//
 // PostgresScheduleRepository はPostgreSQLを使ったスケジュールリポジトリの実装
 type PostgresScheduleRepository struct {
 	db *sql.DB
