@@ -91,7 +91,7 @@ func TestParseYearMonthQuery(t *testing.T) {
 	})
 
 	// 特殊文字を含む値は rawQuery 直書きではなく url.Values + Encode すること
-	// （未エスケープの ' 等は httptest.NewRequest が URL として解釈できず panic する）
+	// （未エスケープの ' 等は httptest.NewRequest が URL パース不能で panic の原因）
 	t.Run("malicious or abusive query strings", func(t *testing.T) {
 		tests := []struct {
 			name       string
@@ -139,10 +139,10 @@ func TestParseYearMonthQuery(t *testing.T) {
 			},
 			{
 				// application/x-www-form-urlencoded では + がスペースにデコードされる
-				// year=+2026 → " 2026" となり Atoi 失敗（誤って year=2026 と期待するとテストが落ちる）
-				name:       "plus sign in form query becomes space and fails atoi",
+				// year=+2026 → TrimSpace 後 "2026" として受理（数値エラーにはならない）
+				name:       "plus sign in form query decodes as space then trim accepts year",
 				rawQuery:   "year=+2026&month=2",
-				wantFields: []string{"year"},
+				wantFields: nil,
 			},
 		}
 		for _, tt := range tests {
@@ -167,7 +167,7 @@ func TestParseYearMonthQuery(t *testing.T) {
 }
 
 // newQueryRequest はクエリを url.Values.Encode で組み立てる
-// 生文字列の "?year=' OR ..." は URL パースエラーや +→スペース変換で意図とずれるため使わない
+// 生文字列の "?year=' OR ..." は URL パース不能や +→スペース変換で意図とずれるため使わない
 func newQueryRequest(t *testing.T, query url.Values) *http.Request {
 	t.Helper()
 	target := "/"

@@ -200,8 +200,8 @@ func resolveSetScheduleCapacity(capacity *int) int {
 }
 
 func parseYearMonthQuery(r *http.Request) (year, month int, details []ErrorDetail) {
-	yearStr := r.URL.Query().Get("year")
-	monthStr := r.URL.Query().Get("month")
+	yearStr := strings.TrimSpace(r.URL.Query().Get("year"))
+	monthStr := strings.TrimSpace(r.URL.Query().Get("month"))
 
 	if yearStr == "" {
 		details = append(details, ErrorDetail{Field: "year", Message: "年は必須です"})
