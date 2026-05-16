@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/cergijame101007/satehits/internal/application/usecase/schedule"
+	usecase "github.com/cergijame101007/satehits/internal/application/usecase/schedule"
 )
 
 // writeScheduleUsecaseError — スケジュール系ユースケースエラーを HTTP レスポンスへ変換（処理済みなら true）

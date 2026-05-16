@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cergijame101007/satehits/internal/application/usecase/schedule"
+	usecase "github.com/cergijame101007/satehits/internal/application/usecase/schedule"
 	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
 )
