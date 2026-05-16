@@ -27,15 +27,15 @@ func TestParseTime(t *testing.T) {
 			tm, err := ParseTime(tc.input)
 			if tc.wantErr {
 				if err == nil {
-					t.Fatal("expected error")
+					t.Fatalf("ParseTime(%q) err = nil, want error", tc.input)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("ParseTime: %v", err)
+				t.Fatalf("ParseTime(%q) err = %v, want nil", tc.input, err)
 			}
 			if got := tm.String(); got != tc.want {
-				t.Fatalf("String() = %q, want %q", got, tc.want)
+				t.Fatalf("ParseTime(%q).String() = %q, want %q", tc.input, got, tc.want)
 			}
 		})
 	}

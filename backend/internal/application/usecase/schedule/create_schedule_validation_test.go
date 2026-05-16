@@ -7,11 +7,29 @@ import (
 	"github.com/cergijame101007/satehits/internal/datetime"
 )
 
+// validCreateScheduleCommand は OpenAPI SetScheduleRequest 相当の正常系ベース
 func validCreateScheduleCommand() CreateScheduleCommand {
 	return CreateScheduleCommand{
 		Date:         datetime.MustParseDate("2026-05-20"),
 		ScheduleType: "normal",
 		Capacity:     10,
+	}
+}
+
+func assertNoViolations(t *testing.T, violations []FieldViolation) {
+	t.Helper()
+	if len(violations) != 0 {
+		t.Fatalf("violations = %#v, want none", violations)
+	}
+}
+
+func assertSingleViolationField(t *testing.T, violations []FieldViolation, field string) {
+	t.Helper()
+	if len(violations) != 1 {
+		t.Fatalf("violations count = %d, want 1; violations = %#v", len(violations), violations)
+	}
+	if violations[0].Field != field {
+		t.Fatalf("violations[0].Field = %q, want %q; violations = %#v", violations[0].Field, field, violations)
 	}
 }
 
@@ -23,102 +41,103 @@ func violationFields(v []FieldViolation) []string {
 	return fields
 }
 
-func TestValidateCreateSchedule_valid(t *testing.T) {
-	cmd := validCreateScheduleCommand()
-	cmd.EventName = "和紅茶をしばく会"
-	cmd.EventDescription = "詳細はInstagramをご覧ください"
-	cmd.OpenTime = datetime.MustParseTime("11:30")
-	cmd.LastOrderTime = datetime.MustParseTime("14:00")
-	cmd.CloseTime = datetime.MustParseTime("15:00")
+func TestValidateCreateSchedule(t *testing.T) {
+	t.Run("accepts full event day with business hours", func(t *testing.T) {
+		cmd := validCreateScheduleCommand()
+		cmd.ScheduleType = "event"
+		cmd.EventName = "和紅茶をしばく会"
+		cmd.EventDescription = "詳細はInstagramをご覧ください"
+		cmd.OpenTime = datetime.MustParseTime("11:30")
+		cmd.LastOrderTime = datetime.MustParseTime("14:00")
+		cmd.CloseTime = datetime.MustParseTime("15:00")
+		assertNoViolations(t, validateCreateSchedule(cmd))
+	})
 
-	if v := validateCreateSchedule(cmd); len(v) != 0 {
-		t.Fatalf("expected no violations, got %#v", v)
-	}
-}
+	t.Run("accepts minimal normal schedule", func(t *testing.T) {
+		assertNoViolations(t, validateCreateSchedule(validCreateScheduleCommand()))
+	})
 
-func TestValidateCreateSchedule_dateRequired(t *testing.T) {
-	cmd := validCreateScheduleCommand()
-	cmd.Date = datetime.Date{}
-
-	v := validateCreateSchedule(cmd)
-	if len(v) != 1 || v[0].Field != "date" {
-		t.Fatalf("expected single date violation, got %#v", v)
-	}
+	t.Run("rejects zero date", func(t *testing.T) {
+		cmd := validCreateScheduleCommand()
+		cmd.Date = datetime.Date{}
+		assertSingleViolationField(t, validateCreateSchedule(cmd), "date")
+	})
 }
 
 func TestValidateCreateSchedule_scheduleType(t *testing.T) {
-	t.Parallel()
+	// docs/table_design.md の schedule_type CHECK 制約
 	tests := []struct {
-		name string
-		in   string
-		want string // "" ならバリデーションエラーなし
+		name      string
+		in        string
+		wantField string // 空ならエラーなし
 	}{
-		{"empty", "", "schedule_type"},
-		{"whitespace", " \t　 ", "schedule_type"},
-		{"invalid", "holiday", "schedule_type"},
-		{"normal", "normal", ""},
-		{"morning", "morning", ""},
-		{"event", "event", ""},
-		{"special_menu", "special_menu", ""},
-		{"closed", "closed", ""},
-		{"trimmed", " normal ", ""},
+		{name: "rejects empty schedule_type", in: "", wantField: "schedule_type"},
+		{name: "rejects whitespace-only schedule_type", in: " \t　 ", wantField: "schedule_type"},
+		{name: "rejects unknown schedule_type", in: "holiday", wantField: "schedule_type"},
+		{name: "accepts normal", in: "normal", wantField: ""},
+		{name: "accepts morning", in: "morning", wantField: ""},
+		{name: "accepts event", in: "event", wantField: ""},
+		{name: "accepts special_menu", in: "special_menu", wantField: ""},
+		{name: "accepts closed", in: "closed", wantField: ""},
+		{name: "accepts trimmed schedule_type", in: " normal ", wantField: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			cmd := validCreateScheduleCommand()
 			cmd.ScheduleType = tt.in
 			v := validateCreateSchedule(cmd)
-			if tt.want == "" {
-				if len(v) != 0 {
-					t.Fatalf("expected no violations, got %#v", v)
-				}
+			if tt.wantField == "" {
+				assertNoViolations(t, v)
 				return
 			}
-			if len(v) == 0 || v[0].Field != tt.want {
-				t.Fatalf("expected %q violation, got %#v", tt.want, v)
-			}
+			assertSingleViolationField(t, v, tt.wantField)
 		})
 	}
 }
 
 func TestValidateCreateSchedule_capacity(t *testing.T) {
-	cmd := validCreateScheduleCommand()
-	cmd.Capacity = -1
+	t.Run("rejects negative capacity", func(t *testing.T) {
+		cmd := validCreateScheduleCommand()
+		cmd.Capacity = -1
+		assertSingleViolationField(t, validateCreateSchedule(cmd), "capacity")
+	})
 
-	v := validateCreateSchedule(cmd)
-	if len(v) != 1 || v[0].Field != "capacity" {
-		t.Fatalf("expected single capacity violation, got %#v", v)
-	}
-
-	cmd.Capacity = 0
-	if v := validateCreateSchedule(cmd); len(v) != 0 {
-		t.Fatalf("expected capacity 0 allowed, got %#v", v)
-	}
+	t.Run("accepts zero capacity for closed day", func(t *testing.T) {
+		cmd := validCreateScheduleCommand()
+		cmd.ScheduleType = "closed"
+		cmd.Capacity = 0
+		assertNoViolations(t, validateCreateSchedule(cmd))
+	})
 }
 
-func TestValidateCreateSchedule_eventNameMaxLength(t *testing.T) {
-	cmd := validCreateScheduleCommand()
-	cmd.EventName = strings.Repeat("あ", maxEventNameRunes+1)
+func TestValidateCreateSchedule_eventTextLength(t *testing.T) {
+	t.Run("accepts event_name at max rune length", func(t *testing.T) {
+		cmd := validCreateScheduleCommand()
+		cmd.EventName = strings.Repeat("あ", maxEventNameRunes)
+		assertNoViolations(t, validateCreateSchedule(cmd))
+	})
 
-	v := validateCreateSchedule(cmd)
-	if len(v) != 1 || v[0].Field != "event_name" {
-		t.Fatalf("expected single event_name violation, got %#v", v)
-	}
-}
+	t.Run("rejects event_name over max rune length", func(t *testing.T) {
+		cmd := validCreateScheduleCommand()
+		cmd.EventName = strings.Repeat("あ", maxEventNameRunes+1)
+		assertSingleViolationField(t, validateCreateSchedule(cmd), "event_name")
+	})
 
-func TestValidateCreateSchedule_eventDescriptionMaxLength(t *testing.T) {
-	cmd := validCreateScheduleCommand()
-	cmd.EventDescription = strings.Repeat("あ", maxEventDescriptionRunes+1)
+	t.Run("accepts event_description at max rune length", func(t *testing.T) {
+		cmd := validCreateScheduleCommand()
+		cmd.EventDescription = strings.Repeat("あ", maxEventDescriptionRunes)
+		assertNoViolations(t, validateCreateSchedule(cmd))
+	})
 
-	v := validateCreateSchedule(cmd)
-	if len(v) != 1 || v[0].Field != "event_description" {
-		t.Fatalf("expected single event_description violation, got %#v", v)
-	}
+	t.Run("rejects event_description over max rune length", func(t *testing.T) {
+		cmd := validCreateScheduleCommand()
+		cmd.EventDescription = strings.Repeat("あ", maxEventDescriptionRunes+1)
+		assertSingleViolationField(t, validateCreateSchedule(cmd), "event_description")
+	})
 }
 
 func TestValidateScheduleTimes(t *testing.T) {
-	t.Parallel()
+	// 任意指定の営業時刻の前後関係（未指定は DB デフォルト相当）
 	tests := []struct {
 		name      string
 		open      string
@@ -126,44 +145,16 @@ func TestValidateScheduleTimes(t *testing.T) {
 		close     string
 		want      []string
 	}{
-		{
-			name: "all_omitted",
-			want: nil,
-		},
-		{
-			name:      "valid_order",
-			open:      "11:30",
-			lastOrder: "14:00",
-			close:     "15:00",
-			want:      nil,
-		},
-		{
-			name:      "open_after_last_order",
-			open:      "15:00",
-			lastOrder: "14:00",
-			close:     "16:00",
-			want:      []string{"last_order_time"},
-		},
-		{
-			name:      "last_order_after_close",
-			open:      "11:30",
-			lastOrder: "16:00",
-			close:     "15:00",
-			want:      []string{"close_time"},
-		},
-		{
-			name:      "open_after_close_without_last_order",
-			open:      "16:00",
-			close:     "15:00",
-			want:      []string{"close_time"},
-		},
+		{name: "accepts all times omitted"},
+		{name: "accepts open before last order before close", open: "11:30", lastOrder: "14:00", close: "15:00"},
+		{name: "rejects open after last order", open: "15:00", lastOrder: "14:00", close: "16:00", want: []string{"last_order_time"}},
+		{name: "rejects last order after close", open: "11:30", lastOrder: "16:00", close: "15:00", want: []string{"close_time"}},
+		{name: "rejects open after close without last order", open: "16:00", close: "15:00", want: []string{"close_time"}},
+		{name: "accepts only open and close when open before close", open: "11:30", close: "15:00"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			open := datetime.Time{}
-			lastOrder := datetime.Time{}
-			closeTime := datetime.Time{}
+			open, lastOrder, closeTime := datetime.Time{}, datetime.Time{}, datetime.Time{}
 			if tt.open != "" {
 				open = datetime.MustParseTime(tt.open)
 			}
@@ -175,11 +166,11 @@ func TestValidateScheduleTimes(t *testing.T) {
 			}
 			got := violationFields(validateScheduleTimes(open, lastOrder, closeTime))
 			if len(got) != len(tt.want) {
-				t.Fatalf("fields = %v, want %v (violations %#v)", got, tt.want, validateScheduleTimes(open, lastOrder, closeTime))
+				t.Fatalf("violation fields = %v, want %v", got, tt.want)
 			}
 			for i, field := range tt.want {
 				if got[i] != field {
-					t.Fatalf("fields = %v, want %v", got, tt.want)
+					t.Fatalf("violation fields = %v, want %v", got, tt.want)
 				}
 			}
 		})
