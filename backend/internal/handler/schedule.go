@@ -114,9 +114,9 @@ func (h *ScheduleHandler) HandleSchedules(w http.ResponseWriter, r *http.Request
 }
 
 func (h *ScheduleHandler) handleList(w http.ResponseWriter, r *http.Request) {
-	year, month, ok := parseYearMonthQuery(r)
-	if !ok {
-		respondWithError(w, http.StatusBadRequest, InvalidRequestCode, "リクエスト形式が不正です", nil)
+	year, month, details := parseYearMonthQuery(r)
+	if len(details) > 0 {
+		respondWithError(w, http.StatusBadRequest, ValidationErrorCode, "入力内容に誤りがあります", details)
 		return
 	}
 
@@ -199,22 +199,30 @@ func resolveSetScheduleCapacity(capacity *int) int {
 	return defaultSetScheduleCapacity
 }
 
-func parseYearMonthQuery(r *http.Request) (year, month int, ok bool) {
+func parseYearMonthQuery(r *http.Request) (year, month int, details []ErrorDetail) {
 	yearStr := r.URL.Query().Get("year")
 	monthStr := r.URL.Query().Get("month")
-	if yearStr == "" || monthStr == "" {
-		return 0, 0, false
+
+	if yearStr == "" {
+		details = append(details, ErrorDetail{Field: "year", Message: "年は必須です"})
 	}
+	if monthStr == "" {
+		details = append(details, ErrorDetail{Field: "month", Message: "月は必須です"})
+	}
+	if len(details) > 0 {
+		return 0, 0, details
+	}
+
 	var err error
 	year, err = strconv.Atoi(yearStr)
 	if err != nil {
-		return 0, 0, false
+		details = append(details, ErrorDetail{Field: "year", Message: "年は数値で指定してください"})
 	}
 	month, err = strconv.Atoi(monthStr)
 	if err != nil {
-		return 0, 0, false
+		details = append(details, ErrorDetail{Field: "month", Message: "月は数値で指定してください"})
 	}
-	return year, month, true
+	return year, month, details
 }
 
 func toScheduleResponse(s domain.Schedule, isDefault bool) ScheduleResponse {
