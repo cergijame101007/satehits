@@ -27,7 +27,10 @@ type ScheduleRequest struct {
 	CloseTime        datetime.Time `json:"close_time"`
 }
 
-// ScheduleHandler はスケジュールに関するHTTPハンドラ
+// ScheduleHandler はスケジュールに関するHTTPハンドラ（管理者向け）
+//
+// TODO: スケジュール管理 API は管理者 JWT 認証必須（OpenAPI BearerAuth）
+// 認証は main のルート登録時にミドルウェアで行い、本ハンドラは業務処理のみ担当する
 type ScheduleHandler struct {
 	repo              domain.ScheduleRepository
 	createSchedule *usecase.CreateScheduleUseCase

@@ -58,6 +58,8 @@ func main() {
 	// ルーティング（公開 API は /api/v1/...）
 	http.HandleFunc("/", handleRoot)
 	http.HandleFunc(reservationsPath, reservationHandler.HandleReservations)
+	// TODO: スケジュール管理は管理者 JWT 認証必須、認証ミドルウェア実装後に
+	// 本ルートをラップしてからハンドラへ渡す（現状は開発用に無認証）
 	http.HandleFunc(schedulesPath, scheduleHandler.HandleSchedules)
 
 	// サーバー起動
