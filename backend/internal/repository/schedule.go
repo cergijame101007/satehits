@@ -3,7 +3,10 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"time"
 
+	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
 )
 
@@ -53,4 +56,67 @@ RETURNING
 		&inserted,
 	)
 	return out, inserted, err
+}
+
+const scheduleSelectColumns = `
+	date, schedule_type, capacity, event_name, event_description,
+	open_time, last_order_time, close_time, created_at, updated_at`
+
+func scanSchedule(row interface {
+	Scan(dest ...any) error
+}) (domain.Schedule, error) {
+	var out domain.Schedule
+	err := row.Scan(
+		&out.Date,
+		&out.ScheduleType,
+		&out.Capacity,
+		&out.EventName,
+		&out.EventDescription,
+		&out.OpenTime,
+		&out.LastOrderTime,
+		&out.CloseTime,
+		&out.CreatedAt,
+		&out.UpdatedAt,
+	)
+	return out, err
+}
+
+// FindByDate は指定日の保存済みスケジュールを返す
+func (r *PostgresScheduleRepository) FindByDate(ctx context.Context, date datetime.Date) (domain.Schedule, bool, error) {
+	query := `SELECT` + scheduleSelectColumns + ` FROM daily_schedules WHERE date = $1`
+	out, err := scanSchedule(r.db.QueryRowContext(ctx, query, date))
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Schedule{}, false, nil
+	}
+	if err != nil {
+		return domain.Schedule{}, false, err
+	}
+	return out, true, nil
+}
+
+// ListStoredByYearMonth は指定年月に保存されている行のみを日付昇順で返す
+func (r *PostgresScheduleRepository) ListStoredByYearMonth(ctx context.Context, year, month int) ([]domain.Schedule, error) {
+	from := datetime.NewDate(year, time.Month(month), 1)
+	lastDay := time.Date(year, time.Month(month+1), 0, 0, 0, 0, 0, time.UTC).Day()
+	to := datetime.NewDate(year, time.Month(month), lastDay)
+
+	query := `SELECT` + scheduleSelectColumns + `
+FROM daily_schedules
+WHERE date >= $1 AND date <= $2
+ORDER BY date`
+	rows, err := r.db.QueryContext(ctx, query, from, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []domain.Schedule
+	for rows.Next() {
+		s, err := scanSchedule(rows)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, s)
+	}
+	return list, rows.Err()
 }

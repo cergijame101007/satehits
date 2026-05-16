@@ -37,4 +37,8 @@ type SetScheduleInput struct {
 type ScheduleRepository interface {
 	// Upsert は日付をキーに挿入または更新する。第2戻り値は新規挿入なら true
 	Upsert(ctx context.Context, s SetScheduleInput) (Schedule, bool, error)
+	// FindByDate は日付で1件取得する。第2戻り値は DB に行があれば true
+	FindByDate(ctx context.Context, date datetime.Date) (Schedule, bool, error)
+	// ListStoredByYearMonth は指定年月に保存されている行のみを日付昇順で返す（定例合成は含まない）
+	ListStoredByYearMonth(ctx context.Context, year, month int) ([]Schedule, error)
 }
