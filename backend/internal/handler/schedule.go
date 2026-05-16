@@ -2,7 +2,6 @@ package handler
 
 import (
 	"encoding/json"
-	"errors"
 	"log"
 	"mime"
 	"net/http"
@@ -52,10 +51,9 @@ type ScheduleListResponse struct {
 	Schedules []ScheduleResponse `json:"schedules"`
 }
 
-// ScheduleHandler はスケジュールに関するHTTPハンドラ（管理者向け）
+// ScheduleHandler — 管理者向けスケジュール HTTP ハンドラ
 //
-// TODO: スケジュール管理 API は管理者 JWT 認証必須（OpenAPI BearerAuth）
-// 認証は main のルート登録時にミドルウェアで行い、本ハンドラは業務処理のみ担当する
+// TODO: 管理者 JWT 必須（OpenAPI BearerAuth）。認証は main のミドルウェアで行う
 type ScheduleHandler struct {
 	setSchedule   *usecase.SetScheduleUseCase
 	listSchedules *usecase.ListSchedulesUseCase
@@ -79,7 +77,7 @@ func NewScheduleHandler(
 	}
 }
 
-// HandleSchedules は /admin/schedules および /admin/schedules/{date} をルーティングする
+// HandleSchedules — /admin/schedules および /admin/schedules/{date} のルーティング
 func (h *ScheduleHandler) HandleSchedules(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	if path == h.schedulesPath {
@@ -119,15 +117,7 @@ func (h *ScheduleHandler) handleList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := h.listSchedules.Execute(r.Context(), year, month)
-	if err != nil {
-		var vErr *usecase.ValidationError
-		if errors.As(err, &vErr) {
-			details := violationsToDetails(vErr.Violations)
-			respondWithError(w, http.StatusBadRequest, ValidationErrorCode, "入力内容に誤りがあります", details)
-			return
-		}
-		log.Printf("Failed to list schedules: %v", err)
-		respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
+	if writeScheduleUsecaseError(w, err, "Failed to list schedules") {
 		return
 	}
 
@@ -150,22 +140,14 @@ func (h *ScheduleHandler) handleGetByDate(w http.ResponseWriter, r *http.Request
 	}
 
 	result, err := h.getSchedule.Execute(r.Context(), date)
-	if err != nil {
-		var vErr *usecase.ValidationError
-		if errors.As(err, &vErr) {
-			details := violationsToDetails(vErr.Violations)
-			respondWithError(w, http.StatusBadRequest, ValidationErrorCode, "入力内容に誤りがあります", details)
-			return
-		}
-		log.Printf("Failed to get schedule: %v", err)
-		respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
+	if writeScheduleUsecaseError(w, err, "Failed to get schedule") {
 		return
 	}
 
 	respondWithJSON(w, http.StatusOK, toScheduleResponse(result.Schedule, result.IsDefault))
 }
 
-// handleSet は日別スケジュールを Upsert する（新規 201 / 更新 200）
+// handleSet — 日別スケジュール Upsert（新規 201 / 更新 200）
 func (h *ScheduleHandler) handleSet(w http.ResponseWriter, r *http.Request) {
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {
@@ -191,15 +173,7 @@ func (h *ScheduleHandler) handleSet(w http.ResponseWriter, r *http.Request) {
 		LastOrderTime:    request.LastOrderTime,
 		CloseTime:        request.CloseTime,
 	})
-	if err != nil {
-		var vErr *usecase.ValidationError
-		if errors.As(err, &vErr) {
-			details := violationsToDetails(vErr.Violations)
-			respondWithError(w, http.StatusBadRequest, ValidationErrorCode, "入力内容に誤りがあります", details)
-			return
-		}
-		log.Printf("Failed to set schedule: %v", err)
-		respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
+	if writeScheduleUsecaseError(w, err, "Failed to set schedule") {
 		return
 	}
 
