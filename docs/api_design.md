@@ -461,6 +461,21 @@ GET /api/v1/admin/schedules?year=2025&month=2
 
 **成功時（200 OK）** — `ScheduleListResponse`（`schedules` は `ScheduleResponse` の配列）。
 
+**バリデーションエラー時（400 Bad Request）** — `year` / `month` クエリの欠落・空白のみ・非数値は handler で `VALIDATION_ERROR`（`details[].field` は `year` または `month`）。範囲外（年 2000〜2100、月 1〜12）はユースケース層で同じ形式。
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "入力内容に誤りがあります",
+    "details": [
+      { "field": "year", "message": "年は必須です" },
+      { "field": "month", "message": "月は必須です" }
+    ]
+  }
+}
+```
+
 ---
 
 ### GET /admin/schedules/{date}

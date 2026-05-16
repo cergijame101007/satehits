@@ -412,6 +412,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ScheduleListResponse"
+        "400":
+          description: |
+            クエリ `year` / `month` の欠落・非数値、または範囲外（年 2000〜2100、月 1〜12）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+              examples:
+                missingQuery:
+                  summary: year / month 未指定
+                  value:
+                    error:
+                      code: VALIDATION_ERROR
+                      message: 入力内容に誤りがあります
+                      details:
+                        - field: year
+                          message: 年は必須です
+                        - field: month
+                          message: 月は必須です
+                invalidYear:
+                  summary: year が数値でない
+                  value:
+                    error:
+                      code: VALIDATION_ERROR
+                      message: 入力内容に誤りがあります
+                      details:
+                        - field: year
+                          message: 年は数値で指定してください
+                yearOutOfRange:
+                  summary: year が範囲外
+                  value:
+                    error:
+                      code: VALIDATION_ERROR
+                      message: 入力内容に誤りがあります
+                      details:
+                        - field: year
+                          message: 年は2000〜2100の範囲で指定してください
         "401":
           description: 認証エラー
           content:
