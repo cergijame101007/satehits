@@ -28,6 +28,14 @@ func (s *stubScheduleRepo) Upsert(ctx context.Context, in domain.SetScheduleInpu
 	}, s.inserted, nil
 }
 
+func (s *stubScheduleRepo) FindByDate(ctx context.Context, date datetime.Date) (domain.Schedule, bool, error) {
+	return domain.Schedule{}, false, nil
+}
+
+func (s *stubScheduleRepo) ListStoredByYearMonth(ctx context.Context, year, month int) ([]domain.Schedule, error) {
+	return nil, nil
+}
+
 func TestSetScheduleUseCase_Execute_appliesDefaultBusinessHours(t *testing.T) {
 	repo := &stubScheduleRepo{inserted: true}
 	uc := NewSetScheduleUseCase(repo)
