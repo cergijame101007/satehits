@@ -6,6 +6,7 @@ import (
 
 	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
+	"github.com/cergijame101007/satehits/internal/domain/service"
 )
 
 // FieldViolation はフィールド単位のバリデーションエラー
@@ -24,8 +25,8 @@ func (e *ValidationError) Error() string {
 	return "入力内容に誤りがあります"
 }
 
-// CreateScheduleCommand はスケジュール作成の入力
-type CreateScheduleCommand struct {
+// SetScheduleCommand は日別スケジュール設定（Upsert）の入力
+type SetScheduleCommand struct {
 	Date             datetime.Date
 	ScheduleType     string
 	Capacity         int
@@ -36,36 +37,48 @@ type CreateScheduleCommand struct {
 	CloseTime        datetime.Time
 }
 
-// CreateScheduleUseCase はスケジュール作成
-type CreateScheduleUseCase struct {
+// SetScheduleResult は Upsert の結果（Inserted が true なら新規挿入）
+type SetScheduleResult struct {
+	Schedule domain.Schedule
+	Inserted bool
+}
+
+// SetScheduleUseCase は日別スケジュールの設定（Upsert）
+type SetScheduleUseCase struct {
 	repo domain.ScheduleRepository
 }
 
-// NewCreateScheduleUseCase は CreateScheduleUseCase の生成
-func NewCreateScheduleUseCase(repo domain.ScheduleRepository) *CreateScheduleUseCase {
-	return &CreateScheduleUseCase{repo: repo}
+// NewSetScheduleUseCase は SetScheduleUseCase の生成
+func NewSetScheduleUseCase(repo domain.ScheduleRepository) *SetScheduleUseCase {
+	return &SetScheduleUseCase{repo: repo}
 }
 
-// Execute は入力検証および Repository への永続化
-func (u *CreateScheduleUseCase) Execute(ctx context.Context, cmd CreateScheduleCommand) (*domain.Schedule, error) {
-	violations := validateCreateSchedule(cmd)
+// Execute は入力検証・デフォルト営業時刻の適用・Repository への Upsert
+func (u *SetScheduleUseCase) Execute(ctx context.Context, cmd SetScheduleCommand) (*SetScheduleResult, error) {
+	violations := validateSetSchedule(cmd)
 	if len(violations) > 0 {
 		return nil, &ValidationError{Violations: violations}
 	}
 
-	in := domain.CreateScheduleInput{
+	scheduleType := strings.TrimSpace(cmd.ScheduleType)
+	open, lastOrder, close := service.ApplyDefaultBusinessHours(scheduleType, cmd.OpenTime, cmd.LastOrderTime, cmd.CloseTime)
+	if v := validateScheduleTimes(open, lastOrder, close); len(v) > 0 {
+		return nil, &ValidationError{Violations: v}
+	}
+
+	in := domain.SetScheduleInput{
 		Date:             cmd.Date,
-		ScheduleType:     strings.TrimSpace(cmd.ScheduleType),
+		ScheduleType:     scheduleType,
 		Capacity:         cmd.Capacity,
 		EventName:        strings.TrimSpace(cmd.EventName),
 		EventDescription: strings.TrimSpace(cmd.EventDescription),
-		OpenTime:         cmd.OpenTime,
-		LastOrderTime:    cmd.LastOrderTime,
-		CloseTime:        cmd.CloseTime,
+		OpenTime:         open,
+		LastOrderTime:    lastOrder,
+		CloseTime:        close,
 	}
-	res, err := u.repo.Create(ctx, in)
+	res, inserted, err := u.repo.Upsert(ctx, in)
 	if err != nil {
 		return nil, err
 	}
-	return &res, nil
+	return &SetScheduleResult{Schedule: res, Inserted: inserted}, nil
 }

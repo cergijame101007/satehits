@@ -22,7 +22,7 @@ var allowedScheduleTypes = map[string]struct{}{
 	"closed":       {},
 }
 
-func validateCreateSchedule(cmd CreateScheduleCommand) []FieldViolation {
+func validateSetSchedule(cmd SetScheduleCommand) []FieldViolation {
 	var violations []FieldViolation
 
 	if cmd.Date.IsZero() {
@@ -54,7 +54,7 @@ func validateCreateSchedule(cmd CreateScheduleCommand) []FieldViolation {
 	return violations
 }
 
-// validateScheduleTimes は任意指定の営業時刻の整合性を検証する（未指定は DB デフォルト相当）
+// validateScheduleTimes は任意指定の営業時刻の整合性を検証する（未指定はドメインサービスで補完後に再検証）
 func validateScheduleTimes(open, lastOrder, close datetime.Time) []FieldViolation {
 	var violations []FieldViolation
 	o := clockMinutes(open)

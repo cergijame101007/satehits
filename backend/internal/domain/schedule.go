@@ -21,8 +21,8 @@ type Schedule struct {
 	UpdatedAt        time.Time      `json:"updated_at"`
 }
 
-// CreateScheduleInput はスケジュールを作成するための入力
-type CreateScheduleInput struct {
+// SetScheduleInput は日別スケジュール設定（Upsert）の入力
+type SetScheduleInput struct {
 	Date             datetime.Date
 	ScheduleType     string
 	Capacity         int
@@ -35,5 +35,6 @@ type CreateScheduleInput struct {
 
 // ScheduleRepository はスケジュールデータを永続化するためのインターフェース
 type ScheduleRepository interface {
-	Create(ctx context.Context, s CreateScheduleInput) (Schedule, error)
+	// Upsert は日付をキーに挿入または更新する。第2戻り値は新規挿入なら true
+	Upsert(ctx context.Context, s SetScheduleInput) (Schedule, bool, error)
 }

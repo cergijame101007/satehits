@@ -12,11 +12,11 @@ import (
 	"github.com/cergijame101007/satehits/internal/domain"
 )
 
-// スケジュール作成 POST のボディ上限（64KB）
-const maxCreateScheduleBodyBytes = 64 << 10
+// スケジュール設定 POST のボディ上限（64KB）
+const maxSetScheduleBodyBytes = 64 << 10
 
-// ScheduleRequest はスケジュール作成リクエストのDTO
-type ScheduleRequest struct {
+// SetScheduleRequest は日別スケジュール設定リクエストの DTO（OpenAPI SetScheduleRequest）
+type SetScheduleRequest struct {
 	Date             datetime.Date `json:"date"`
 	ScheduleType     string        `json:"schedule_type"`
 	Capacity         int           `json:"capacity"`
@@ -32,22 +32,22 @@ type ScheduleRequest struct {
 // TODO: スケジュール管理 API は管理者 JWT 認証必須（OpenAPI BearerAuth）
 // 認証は main のルート登録時にミドルウェアで行い、本ハンドラは業務処理のみ担当する
 type ScheduleHandler struct {
-	repo              domain.ScheduleRepository
-	createSchedule *usecase.CreateScheduleUseCase
-	schedulesPath  string
+	repo          domain.ScheduleRepository
+	setSchedule   *usecase.SetScheduleUseCase
+	schedulesPath string
 }
 
 // NewScheduleHandler はScheduleHandlerのインスタンスを作成する
 // schedulesPath は net/http の ServeMux に登録する完全パス（例: /api/v1/admin/schedules）と一致させること
 func NewScheduleHandler(
 	repo domain.ScheduleRepository,
-	createSchedule *usecase.CreateScheduleUseCase,
+	setSchedule *usecase.SetScheduleUseCase,
 	schedulesPath string,
 ) *ScheduleHandler {
 	return &ScheduleHandler{
-		repo:              repo,
-		createSchedule: createSchedule,
-		schedulesPath:  schedulesPath,
+		repo:          repo,
+		setSchedule:   setSchedule,
+		schedulesPath: schedulesPath,
 	}
 }
 
@@ -59,29 +59,29 @@ func (h *ScheduleHandler) HandleSchedules(w http.ResponseWriter, r *http.Request
 	}
 	switch r.Method {
 	case http.MethodPost:
-		h.handleCreate(w, r)
+		h.handleSet(w, r)
 	default:
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
 }
 
-// handleCreate はスケジュールを作成する
-func (h *ScheduleHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
+// handleSet は日別スケジュールを Upsert する（新規 201 / 更新 200）
+func (h *ScheduleHandler) handleSet(w http.ResponseWriter, r *http.Request) {
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {
 		respondWithError(w, http.StatusBadRequest, InvalidRequestCode, "リクエスト形式が不正です", nil)
 		return
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, maxCreateScheduleBodyBytes)
+	r.Body = http.MaxBytesReader(w, r.Body, maxSetScheduleBodyBytes)
 
-	var request ScheduleRequest
+	var request SetScheduleRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		respondWithError(w, http.StatusBadRequest, InvalidRequestCode, "リクエスト形式が不正です", nil)
 		return
 	}
 
-	created, err := h.createSchedule.Execute(r.Context(), usecase.CreateScheduleCommand{
+	result, err := h.setSchedule.Execute(r.Context(), usecase.SetScheduleCommand{
 		Date:             request.Date,
 		ScheduleType:     request.ScheduleType,
 		Capacity:         request.Capacity,
@@ -101,13 +101,18 @@ func (h *ScheduleHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 			respondWithError(w, http.StatusBadRequest, ValidationErrorCode, "入力内容に誤りがあります", details)
 			return
 		}
-		log.Printf("Failed to create schedule: %v", err)
+		log.Printf("Failed to set schedule: %v", err)
 		respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
 		return
 	}
 
-	log.Printf("Saved Schedule date=%s scheduleType=%s capacity=%d eventName=%s eventDescription=%s openTime=%s lastOrderTime=%s closeTime=%s",
-		created.Date, created.ScheduleType, created.Capacity, created.EventName, created.EventDescription, created.OpenTime, created.LastOrderTime, created.CloseTime)
+	s := result.Schedule
+	log.Printf("Saved Schedule date=%s scheduleType=%s capacity=%d inserted=%v openTime=%s lastOrderTime=%s closeTime=%s",
+		s.Date, s.ScheduleType, s.Capacity, result.Inserted, s.OpenTime, s.LastOrderTime, s.CloseTime)
 
-	respondWithJSON(w, http.StatusCreated, created)
+	status := http.StatusOK
+	if result.Inserted {
+		status = http.StatusCreated
+	}
+	respondWithJSON(w, status, s)
 }

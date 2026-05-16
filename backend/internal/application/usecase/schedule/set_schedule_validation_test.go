@@ -7,9 +7,9 @@ import (
 	"github.com/cergijame101007/satehits/internal/datetime"
 )
 
-// validCreateScheduleCommand は OpenAPI SetScheduleRequest 相当の正常系ベース
-func validCreateScheduleCommand() CreateScheduleCommand {
-	return CreateScheduleCommand{
+// validSetScheduleCommand は OpenAPI SetScheduleRequest 相当の正常系ベース
+func validSetScheduleCommand() SetScheduleCommand {
+	return SetScheduleCommand{
 		Date:         datetime.MustParseDate("2026-05-20"),
 		ScheduleType: "normal",
 		Capacity:     10,
@@ -41,30 +41,30 @@ func violationFields(v []FieldViolation) []string {
 	return fields
 }
 
-func TestValidateCreateSchedule(t *testing.T) {
+func TestValidateSetSchedule(t *testing.T) {
 	t.Run("accepts full event day with business hours", func(t *testing.T) {
-		cmd := validCreateScheduleCommand()
+		cmd := validSetScheduleCommand()
 		cmd.ScheduleType = "event"
 		cmd.EventName = "和紅茶をしばく会"
 		cmd.EventDescription = "詳細はInstagramをご覧ください"
 		cmd.OpenTime = datetime.MustParseTime("11:30")
 		cmd.LastOrderTime = datetime.MustParseTime("14:00")
 		cmd.CloseTime = datetime.MustParseTime("15:00")
-		assertNoViolations(t, validateCreateSchedule(cmd))
+		assertNoViolations(t, validateSetSchedule(cmd))
 	})
 
 	t.Run("accepts minimal normal schedule", func(t *testing.T) {
-		assertNoViolations(t, validateCreateSchedule(validCreateScheduleCommand()))
+		assertNoViolations(t, validateSetSchedule(validSetScheduleCommand()))
 	})
 
 	t.Run("rejects zero date", func(t *testing.T) {
-		cmd := validCreateScheduleCommand()
+		cmd := validSetScheduleCommand()
 		cmd.Date = datetime.Date{}
-		assertSingleViolationField(t, validateCreateSchedule(cmd), "date")
+		assertSingleViolationField(t, validateSetSchedule(cmd), "date")
 	})
 }
 
-func TestValidateCreateSchedule_scheduleType(t *testing.T) {
+func TestValidateSetSchedule_scheduleType(t *testing.T) {
 	// docs/table_design.md の schedule_type CHECK 制約
 	tests := []struct {
 		name      string
@@ -83,9 +83,9 @@ func TestValidateCreateSchedule_scheduleType(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cmd := validCreateScheduleCommand()
+			cmd := validSetScheduleCommand()
 			cmd.ScheduleType = tt.in
-			v := validateCreateSchedule(cmd)
+			v := validateSetSchedule(cmd)
 			if tt.wantField == "" {
 				assertNoViolations(t, v)
 				return
@@ -95,49 +95,49 @@ func TestValidateCreateSchedule_scheduleType(t *testing.T) {
 	}
 }
 
-func TestValidateCreateSchedule_capacity(t *testing.T) {
+func TestValidateSetSchedule_capacity(t *testing.T) {
 	t.Run("rejects negative capacity", func(t *testing.T) {
-		cmd := validCreateScheduleCommand()
+		cmd := validSetScheduleCommand()
 		cmd.Capacity = -1
-		assertSingleViolationField(t, validateCreateSchedule(cmd), "capacity")
+		assertSingleViolationField(t, validateSetSchedule(cmd), "capacity")
 	})
 
 	t.Run("accepts zero capacity for closed day", func(t *testing.T) {
-		cmd := validCreateScheduleCommand()
+		cmd := validSetScheduleCommand()
 		cmd.ScheduleType = "closed"
 		cmd.Capacity = 0
-		assertNoViolations(t, validateCreateSchedule(cmd))
+		assertNoViolations(t, validateSetSchedule(cmd))
 	})
 }
 
-func TestValidateCreateSchedule_eventTextLength(t *testing.T) {
+func TestValidateSetSchedule_eventTextLength(t *testing.T) {
 	t.Run("accepts event_name at max rune length", func(t *testing.T) {
-		cmd := validCreateScheduleCommand()
+		cmd := validSetScheduleCommand()
 		cmd.EventName = strings.Repeat("あ", maxEventNameRunes)
-		assertNoViolations(t, validateCreateSchedule(cmd))
+		assertNoViolations(t, validateSetSchedule(cmd))
 	})
 
 	t.Run("rejects event_name over max rune length", func(t *testing.T) {
-		cmd := validCreateScheduleCommand()
+		cmd := validSetScheduleCommand()
 		cmd.EventName = strings.Repeat("あ", maxEventNameRunes+1)
-		assertSingleViolationField(t, validateCreateSchedule(cmd), "event_name")
+		assertSingleViolationField(t, validateSetSchedule(cmd), "event_name")
 	})
 
 	t.Run("accepts event_description at max rune length", func(t *testing.T) {
-		cmd := validCreateScheduleCommand()
+		cmd := validSetScheduleCommand()
 		cmd.EventDescription = strings.Repeat("あ", maxEventDescriptionRunes)
-		assertNoViolations(t, validateCreateSchedule(cmd))
+		assertNoViolations(t, validateSetSchedule(cmd))
 	})
 
 	t.Run("rejects event_description over max rune length", func(t *testing.T) {
-		cmd := validCreateScheduleCommand()
+		cmd := validSetScheduleCommand()
 		cmd.EventDescription = strings.Repeat("あ", maxEventDescriptionRunes+1)
-		assertSingleViolationField(t, validateCreateSchedule(cmd), "event_description")
+		assertSingleViolationField(t, validateSetSchedule(cmd), "event_description")
 	})
 }
 
 func TestValidateScheduleTimes(t *testing.T) {
-	// 任意指定の営業時刻の前後関係（未指定は DB デフォルト相当）
+	// 任意指定の営業時刻の前後関係（未指定はドメインサービスで補完後に再検証）
 	tests := []struct {
 		name      string
 		open      string

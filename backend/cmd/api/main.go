@@ -51,9 +51,9 @@ func main() {
 	reservationHandler := handler.NewReservationHandler(reservationRepo, createReservation, reservationsPath)
 
 	scheduleRepo := repository.NewPostgresScheduleRepository(db)
-	createSchedule := scheduleusecase.NewCreateScheduleUseCase(scheduleRepo)
+	setSchedule := scheduleusecase.NewSetScheduleUseCase(scheduleRepo)
 	schedulesPath := fmt.Sprintf("/api/%s/admin/schedules", apiVersion)
-	scheduleHandler := handler.NewScheduleHandler(scheduleRepo, createSchedule, schedulesPath)
+	scheduleHandler := handler.NewScheduleHandler(scheduleRepo, setSchedule, schedulesPath)
 
 	// ルーティング（公開 API は /api/v1/...）
 	http.HandleFunc("/", handleRoot)

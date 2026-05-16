@@ -51,7 +51,7 @@ go test ./...
 go test ./internal/application/usecase/schedule/... -v
 
 # 1 ケースだけ
-go test ./... -run 'TestValidateCreateSchedule_scheduleType/rejects_empty_schedule_type'
+go test ./... -run 'TestValidateSetSchedule_scheduleType/rejects_empty_schedule_type'
 ```
 
 ## バリデーションテストで押さえる観点
@@ -65,5 +65,5 @@ go test ./... -run 'TestValidateCreateSchedule_scheduleType/rejects_empty_schedu
 
 ## 参照
 
-- `backend/internal/application/usecase/schedule/create_schedule_validation_test.go`
+- `backend/internal/application/usecase/schedule/set_schedule_validation_test.go`
 - `backend/internal/application/usecase/reservation/create_reservation_validate_test.go`
