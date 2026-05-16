@@ -17,11 +17,14 @@ import (
 // スケジュール設定 POST のボディ上限（64KB）
 const maxSetScheduleBodyBytes = 64 << 10
 
+// defaultSetScheduleCapacity は OpenAPI SetScheduleRequest.capacity の省略時デフォルト
+const defaultSetScheduleCapacity = 10
+
 // SetScheduleRequest は日別スケジュール設定リクエストの DTO（OpenAPI SetScheduleRequest）
 type SetScheduleRequest struct {
 	Date             datetime.Date `json:"date"`
 	ScheduleType     string        `json:"schedule_type"`
-	Capacity         int           `json:"capacity"`
+	Capacity         *int          `json:"capacity"`
 	EventName        string        `json:"event_name"`
 	EventDescription string        `json:"event_description"`
 	OpenTime         datetime.Time `json:"open_time"`
@@ -166,7 +169,7 @@ func (h *ScheduleHandler) handleSet(w http.ResponseWriter, r *http.Request) {
 	result, err := h.setSchedule.Execute(r.Context(), usecase.SetScheduleCommand{
 		Date:             request.Date,
 		ScheduleType:     request.ScheduleType,
-		Capacity:         request.Capacity,
+		Capacity:         resolveSetScheduleCapacity(request.Capacity),
 		EventName:        request.EventName,
 		EventDescription: request.EventDescription,
 		OpenTime:         request.OpenTime,
@@ -186,6 +189,13 @@ func (h *ScheduleHandler) handleSet(w http.ResponseWriter, r *http.Request) {
 		status = http.StatusCreated
 	}
 	respondWithJSON(w, status, toScheduleResponse(s, false))
+}
+
+func resolveSetScheduleCapacity(capacity *int) int {
+	if capacity != nil {
+		return *capacity
+	}
+	return defaultSetScheduleCapacity
 }
 
 func parseYearMonthQuery(r *http.Request) (year, month int, ok bool) {
