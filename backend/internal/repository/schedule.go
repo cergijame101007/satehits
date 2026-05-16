@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
@@ -40,14 +41,17 @@ RETURNING
 	(xmax = 0) AS inserted`
 	var out domain.Schedule
 	var inserted bool
+	var eventName, eventDesc sql.NullString
 	err := r.db.QueryRowContext(ctx, query,
-		in.Date, in.ScheduleType, in.Capacity, in.EventName, in.EventDescription, in.OpenTime, in.LastOrderTime, in.CloseTime,
+		in.Date, in.ScheduleType, in.Capacity,
+		eventTextParam(in.EventName), eventTextParam(in.EventDescription),
+		in.OpenTime, in.LastOrderTime, in.CloseTime,
 	).Scan(
 		&out.Date,
 		&out.ScheduleType,
 		&out.Capacity,
-		&out.EventName,
-		&out.EventDescription,
+		&eventName,
+		&eventDesc,
 		&out.OpenTime,
 		&out.LastOrderTime,
 		&out.CloseTime,
@@ -55,7 +59,12 @@ RETURNING
 		&out.UpdatedAt,
 		&inserted,
 	)
-	return out, inserted, err
+	if err != nil {
+		return out, false, err
+	}
+	out.EventName = scanEventText(eventName)
+	out.EventDescription = scanEventText(eventDesc)
+	return out, inserted, nil
 }
 
 const scheduleSelectColumns = `
@@ -66,19 +75,42 @@ func scanSchedule(row interface {
 	Scan(dest ...any) error
 }) (domain.Schedule, error) {
 	var out domain.Schedule
+	var eventName, eventDesc sql.NullString
 	err := row.Scan(
 		&out.Date,
 		&out.ScheduleType,
 		&out.Capacity,
-		&out.EventName,
-		&out.EventDescription,
+		&eventName,
+		&eventDesc,
 		&out.OpenTime,
 		&out.LastOrderTime,
 		&out.CloseTime,
 		&out.CreatedAt,
 		&out.UpdatedAt,
 	)
-	return out, err
+	if err != nil {
+		return domain.Schedule{}, err
+	}
+	out.EventName = scanEventText(eventName)
+	out.EventDescription = scanEventText(eventDesc)
+	return out, nil
+}
+
+// scanEventText は DB の NULL / 空をドメインの空文字に正規化する
+func scanEventText(ns sql.NullString) string {
+	if !ns.Valid {
+		return ""
+	}
+	return ns.String
+}
+
+// eventTextParam は空・空白のみを NULL、それ以外を TEXT として DB に渡す
+func eventTextParam(s string) sql.NullString {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: s, Valid: true}
 }
 
 // FindByDate は指定日の保存済みスケジュールを返す
