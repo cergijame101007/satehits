@@ -1,8 +1,8 @@
-package usecase
+package service
 
 import "testing"
 
-func TestValidateListSchedulesYearMonth(t *testing.T) {
+func TestValidateYearMonth(t *testing.T) {
 	tests := []struct {
 		name      string
 		year      int
@@ -15,7 +15,7 @@ func TestValidateListSchedulesYearMonth(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := validateListSchedulesYearMonth(tt.year, tt.month)
+			got := validateYearMonth(tt.year, tt.month)
 			if tt.wantField == "" {
 				if len(got) != 0 {
 					t.Fatalf("violations = %+v, want none", got)

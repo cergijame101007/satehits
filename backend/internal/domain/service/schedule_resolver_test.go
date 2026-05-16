@@ -1,11 +1,43 @@
 package service
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/cergijame101007/satehits/internal/datetime"
+	"github.com/cergijame101007/satehits/internal/domain"
 )
+
+type resolveMonthStubRepo struct{}
+
+func (resolveMonthStubRepo) Upsert(context.Context, domain.SetScheduleInput) (domain.Schedule, bool, error) {
+	return domain.Schedule{}, false, nil
+}
+
+func (resolveMonthStubRepo) FindByDate(context.Context, datetime.Date) (domain.Schedule, bool, error) {
+	return domain.Schedule{}, false, nil
+}
+
+func (resolveMonthStubRepo) ListStoredByYearMonth(context.Context, int, int) ([]domain.Schedule, error) {
+	return nil, nil
+}
+
+func TestScheduleResolver_ResolveMonth_rejectsInvalidYearMonth(t *testing.T) {
+	r := NewScheduleResolver(resolveMonthStubRepo{})
+	_, err := r.ResolveMonth(context.Background(), 1999, 1)
+	if err == nil {
+		t.Fatal("err = nil, want YearMonthValidationError")
+	}
+	var ymErr *YearMonthValidationError
+	if !errors.As(err, &ymErr) {
+		t.Fatalf("err type = %T, want *YearMonthValidationError", err)
+	}
+	if ymErr.Violations[0].Field != "year" {
+		t.Fatalf("Field = %q, want year", ymErr.Violations[0].Field)
+	}
+}
 
 func TestSynthesizeFromStoreCalendar_weekdayDefaults(t *testing.T) {
 	tests := []struct {

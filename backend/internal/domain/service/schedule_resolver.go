@@ -11,14 +11,14 @@ import (
 // 店舗定例の提供数（docs/domain_knowledge.md §3）
 const defaultScheduleCapacity = 10
 
-// EffectiveSchedule はその日の営業設定（有効なスケジュール）。
-// IsDefault が true のときは daily_schedules に行がなく店舗定例から合成した値。
+// EffectiveSchedule — その日の営業設定（有効スケジュール）
+// IsDefault: DB 行なし・店舗定例から合成
 type EffectiveSchedule struct {
 	Schedule  domain.Schedule
 	IsDefault bool
 }
 
-// ScheduleResolver は DB 保存行と店舗定例を合成して有効スケジュールを解決する（docs/data_flow.md §3）。
+// ScheduleResolver — DB 保存行と店舗定例の合成（docs/data_flow.md §3）
 type ScheduleResolver struct {
 	repo domain.ScheduleRepository
 }
@@ -28,7 +28,7 @@ func NewScheduleResolver(repo domain.ScheduleRepository) *ScheduleResolver {
 	return &ScheduleResolver{repo: repo}
 }
 
-// ResolveForDate は指定日の有効スケジュールを返す（行優先、無ければ定例合成）
+// ResolveForDate — 指定日の有効スケジュール（行優先、無ければ定例合成）
 func (r *ScheduleResolver) ResolveForDate(ctx context.Context, date datetime.Date) (EffectiveSchedule, error) {
 	stored, found, err := r.repo.FindByDate(ctx, date)
 	if err != nil {
@@ -40,8 +40,12 @@ func (r *ScheduleResolver) ResolveForDate(ctx context.Context, date datetime.Dat
 	return EffectiveSchedule{Schedule: synthesizeFromStoreCalendar(date), IsDefault: true}, nil
 }
 
-// ResolveMonth は指定年月の各暦日について有効スケジュールを返す（日付昇順）
+// ResolveMonth — 指定年月の各暦日の有効スケジュール（日付昇順）
 func (r *ScheduleResolver) ResolveMonth(ctx context.Context, year, month int) ([]EffectiveSchedule, error) {
+	if v := validateYearMonth(year, month); len(v) > 0 {
+		return nil, &YearMonthValidationError{Violations: v}
+	}
+
 	stored, err := r.repo.ListStoredByYearMonth(ctx, year, month)
 	if err != nil {
 		return nil, err
@@ -64,8 +68,8 @@ func (r *ScheduleResolver) ResolveMonth(ctx context.Context, year, month int) ([
 	return items, nil
 }
 
-// synthesizeFromStoreCalendar は daily_schedules に行が無い日の営業設定を店舗定例から合成する。
-// 木・金は定休（closed）、土日は morning、月〜水は normal（祝日は未考慮・TODO）。
+// synthesizeFromStoreCalendar — daily_schedules 行なし日の店舗定例合成
+// 木金 closed、土日 morning、月〜水 normal（祝日未考慮・TODO）
 func synthesizeFromStoreCalendar(d datetime.Date) domain.Schedule {
 	scheduleType, capacity := defaultScheduleTypeAndCapacity(d.Weekday())
 	open, lastOrder, close := ApplyDefaultBusinessHours(scheduleType, datetime.Time{}, datetime.Time{}, datetime.Time{})
@@ -88,8 +92,4 @@ func defaultScheduleTypeAndCapacity(wd time.Weekday) (scheduleType string, capac
 	default:
 		return "normal", defaultScheduleCapacity
 	}
-}
-
-func daysInMonth(year int, month time.Month) int {
-	return time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
 }

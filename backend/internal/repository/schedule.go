@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"time"
 
 	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
+	"github.com/cergijame101007/satehits/internal/domain/service"
 )
 
 // PostgresScheduleRepository はPostgreSQLを使ったスケジュールリポジトリの実装
@@ -95,10 +95,9 @@ func (r *PostgresScheduleRepository) FindByDate(ctx context.Context, date dateti
 }
 
 // ListStoredByYearMonth は指定年月に保存されている行のみを日付昇順で返す
+// year/month は呼び出し前に service 側で検証済みであること
 func (r *PostgresScheduleRepository) ListStoredByYearMonth(ctx context.Context, year, month int) ([]domain.Schedule, error) {
-	from := datetime.NewDate(year, time.Month(month), 1)
-	lastDay := time.Date(year, time.Month(month+1), 0, 0, 0, 0, 0, time.UTC).Day()
-	to := datetime.NewDate(year, time.Month(month), lastDay)
+	from, to := service.MonthDateRange(year, month)
 
 	query := `SELECT` + scheduleSelectColumns + `
 FROM daily_schedules

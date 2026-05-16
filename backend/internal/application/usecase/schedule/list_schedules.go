@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 
 	"github.com/cergijame101007/satehits/internal/domain/service"
 )
@@ -25,14 +26,22 @@ func NewListSchedulesUseCase(resolver *service.ScheduleResolver) *ListSchedulesU
 
 // Execute は year/month の各暦日について有効スケジュールを返す
 func (u *ListSchedulesUseCase) Execute(ctx context.Context, year, month int) (*ListSchedulesResult, error) {
-	if v := validateListSchedulesYearMonth(year, month); len(v) > 0 {
-		return nil, &ValidationError{Violations: v}
-	}
-
 	schedules, err := u.resolver.ResolveMonth(ctx, year, month)
 	if err != nil {
-		return nil, err
+		return nil, mapScheduleServiceError(err)
 	}
 
 	return &ListSchedulesResult{Year: year, Month: month, Schedules: schedules}, nil
+}
+
+func mapScheduleServiceError(err error) error {
+	var ymErr *service.YearMonthValidationError
+	if errors.As(err, &ymErr) {
+		violations := make([]FieldViolation, len(ymErr.Violations))
+		for i, v := range ymErr.Violations {
+			violations[i] = FieldViolation{Field: v.Field, Message: v.Message}
+		}
+		return &ValidationError{Violations: violations}
+	}
+	return err
 }
