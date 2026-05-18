@@ -57,13 +57,6 @@ func TestApplyDefaultBusinessHours(t *testing.T) {
 			wantClose:    "15:00",
 		},
 		{
-			name:         "does not fill times for event",
-			scheduleType: "event",
-			wantOpen:     "",
-			wantLast:     "",
-			wantClose:    "",
-		},
-		{
 			name:         "does not fill times for closed",
 			scheduleType: "closed",
 			wantOpen:     "",
@@ -75,6 +68,40 @@ func TestApplyDefaultBusinessHours(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			open, last, close := parseOptionalTime(tt.open), parseOptionalTime(tt.lastOrder), parseOptionalTime(tt.close)
 			gotOpen, gotLast, gotClose := ApplyDefaultBusinessHours(tt.scheduleType, open, last, close)
+			assertTimeString(t, "open", gotOpen, tt.wantOpen)
+			assertTimeString(t, "last_order", gotLast, tt.wantLast)
+			assertTimeString(t, "close", gotClose, tt.wantClose)
+		})
+	}
+}
+
+func TestApplyEventDefaultBusinessHours(t *testing.T) {
+	tests := []struct {
+		name      string
+		date      string
+		wantOpen  string
+		wantLast  string
+		wantClose string
+	}{
+		{
+			name:      "fills weekday event with normal hours",
+			date:      "2026-05-20",
+			wantOpen:  "11:30",
+			wantLast:  "14:00",
+			wantClose: "15:00",
+		},
+		{
+			name:      "fills weekend event with morning hours",
+			date:      "2026-05-23",
+			wantOpen:  "08:30",
+			wantLast:  "14:00",
+			wantClose: "15:00",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := datetime.MustParseDate(tt.date)
+			gotOpen, gotLast, gotClose := ApplyEventDefaultBusinessHours(d, datetime.Time{}, datetime.Time{}, datetime.Time{})
 			assertTimeString(t, "open", gotOpen, tt.wantOpen)
 			assertTimeString(t, "last_order", gotLast, tt.wantLast)
 			assertTimeString(t, "close", gotClose, tt.wantClose)

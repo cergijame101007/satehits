@@ -500,12 +500,29 @@ PUT /api/v1/admin/schedules/2025-02-11
 
 パス `{date}` は `YYYY-MM-DD`。ボディは `SetScheduleRequest`（**`date` フィールドは含めない**）。
 
-**必須は `schedule_type`**。`capacity` は省略時デフォルト（OpenAPI上は説明で「10」）。`event_name` / `event_description` はイベント・特別メニュー時。時刻系は省略可（デフォルト適用）。
+**必須は `schedule_type`**。`capacity` は省略時デフォルト（OpenAPI上は説明で「10」）。
+
+| `schedule_type` | `event_name` / `event_description` | 時刻（`open_time` 等） |
+|-----------------|-------------------------------------|-------------------------|
+| `normal` / `morning` / `special_menu` | 任意（`special_menu` はメニュー名など） | 省略時は店舗デフォルトを適用 |
+| `event` | **両方必須** | **任意**（省略時は曜日別の店舗デフォルトを適用） |
+| `closed` | 不要 | 送信しても保存しない（常に NULL） |
 
 ```json
 {
   "schedule_type": "normal",
   "capacity": 10
+}
+```
+
+イベント日の例（時刻省略・平日なら 11:30–15:00 が入る）:
+
+```json
+{
+  "schedule_type": "event",
+  "capacity": 10,
+  "event_name": "和紅茶をしばく会",
+  "event_description": "和紅茶をしばく会 入門編@店内開催"
 }
 ```
 

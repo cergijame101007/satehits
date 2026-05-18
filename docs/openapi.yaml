@@ -794,9 +794,9 @@ components:
         スケジュールタイプ
         - `normal`: 通常営業（月火水）
         - `morning`: 朝営業（土日祝）
-        - `event`: イベント
+        - `event`: 店内イベント等（`event_name` / `event_description` 必須。営業時刻省略時は曜日別デフォルト）
         - `special_menu`: 特別メニュー
-        - `closed`: 臨時休業
+        - `closed`: 臨時休業（営業時刻は保存しない）
 
     # ========================================
     # 共通
@@ -1151,21 +1151,27 @@ components:
         event_name:
           type: string
           maxLength: 100
-          description: イベント・特別メニュー時のみ
+          description: |
+            `schedule_type` が `event` のとき必須。`special_menu` ではメニュー名として任意。
         event_description:
           type: string
           maxLength: 500
-          description: イベント・特別メニュー時のみ（顧客に表示）
+          description: |
+            `schedule_type` が `event` のとき必須（顧客に表示）。`special_menu` では任意。
         open_time:
           type: string
           pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
-          description: 省略時はデフォルト
+          description: |
+            `normal` / `morning` / `special_menu` で省略時は店舗デフォルトを適用。
+            `event` で省略時は曜日別デフォルト（平日=通常、土日=朝）。`closed` では無視（常に NULL）。
         last_order_time:
           type: string
           pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
+          description: open_time と同様の適用ルール
         close_time:
           type: string
           pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
+          description: open_time と同様の適用ルール
 
     # ========================================
     # 取引先管理

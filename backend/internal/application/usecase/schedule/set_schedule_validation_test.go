@@ -57,6 +57,14 @@ func TestValidateSetSchedule(t *testing.T) {
 		assertNoViolations(t, validateSetSchedule(validSetScheduleCommand()))
 	})
 
+	t.Run("accepts event with name and description without times", func(t *testing.T) {
+		cmd := validSetScheduleCommand()
+		cmd.ScheduleType = "event"
+		cmd.EventName = "和紅茶をしばく会"
+		cmd.EventDescription = "通常のランチ営業はおやすみです"
+		assertNoViolations(t, validateSetSchedule(cmd))
+	})
+
 	t.Run("rejects zero date", func(t *testing.T) {
 		cmd := validSetScheduleCommand()
 		cmd.Date = datetime.Date{}
@@ -85,6 +93,10 @@ func TestValidateSetSchedule_scheduleType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := validSetScheduleCommand()
 			cmd.ScheduleType = tt.in
+			if strings.TrimSpace(tt.in) == "event" {
+				cmd.EventName = "テストイベント"
+				cmd.EventDescription = "説明"
+			}
 			v := validateSetSchedule(cmd)
 			if tt.wantField == "" {
 				assertNoViolations(t, v)
@@ -110,26 +122,69 @@ func TestValidateSetSchedule_capacity(t *testing.T) {
 	})
 }
 
-func TestValidateSetSchedule_eventTextLength(t *testing.T) {
-	t.Run("accepts event_name at max rune length", func(t *testing.T) {
+func TestValidateSetSchedule_eventRequiredFields(t *testing.T) {
+	t.Run("rejects event without event_name", func(t *testing.T) {
 		cmd := validSetScheduleCommand()
-		cmd.EventName = strings.Repeat("あ", maxEventNameRunes)
-		assertNoViolations(t, validateSetSchedule(cmd))
+		cmd.ScheduleType = "event"
+		cmd.EventDescription = "説明"
+		assertSingleViolationField(t, validateSetSchedule(cmd), "event_name")
 	})
 
-	t.Run("rejects event_name over max rune length", func(t *testing.T) {
+	t.Run("rejects event without event_description", func(t *testing.T) {
+		cmd := validSetScheduleCommand()
+		cmd.ScheduleType = "event"
+		cmd.EventName = "和紅茶をしばく会"
+		assertSingleViolationField(t, validateSetSchedule(cmd), "event_description")
+	})
+
+	t.Run("rejects event with whitespace-only event_name", func(t *testing.T) {
+		cmd := validSetScheduleCommand()
+		cmd.ScheduleType = "event"
+		cmd.EventName = "  "
+		cmd.EventDescription = "説明"
+		assertSingleViolationField(t, validateSetSchedule(cmd), "event_name")
+	})
+}
+
+func TestValidateSetSchedule_eventTextLength(t *testing.T) {
+	t.Run("accepts event_name at max rune length for event type", func(t *testing.T) {
+		cmd := validSetScheduleCommand()
+		cmd.ScheduleType = "event"
+		cmd.EventName = strings.Repeat("あ", maxEventNameRunes)
+		cmd.EventDescription = "説明"
+		assertNoViolations(t, validateSetSchedule(cmd))
+	})
+	t.Run("rejects event_name over max rune length for event type", func(t *testing.T) {
+		cmd := validSetScheduleCommand()
+		cmd.ScheduleType = "event"
+		cmd.EventName = strings.Repeat("あ", maxEventNameRunes+1)
+		cmd.EventDescription = "説明"
+		assertSingleViolationField(t, validateSetSchedule(cmd), "event_name")
+	})
+
+	t.Run("rejects event_name over max rune length on normal schedule", func(t *testing.T) {
 		cmd := validSetScheduleCommand()
 		cmd.EventName = strings.Repeat("あ", maxEventNameRunes+1)
 		assertSingleViolationField(t, validateSetSchedule(cmd), "event_name")
 	})
 
-	t.Run("accepts event_description at max rune length", func(t *testing.T) {
+	t.Run("accepts event_description at max rune length for event type", func(t *testing.T) {
 		cmd := validSetScheduleCommand()
+		cmd.ScheduleType = "event"
+		cmd.EventName = "イベント"
 		cmd.EventDescription = strings.Repeat("あ", maxEventDescriptionRunes)
 		assertNoViolations(t, validateSetSchedule(cmd))
 	})
 
-	t.Run("rejects event_description over max rune length", func(t *testing.T) {
+	t.Run("rejects event_description over max rune length for event type", func(t *testing.T) {
+		cmd := validSetScheduleCommand()
+		cmd.ScheduleType = "event"
+		cmd.EventName = "イベント"
+		cmd.EventDescription = strings.Repeat("あ", maxEventDescriptionRunes+1)
+		assertSingleViolationField(t, validateSetSchedule(cmd), "event_description")
+	})
+
+	t.Run("rejects event_description over max rune length on normal schedule", func(t *testing.T) {
 		cmd := validSetScheduleCommand()
 		cmd.EventDescription = strings.Repeat("あ", maxEventDescriptionRunes+1)
 		assertSingleViolationField(t, validateSetSchedule(cmd), "event_description")

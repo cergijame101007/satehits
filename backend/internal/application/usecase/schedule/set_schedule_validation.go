@@ -49,12 +49,29 @@ func validateSetSchedule(cmd SetScheduleCommand) []FieldViolation {
 		violations = append(violations, FieldViolation{Field: "event_description", Message: fmt.Sprintf("イベント説明は%d文字以内で入力してください", maxEventDescriptionRunes)})
 	}
 
+	if st == "event" {
+		violations = append(violations, validateEventSchedule(eventName, eventDesc)...)
+	}
+
 	violations = append(violations, validateScheduleTimes(cmd.OpenTime, cmd.LastOrderTime, cmd.CloseTime)...)
 
 	return violations
 }
 
-// validateScheduleTimes は任意指定の営業時刻の整合性を検証する（未指定はドメインサービスで補完後に再検証）
+// validateEventSchedule は event 時の名称・説明必須（営業時刻は任意・未指定時は店舗デフォルトを補完）
+func validateEventSchedule(eventName, eventDesc string) []FieldViolation {
+	var violations []FieldViolation
+	if eventName == "" {
+		violations = append(violations, FieldViolation{Field: "event_name", Message: "イベント名は必須です"})
+	}
+	if eventDesc == "" {
+		violations = append(violations, FieldViolation{Field: "event_description", Message: "イベント説明は必須です"})
+	}
+	return violations
+}
+
+// validateScheduleTimes は任意指定の営業時刻の整合性を検証する
+// 未指定はドメインサービスで補完後に再検証（closed は時刻を保存しない）
 func validateScheduleTimes(open, lastOrder, close datetime.Time) []FieldViolation {
 	var violations []FieldViolation
 	o := clockMinutes(open)

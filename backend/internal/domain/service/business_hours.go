@@ -1,9 +1,14 @@
 package service
 
-import "github.com/cergijame101007/satehits/internal/datetime"
+import (
+	"time"
+
+	"github.com/cergijame101007/satehits/internal/datetime"
+)
 
 // 営業時刻のデフォルト（docs/domain_knowledge.md §6 / table_design.md）
-// normal・special_menu は通常営業、morning は朝営業。event はイベント都合、closed は休業のためデフォルトなし
+// normal・special_menu は通常営業、morning は朝営業
+// event は未指定時に暦日の曜日で通常/朝を選んで補完。closed は休業のためデフォルトなし
 var (
 	defaultNormalOpenTime      = datetime.MustParseTime("11:30")
 	defaultNormalLastOrderTime = datetime.MustParseTime("14:00")
@@ -33,6 +38,21 @@ func ApplyDefaultBusinessHours(scheduleType string, open, lastOrder, close datet
 	return open, lastOrder, close
 }
 
+// ApplyEventDefaultBusinessHours は event で未指定の時刻に、その日の曜日に応じた店舗デフォルトを当てる
+// 土日は朝営業、それ以外は通常営業（店内イベント想定。定例の木金休業は event 行で上書き）
+func ApplyEventDefaultBusinessHours(date datetime.Date, open, lastOrder, close datetime.Time) (datetime.Time, datetime.Time, datetime.Time) {
+	return ApplyDefaultBusinessHours(defaultBusinessHoursTypeForEventDate(date), open, lastOrder, close)
+}
+
+func defaultBusinessHoursTypeForEventDate(date datetime.Date) string {
+	switch date.Weekday() {
+	case time.Saturday, time.Sunday:
+		return "morning"
+	default:
+		return "normal"
+	}
+}
+
 func defaultBusinessHoursForType(scheduleType string) (open, lastOrder, close datetime.Time, ok bool) {
 	switch scheduleType {
 	case "normal", "special_menu":
@@ -40,7 +60,7 @@ func defaultBusinessHoursForType(scheduleType string) (open, lastOrder, close da
 	case "morning":
 		return defaultMorningOpenTime, defaultMorningLastOrderTime, defaultMorningCloseTime, true
 	default:
-		// event: イベントによる / closed: 休業
+		// event: ApplyEventDefaultBusinessHours を使用 / closed: 休業（時刻は保存しない）
 		return datetime.Time{}, datetime.Time{}, datetime.Time{}, false
 	}
 }
