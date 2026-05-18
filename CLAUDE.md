@@ -235,8 +235,9 @@ Presentation  →  Application  →  Domain  ←  Infrastructure
 | `PATCH` | `/api/v1/admin/reservations/:id/status` | 予約ステータス更新 | 未実装 |
 | `POST` | `/api/v1/admin/login` | 管理者ログイン | 未実装 |
 | `POST` | `/api/v1/admin/logout` | 管理者ログアウト | 未実装 |
-| `GET` | `/api/v1/admin/schedules` | 月間スケジュール取得 | 未実装 |
-| `POST` | `/api/v1/admin/schedules` | スケジュール設定 | 未実装 |
+| `GET` | `/api/v1/admin/schedules` | 月間スケジュール取得 | 実装済み |
+| `GET` | `/api/v1/admin/schedules/{date}` | 日別スケジュール取得 | 実装済み |
+| `PUT` | `/api/v1/admin/schedules/{date}` | 日別スケジュール設定（Upsert） | 実装済み |
 | `GET` | `/api/v1/admin/suppliers` | 取引先一覧取得 | 未実装 |
 | `POST` | `/api/v1/admin/suppliers` | 取引先作成 | 未実装 |
 | `PUT` | `/api/v1/admin/suppliers/:id` | 取引先更新 | 未実装 |

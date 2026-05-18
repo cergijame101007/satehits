@@ -85,7 +85,7 @@ export default function ScheduleCalendar() {
     if (!selectedSchedule) return;
     setIsSaving(true);
 
-    // TODO: PUT /api/v1/admin/capacity/{date} または POST /api/v1/admin/schedules に置き換え
+    // TODO: PUT /api/v1/admin/schedules/{date} に置き換え
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     setSchedules((prev) =>

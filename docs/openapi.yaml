@@ -489,7 +489,10 @@ paths:
       tags:
         - スケジュール管理
       summary: 日別スケジュールを設定
-      description: 指定日のスケジュールを設定します。
+      description: |
+        指定日のスケジュールを設定します（Upsert）。
+        パス `{date}` で日付を指定し、リクエストボディに `date` は含めません。
+        初回作成・更新のいずれも 200 OK を返します。
       operationId: setSchedule
       security:
         - BearerAuth: []

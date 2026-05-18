@@ -14,15 +14,15 @@ import (
 	"github.com/cergijame101007/satehits/internal/domain"
 )
 
-// スケジュール設定 POST のボディ上限（64KB）
+// スケジュール設定 PUT のボディ上限（64KB）
 const maxSetScheduleBodyBytes = 64 << 10
 
 // defaultSetScheduleCapacity は OpenAPI SetScheduleRequest.capacity の省略時デフォルト
 const defaultSetScheduleCapacity = 10
 
 // SetScheduleRequest は日別スケジュール設定リクエストの DTO（OpenAPI SetScheduleRequest）
+// 日付はパス {date} で指定し、ボディには含めない
 type SetScheduleRequest struct {
-	Date             datetime.Date `json:"date"`
 	ScheduleType     string        `json:"schedule_type"`
 	Capacity         *int          `json:"capacity"`
 	EventName        string        `json:"event_name"`
@@ -85,14 +85,11 @@ func NewScheduleHandler(
 func (h *ScheduleHandler) HandleSchedules(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	if path == h.schedulesPath {
-		switch r.Method {
-		case http.MethodGet:
-			h.handleList(w, r)
-		case http.MethodPost:
-			h.handleSet(w, r)
-		default:
+		if r.Method != http.MethodGet {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
 		}
+		h.handleList(w, r)
 		return
 	}
 
@@ -106,11 +103,14 @@ func (h *ScheduleHandler) HandleSchedules(w http.ResponseWriter, r *http.Request
 		http.NotFound(w, r)
 		return
 	}
-	if r.Method != http.MethodGet {
+	switch r.Method {
+	case http.MethodGet:
+		h.handleGetByDate(w, r, datePart)
+	case http.MethodPut:
+		h.handleSet(w, r, datePart)
+	default:
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
 	}
-	h.handleGetByDate(w, r, datePart)
 }
 
 func (h *ScheduleHandler) handleList(w http.ResponseWriter, r *http.Request) {
@@ -151,8 +151,14 @@ func (h *ScheduleHandler) handleGetByDate(w http.ResponseWriter, r *http.Request
 	respondWithJSON(w, http.StatusOK, toScheduleResponse(result.Schedule, result.IsDefault))
 }
 
-// handleSet — 日別スケジュール Upsert（新規 201 / 更新 200）
-func (h *ScheduleHandler) handleSet(w http.ResponseWriter, r *http.Request) {
+// handleSet — PUT /admin/schedules/{date} で日別スケジュールを Upsert（常に 200 OK）
+func (h *ScheduleHandler) handleSet(w http.ResponseWriter, r *http.Request, dateStr string) {
+	date, err := datetime.ParseDate(dateStr)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, InvalidRequestCode, "リクエスト形式が不正です", nil)
+		return
+	}
+
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {
 		respondWithError(w, http.StatusBadRequest, InvalidRequestCode, "リクエスト形式が不正です", nil)
@@ -168,7 +174,7 @@ func (h *ScheduleHandler) handleSet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := h.setSchedule.Execute(r.Context(), usecase.SetScheduleCommand{
-		Date:             request.Date,
+		Date:             date,
 		ScheduleType:     request.ScheduleType,
 		Capacity:         resolveSetScheduleCapacity(request.Capacity),
 		EventName:        request.EventName,
@@ -185,11 +191,7 @@ func (h *ScheduleHandler) handleSet(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Saved Schedule date=%s scheduleType=%s capacity=%d inserted=%v openTime=%s lastOrderTime=%s closeTime=%s",
 		s.Date, s.ScheduleType, s.Capacity, result.Inserted, s.OpenTime, s.LastOrderTime, s.CloseTime)
 
-	status := http.StatusOK
-	if result.Inserted {
-		status = http.StatusCreated
-	}
-	respondWithJSON(w, status, toScheduleResponse(s, false))
+	respondWithJSON(w, http.StatusOK, toScheduleResponse(s, false))
 }
 
 func resolveSetScheduleCapacity(capacity *int) int {

@@ -490,11 +490,17 @@ GET /api/v1/admin/schedules?year=2025&month=2
 
 ### PUT /admin/schedules/{date}
 
-指定日のスケジュールを設定する。
+指定日のスケジュールを設定する（`daily_schedules` への Upsert。初回・更新とも同一エンドポイント）。
 
 #### リクエスト
 
-`SetScheduleRequest`。**必須は `schedule_type`**。`capacity` は省略時デフォルト（OpenAPI上は説明で「10」）。`event_name` / `event_description` はイベント・特別メニュー時。時刻系は省略可（デフォルト適用）。
+```
+PUT /api/v1/admin/schedules/2025-02-11
+```
+
+パス `{date}` は `YYYY-MM-DD`。ボディは `SetScheduleRequest`（**`date` フィールドは含めない**）。
+
+**必須は `schedule_type`**。`capacity` は省略時デフォルト（OpenAPI上は説明で「10」）。`event_name` / `event_description` はイベント・特別メニュー時。時刻系は省略可（デフォルト適用）。
 
 ```json
 {
@@ -505,7 +511,7 @@ GET /api/v1/admin/schedules?year=2025&month=2
 
 #### レスポンス
 
-**成功時（200 OK）** — `ScheduleResponse`
+**成功時（200 OK）** — `ScheduleResponse`（新規作成・更新のいずれも 200）
 
 ---
 
