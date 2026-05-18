@@ -10,9 +10,9 @@ func TestApplyDefaultBusinessHours(t *testing.T) {
 	tests := []struct {
 		name         string
 		scheduleType string
-		open         string
+		openTime     string
 		lastOrder    string
-		close        string
+		closeTime    string
 		wantOpen     string
 		wantLast     string
 		wantClose    string
@@ -41,9 +41,9 @@ func TestApplyDefaultBusinessHours(t *testing.T) {
 		{
 			name:         "keeps provided times for normal",
 			scheduleType: "normal",
-			open:         "10:00",
+			openTime:     "10:00",
 			lastOrder:    "13:00",
-			close:        "14:00",
+			closeTime:    "14:00",
 			wantOpen:     "10:00",
 			wantLast:     "13:00",
 			wantClose:    "14:00",
@@ -51,7 +51,7 @@ func TestApplyDefaultBusinessHours(t *testing.T) {
 		{
 			name:         "fills only omitted fields for normal",
 			scheduleType: "normal",
-			open:         "10:00",
+			openTime:     "10:00",
 			wantOpen:     "10:00",
 			wantLast:     "14:00",
 			wantClose:    "15:00",
@@ -66,8 +66,8 @@ func TestApplyDefaultBusinessHours(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			open, last, close := parseOptionalTime(tt.open), parseOptionalTime(tt.lastOrder), parseOptionalTime(tt.close)
-			gotOpen, gotLast, gotClose := ApplyDefaultBusinessHours(tt.scheduleType, open, last, close)
+			openTime, last, closeTime := parseOptionalTime(tt.openTime), parseOptionalTime(tt.lastOrder), parseOptionalTime(tt.closeTime)
+			gotOpen, gotLast, gotClose := ApplyDefaultBusinessHours(tt.scheduleType, openTime, last, closeTime)
 			assertTimeString(t, "open", gotOpen, tt.wantOpen)
 			assertTimeString(t, "last_order", gotLast, tt.wantLast)
 			assertTimeString(t, "close", gotClose, tt.wantClose)

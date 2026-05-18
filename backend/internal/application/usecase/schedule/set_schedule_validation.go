@@ -72,11 +72,11 @@ func validateEventSchedule(eventName, eventDesc string) []FieldViolation {
 
 // validateScheduleTimes は任意指定の営業時刻の整合性を検証する
 // 未指定はドメインサービスで補完後に再検証（closed は時刻を保存しない）
-func validateScheduleTimes(open, lastOrder, close datetime.Time) []FieldViolation {
+func validateScheduleTimes(openTime, lastOrder, closeTime datetime.Time) []FieldViolation {
 	var violations []FieldViolation
-	o := clockMinutes(open)
+	o := clockMinutes(openTime)
 	lo := clockMinutes(lastOrder)
-	c := clockMinutes(close)
+	c := clockMinutes(closeTime)
 
 	if o >= 0 && lo >= 0 && o > lo {
 		violations = append(violations, FieldViolation{Field: "last_order_time", Message: "ラストオーダーは開店時刻以降にしてください"})

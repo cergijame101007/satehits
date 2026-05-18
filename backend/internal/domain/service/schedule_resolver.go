@@ -143,14 +143,14 @@ func daysInMonth(year int, month time.Month) int {
 // 木金 closed、土日 morning、月〜水 normal（祝日未考慮・TODO）
 func synthesizeFromStoreCalendar(d datetime.Date) domain.Schedule {
 	scheduleType, capacity := defaultScheduleTypeAndCapacity(d.Weekday())
-	open, lastOrder, close := ApplyDefaultBusinessHours(scheduleType, datetime.Time{}, datetime.Time{}, datetime.Time{})
+	openTime, lastOrder, closeTime := ApplyDefaultBusinessHours(scheduleType, datetime.Time{}, datetime.Time{}, datetime.Time{})
 	return domain.Schedule{
 		Date:          d,
 		ScheduleType:  scheduleType,
 		Capacity:      capacity,
-		OpenTime:      open,
+		OpenTime:      openTime,
 		LastOrderTime: lastOrder,
-		CloseTime:     close,
+		CloseTime:     closeTime,
 	}
 }
 

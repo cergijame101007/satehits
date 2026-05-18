@@ -21,27 +21,27 @@ var (
 
 // ApplyDefaultBusinessHours は未指定（ゼロ値）の時刻に schedule_type に応じた店舗デフォルトを当てる
 // 各フィールドは独立に補完する（一部だけ指定された場合は残りだけデフォルト）
-func ApplyDefaultBusinessHours(scheduleType string, open, lastOrder, close datetime.Time) (datetime.Time, datetime.Time, datetime.Time) {
+func ApplyDefaultBusinessHours(scheduleType string, openTime, lastOrder, closeTime datetime.Time) (datetime.Time, datetime.Time, datetime.Time) {
 	defOpen, defLast, defClose, ok := defaultBusinessHoursForType(scheduleType)
 	if !ok {
-		return open, lastOrder, close
+		return openTime, lastOrder, closeTime
 	}
-	if open.IsZero() {
-		open = defOpen
+	if openTime.IsZero() {
+		openTime = defOpen
 	}
 	if lastOrder.IsZero() {
 		lastOrder = defLast
 	}
-	if close.IsZero() {
-		close = defClose
+	if closeTime.IsZero() {
+		closeTime = defClose
 	}
-	return open, lastOrder, close
+	return openTime, lastOrder, closeTime
 }
 
 // ApplyEventDefaultBusinessHours は event で未指定の時刻に、その日の曜日に応じた店舗デフォルトを当てる
 // 土日は朝営業、それ以外は通常営業（店内イベント想定。定例の木金休業は event 行で上書き）
-func ApplyEventDefaultBusinessHours(date datetime.Date, open, lastOrder, close datetime.Time) (datetime.Time, datetime.Time, datetime.Time) {
-	return ApplyDefaultBusinessHours(defaultBusinessHoursTypeForEventDate(date), open, lastOrder, close)
+func ApplyEventDefaultBusinessHours(date datetime.Date, openTime, lastOrder, closeTime datetime.Time) (datetime.Time, datetime.Time, datetime.Time) {
+	return ApplyDefaultBusinessHours(defaultBusinessHoursTypeForEventDate(date), openTime, lastOrder, closeTime)
 }
 
 func defaultBusinessHoursTypeForEventDate(date datetime.Date) string {
@@ -53,7 +53,7 @@ func defaultBusinessHoursTypeForEventDate(date datetime.Date) string {
 	}
 }
 
-func defaultBusinessHoursForType(scheduleType string) (open, lastOrder, close datetime.Time, ok bool) {
+func defaultBusinessHoursForType(scheduleType string) (openTime, lastOrder, closeTime datetime.Time, ok bool) {
 	switch scheduleType {
 	case "normal", "special_menu":
 		return defaultNormalOpenTime, defaultNormalLastOrderTime, defaultNormalCloseTime, true

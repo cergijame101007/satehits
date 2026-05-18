@@ -195,23 +195,23 @@ func TestValidateScheduleTimes(t *testing.T) {
 	// 任意指定の営業時刻の前後関係（未指定はドメインサービスで補完後に再検証）
 	tests := []struct {
 		name      string
-		open      string
+		openTime  string
 		lastOrder string
 		close     string
 		want      []string
 	}{
 		{name: "accepts all times omitted"},
-		{name: "accepts open before last order before close", open: "11:30", lastOrder: "14:00", close: "15:00"},
-		{name: "rejects open after last order", open: "15:00", lastOrder: "14:00", close: "16:00", want: []string{"last_order_time"}},
-		{name: "rejects last order after close", open: "11:30", lastOrder: "16:00", close: "15:00", want: []string{"close_time"}},
-		{name: "rejects open after close without last order", open: "16:00", close: "15:00", want: []string{"close_time"}},
-		{name: "accepts only open and close when open before close", open: "11:30", close: "15:00"},
+		{name: "accepts open before last order before close", openTime: "11:30", lastOrder: "14:00", close: "15:00"},
+		{name: "rejects open after last order", openTime: "15:00", lastOrder: "14:00", close: "16:00", want: []string{"last_order_time"}},
+		{name: "rejects last order after close", openTime: "11:30", lastOrder: "16:00", close: "15:00", want: []string{"close_time"}},
+		{name: "rejects open after close without last order", openTime: "16:00", close: "15:00", want: []string{"close_time"}},
+		{name: "accepts only open and close when open before close", openTime: "11:30", close: "15:00"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			open, lastOrder, closeTime := datetime.Time{}, datetime.Time{}, datetime.Time{}
-			if tt.open != "" {
-				open = datetime.MustParseTime(tt.open)
+			openTime, lastOrder, closeTime := datetime.Time{}, datetime.Time{}, datetime.Time{}
+			if tt.openTime != "" {
+				openTime = datetime.MustParseTime(tt.openTime)
 			}
 			if tt.lastOrder != "" {
 				lastOrder = datetime.MustParseTime(tt.lastOrder)
@@ -219,7 +219,7 @@ func TestValidateScheduleTimes(t *testing.T) {
 			if tt.close != "" {
 				closeTime = datetime.MustParseTime(tt.close)
 			}
-			got := violationFields(validateScheduleTimes(open, lastOrder, closeTime))
+			got := violationFields(validateScheduleTimes(openTime, lastOrder, closeTime))
 			if len(got) != len(tt.want) {
 				t.Fatalf("violation fields = %v, want %v", got, tt.want)
 			}

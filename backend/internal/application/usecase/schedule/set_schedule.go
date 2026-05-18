@@ -61,14 +61,14 @@ func (u *SetScheduleUseCase) Execute(ctx context.Context, cmd SetScheduleCommand
 	}
 
 	scheduleType := strings.TrimSpace(cmd.ScheduleType)
-	open, lastOrder, close := service.ApplyDefaultBusinessHours(scheduleType, cmd.OpenTime, cmd.LastOrderTime, cmd.CloseTime)
+	openTime, lastOrder, closeTime := service.ApplyDefaultBusinessHours(scheduleType, cmd.OpenTime, cmd.LastOrderTime, cmd.CloseTime)
 	if scheduleType == "event" {
-		open, lastOrder, close = service.ApplyEventDefaultBusinessHours(cmd.Date, open, lastOrder, close)
+		openTime, lastOrder, closeTime = service.ApplyEventDefaultBusinessHours(cmd.Date, openTime, lastOrder, closeTime)
 	}
 	if scheduleType == "closed" {
-		open, lastOrder, close = datetime.Time{}, datetime.Time{}, datetime.Time{}
+		openTime, lastOrder, closeTime = datetime.Time{}, datetime.Time{}, datetime.Time{}
 	}
-	if v := validateScheduleTimes(open, lastOrder, close); len(v) > 0 {
+	if v := validateScheduleTimes(openTime, lastOrder, closeTime); len(v) > 0 {
 		return nil, &ValidationError{Violations: v}
 	}
 
@@ -78,9 +78,9 @@ func (u *SetScheduleUseCase) Execute(ctx context.Context, cmd SetScheduleCommand
 		Capacity:         cmd.Capacity,
 		EventName:        strings.TrimSpace(cmd.EventName),
 		EventDescription: strings.TrimSpace(cmd.EventDescription),
-		OpenTime:         open,
+		OpenTime:         openTime,
 		LastOrderTime:    lastOrder,
-		CloseTime:        close,
+		CloseTime:        closeTime,
 	}
 	res, inserted, err := u.repo.Upsert(ctx, in)
 	if err != nil {
