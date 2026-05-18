@@ -40,10 +40,28 @@
 - モックを API 呼び出しに置き換える作業は AI が担当してよい
 
 **共通ルール**
-- **実装・レビュー前に docs を参照**（`.cursor/rules/docs-first.mdc`）。API は `docs/api_design.md` と `docs/openapi.yaml`、DB は `docs/table_design.md` を先に読む。Copilot 等の指摘は docs と利用箇所で取捨選択（Cursor / Claude 共通）
 - コミット: `type: 日本語の説明`（例: `feat: 予約フォームを追加`）
 - コミットは1目的1コミット、絵文字・複数行説明なし
 - コミュニケーションは日本語で
+
+**Docs 優先（Cursor / Copilot / Claude 共通）**
+
+API・DB・バリデーション・ドメインルール・エラー形式に触れるときは、**コードを書く・直す・レビューする前に**関連 docs を読む。記憶や推測だけで実装しない。
+
+| 作業 | 先に読むもの |
+|------|----------------|
+| HTTP（パス・メソッド・ステータス・ボディ・デフォルト値） | `docs/api_design.md` → `docs/openapi.yaml` |
+| テーブル・NULL・CHECK・マイグレーション | `docs/table_design.md`、該当 `backend/migrations/*.sql` |
+| 店舗・営業・用語 | `docs/domain_knowledge.md` |
+| レイヤー責務・DI | `docs/architecture.md` |
+| Go テスト | `docs/coding_rule/go_testing.md` |
+| 画面・遷移 | `docs/screen_transition.md` |
+
+Copilot 等の自動レビュー指摘は**仮説**とする。上表の docs と変更コードの**利用箇所**（handler・usecase・テスト）で確認してから直す。**docs と矛盾する指摘は採用しない**（必要なら docs 更新を先に提案）。戻り値が未使用なら過剰な refactor はしない。docs と実装がずれたら、どちらを正とするか決めてから片方を直す。
+
+**バックエンド再発防止（docs 確認済みのみ追記）**
+
+- `schedule_type` とイベント欄（正は `docs/api_design.md` の表）: `normal` / `morning` / `closed` はイベント欄を送らない・保存前にクリア。`event` は名称・説明必須。`special_menu` は任意（Copilot が「必須」と言っても docs 優先）
 
 ---
 
