@@ -2,12 +2,28 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
 	"github.com/cergijame101007/satehits/internal/domain/service"
 )
+
+func TestGetScheduleUseCase_Execute_rejectsZeroDate(t *testing.T) {
+	uc := NewGetScheduleUseCase(service.NewScheduleResolver(&listSchedulesStubRepo{}))
+	_, err := uc.Execute(context.Background(), datetime.Date{})
+	if err == nil {
+		t.Fatal("err = nil, want ValidationError")
+	}
+	var vErr *ValidationError
+	if !errors.As(err, &vErr) {
+		t.Fatalf("err type = %T, want *ValidationError", err)
+	}
+	if vErr.Violations[0].Field != "date" {
+		t.Fatalf("Field = %q, want date", vErr.Violations[0].Field)
+	}
+}
 
 func TestGetScheduleUseCase_Execute_returnsStoredRow(t *testing.T) {
 	d := datetime.MustParseDate("2026-03-01")

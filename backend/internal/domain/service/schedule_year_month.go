@@ -29,6 +29,23 @@ func (e *YearMonthValidationError) Error() string {
 	return "入力内容に誤りがあります"
 }
 
+// DateValidationError は日付検証失敗
+type DateValidationError struct {
+	Violations []ScheduleFieldViolation
+}
+
+func (e *DateValidationError) Error() string {
+	return "入力内容に誤りがあります"
+}
+
+// validateDate は日別解決用の日付検証（ゼロ値不可）
+func validateDate(date datetime.Date) []ScheduleFieldViolation {
+	if date.IsZero() {
+		return []ScheduleFieldViolation{{Field: "date", Message: "日付は必須です"}}
+	}
+	return nil
+}
+
 // validateYearMonth は一覧・月次解決用の year/month 範囲検証
 func validateYearMonth(year, month int) []ScheduleFieldViolation {
 	var violations []ScheduleFieldViolation

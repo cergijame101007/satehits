@@ -35,13 +35,21 @@ func (u *ListSchedulesUseCase) Execute(ctx context.Context, year, month int) (*L
 }
 
 func mapScheduleServiceError(err error) error {
+	var dateErr *service.DateValidationError
+	if errors.As(err, &dateErr) {
+		return serviceViolationsToValidationError(dateErr.Violations)
+	}
 	var ymErr *service.YearMonthValidationError
 	if errors.As(err, &ymErr) {
-		violations := make([]FieldViolation, len(ymErr.Violations))
-		for i, v := range ymErr.Violations {
-			violations[i] = FieldViolation{Field: v.Field, Message: v.Message}
-		}
-		return &ValidationError{Violations: violations}
+		return serviceViolationsToValidationError(ymErr.Violations)
 	}
 	return err
+}
+
+func serviceViolationsToValidationError(violations []service.ScheduleFieldViolation) *ValidationError {
+	out := make([]FieldViolation, len(violations))
+	for i, v := range violations {
+		out[i] = FieldViolation{Field: v.Field, Message: v.Message}
+	}
+	return &ValidationError{Violations: out}
 }

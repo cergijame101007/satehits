@@ -30,6 +30,9 @@ func NewScheduleResolver(repo domain.ScheduleRepository) *ScheduleResolver {
 
 // ResolveForDate — 指定日の有効スケジュール（行優先、無ければ定例合成）
 func (r *ScheduleResolver) ResolveForDate(ctx context.Context, date datetime.Date) (EffectiveSchedule, error) {
+	if v := validateDate(date); len(v) > 0 {
+		return EffectiveSchedule{}, &DateValidationError{Violations: v}
+	}
 	stored, found, err := r.repo.FindByDate(ctx, date)
 	if err != nil {
 		return EffectiveSchedule{}, err

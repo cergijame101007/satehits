@@ -22,15 +22,9 @@ func NewGetScheduleUseCase(resolver *service.ScheduleResolver) *GetScheduleUseCa
 
 // Execute は有効スケジュールを返す（保存行優先、無ければ店舗定例）
 func (u *GetScheduleUseCase) Execute(ctx context.Context, date datetime.Date) (*GetScheduleResult, error) {
-	if date.IsZero() {
-		return nil, &ValidationError{Violations: []FieldViolation{
-			{Field: "date", Message: "日付は必須です"},
-		}}
-	}
-
 	eff, err := u.resolver.ResolveForDate(ctx, date)
 	if err != nil {
-		return nil, err
+		return nil, mapScheduleServiceError(err)
 	}
 	return &eff, nil
 }

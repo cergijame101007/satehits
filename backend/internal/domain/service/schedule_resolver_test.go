@@ -24,6 +24,21 @@ func (resolveMonthStubRepo) ListStoredByYearMonth(context.Context, int, int) ([]
 	return nil, nil
 }
 
+func TestScheduleResolver_ResolveForDate_rejectsZeroDate(t *testing.T) {
+	r := NewScheduleResolver(resolveMonthStubRepo{})
+	_, err := r.ResolveForDate(context.Background(), datetime.Date{})
+	if err == nil {
+		t.Fatal("err = nil, want DateValidationError")
+	}
+	var dateErr *DateValidationError
+	if !errors.As(err, &dateErr) {
+		t.Fatalf("err type = %T, want *DateValidationError", err)
+	}
+	if dateErr.Violations[0].Field != "date" {
+		t.Fatalf("Field = %q, want date", dateErr.Violations[0].Field)
+	}
+}
+
 func TestScheduleResolver_ResolveMonth_rejectsInvalidYearMonth(t *testing.T) {
 	r := NewScheduleResolver(resolveMonthStubRepo{})
 	_, err := r.ResolveMonth(context.Background(), 1999, 1)
