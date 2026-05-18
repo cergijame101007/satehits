@@ -40,6 +40,7 @@
 - モックを API 呼び出しに置き換える作業は AI が担当してよい
 
 **共通ルール**
+- **実装・レビュー前に docs を参照**（`.cursor/rules/docs-first.mdc`）。API は `docs/api_design.md` と `docs/openapi.yaml`、DB は `docs/table_design.md` を先に読む。Copilot 等の指摘は docs と利用箇所で取捨選択（Cursor / Claude 共通）
 - コミット: `type: 日本語の説明`（例: `feat: 予約フォームを追加`）
 - コミットは1目的1コミット、絵文字・複数行説明なし
 - コミュニケーションは日本語で
