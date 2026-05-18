@@ -72,12 +72,19 @@ func (u *SetScheduleUseCase) Execute(ctx context.Context, cmd SetScheduleCommand
 		return nil, &ValidationError{Violations: v}
 	}
 
+	eventName := strings.TrimSpace(cmd.EventName)
+	eventDescription := strings.TrimSpace(cmd.EventDescription)
+	if scheduleTypeForbidsEventText(scheduleType) {
+		eventName = ""
+		eventDescription = ""
+	}
+
 	in := domain.SetScheduleInput{
 		Date:             cmd.Date,
 		ScheduleType:     scheduleType,
 		Capacity:         cmd.Capacity,
-		EventName:        strings.TrimSpace(cmd.EventName),
-		EventDescription: strings.TrimSpace(cmd.EventDescription),
+		EventName:        eventName,
+		EventDescription: eventDescription,
 		OpenTime:         openTime,
 		LastOrderTime:    lastOrder,
 		CloseTime:        closeTime,

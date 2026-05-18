@@ -104,3 +104,41 @@ func TestSetScheduleUseCase_Execute_clearsTimesForClosed(t *testing.T) {
 			repo.lastIn.OpenTime, repo.lastIn.LastOrderTime, repo.lastIn.CloseTime)
 	}
 }
+
+func TestSetScheduleUseCase_Execute_clearsEventTextForNormalAndClosed(t *testing.T) {
+	t.Run("clears omitted event text on closed", func(t *testing.T) {
+		repo := &stubScheduleRepo{inserted: true}
+		uc := NewSetScheduleUseCase(repo)
+
+		_, err := uc.Execute(context.Background(), SetScheduleCommand{
+			Date:         datetime.MustParseDate("2026-05-21"),
+			ScheduleType: "closed",
+			Capacity:     0,
+		})
+		if err != nil {
+			t.Fatalf("Execute() err = %v, want nil", err)
+		}
+		if repo.lastIn.EventName != "" || repo.lastIn.EventDescription != "" {
+			t.Fatalf("event text = %q / %q, want empty",
+				repo.lastIn.EventName, repo.lastIn.EventDescription)
+		}
+	})
+
+	t.Run("clears omitted event text on normal", func(t *testing.T) {
+		repo := &stubScheduleRepo{inserted: true}
+		uc := NewSetScheduleUseCase(repo)
+
+		_, err := uc.Execute(context.Background(), SetScheduleCommand{
+			Date:         datetime.MustParseDate("2026-05-20"),
+			ScheduleType: "normal",
+			Capacity:     10,
+		})
+		if err != nil {
+			t.Fatalf("Execute() err = %v, want nil", err)
+		}
+		if repo.lastIn.EventName != "" || repo.lastIn.EventDescription != "" {
+			t.Fatalf("event text = %q / %q, want empty",
+				repo.lastIn.EventName, repo.lastIn.EventDescription)
+		}
+	})
+}

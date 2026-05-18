@@ -162,9 +162,9 @@ func TestValidateSetSchedule_eventTextLength(t *testing.T) {
 		assertSingleViolationField(t, validateSetSchedule(cmd), "event_name")
 	})
 
-	t.Run("rejects event_name over max rune length on normal schedule", func(t *testing.T) {
+	t.Run("rejects event_name on normal schedule", func(t *testing.T) {
 		cmd := validSetScheduleCommand()
-		cmd.EventName = strings.Repeat("あ", maxEventNameRunes+1)
+		cmd.EventName = "不要なイベント名"
 		assertSingleViolationField(t, validateSetSchedule(cmd), "event_name")
 	})
 
@@ -184,10 +184,45 @@ func TestValidateSetSchedule_eventTextLength(t *testing.T) {
 		assertSingleViolationField(t, validateSetSchedule(cmd), "event_description")
 	})
 
-	t.Run("rejects event_description over max rune length on normal schedule", func(t *testing.T) {
+	t.Run("rejects event_description on normal schedule", func(t *testing.T) {
 		cmd := validSetScheduleCommand()
-		cmd.EventDescription = strings.Repeat("あ", maxEventDescriptionRunes+1)
+		cmd.EventDescription = "不要な説明"
 		assertSingleViolationField(t, validateSetSchedule(cmd), "event_description")
+	})
+}
+
+func TestValidateSetSchedule_forbiddenEventText(t *testing.T) {
+	t.Run("rejects event_name on morning schedule", func(t *testing.T) {
+		cmd := validSetScheduleCommand()
+		cmd.ScheduleType = "morning"
+		cmd.EventName = "朝イベント"
+		assertSingleViolationField(t, validateSetSchedule(cmd), "event_name")
+	})
+
+	t.Run("rejects event fields on closed schedule", func(t *testing.T) {
+		cmd := validSetScheduleCommand()
+		cmd.ScheduleType = "closed"
+		cmd.Capacity = 0
+		cmd.EventName = "残したくない"
+		cmd.EventDescription = "説明"
+		got := violationFields(validateSetSchedule(cmd))
+		want := []string{"event_name", "event_description"}
+		if len(got) != len(want) {
+			t.Fatalf("violation fields = %v, want %v", got, want)
+		}
+		for i, field := range want {
+			if got[i] != field {
+				t.Fatalf("violation fields = %v, want %v", got, want)
+			}
+		}
+	})
+
+	t.Run("accepts special_menu with optional event_name", func(t *testing.T) {
+		cmd := validSetScheduleCommand()
+		cmd.ScheduleType = "special_menu"
+		cmd.EventName = "リゾットランチ"
+		cmd.EventDescription = "本日はリゾットランチの日です"
+		assertNoViolations(t, validateSetSchedule(cmd))
 	})
 }
 

@@ -42,19 +42,39 @@ func validateSetSchedule(cmd SetScheduleCommand) []FieldViolation {
 
 	eventName := strings.TrimSpace(cmd.EventName)
 	eventDesc := strings.TrimSpace(cmd.EventDescription)
-	if utf8.RuneCountInString(eventName) > maxEventNameRunes {
-		violations = append(violations, FieldViolation{Field: "event_name", Message: fmt.Sprintf("イベント名は%d文字以内で入力してください", maxEventNameRunes)})
-	}
-	if utf8.RuneCountInString(eventDesc) > maxEventDescriptionRunes {
-		violations = append(violations, FieldViolation{Field: "event_description", Message: fmt.Sprintf("イベント説明は%d文字以内で入力してください", maxEventDescriptionRunes)})
-	}
-
-	if st == "event" {
-		violations = append(violations, validateEventSchedule(eventName, eventDesc)...)
+	if scheduleTypeForbidsEventText(st) {
+		violations = append(violations, validateForbiddenEventText(eventName, eventDesc)...)
+	} else {
+		if utf8.RuneCountInString(eventName) > maxEventNameRunes {
+			violations = append(violations, FieldViolation{Field: "event_name", Message: fmt.Sprintf("イベント名は%d文字以内で入力してください", maxEventNameRunes)})
+		}
+		if utf8.RuneCountInString(eventDesc) > maxEventDescriptionRunes {
+			violations = append(violations, FieldViolation{Field: "event_description", Message: fmt.Sprintf("イベント説明は%d文字以内で入力してください", maxEventDescriptionRunes)})
+		}
+		if st == "event" {
+			violations = append(violations, validateEventSchedule(eventName, eventDesc)...)
+		}
 	}
 
 	violations = append(violations, validateScheduleTimes(cmd.OpenTime, cmd.LastOrderTime, cmd.CloseTime)...)
 
+	return violations
+}
+
+// scheduleTypeForbidsEventText は event_name / event_description を保存しない schedule_type
+func scheduleTypeForbidsEventText(scheduleType string) bool {
+	return scheduleType == "normal" || scheduleType == "morning" || scheduleType == "closed"
+}
+
+// validateForbiddenEventText はイベント欄を受け付けない schedule_type 向け
+func validateForbiddenEventText(eventName, eventDesc string) []FieldViolation {
+	var violations []FieldViolation
+	if eventName != "" {
+		violations = append(violations, FieldViolation{Field: "event_name", Message: "イベント名は指定できません"})
+	}
+	if eventDesc != "" {
+		violations = append(violations, FieldViolation{Field: "event_description", Message: "イベント説明は指定できません"})
+	}
 	return violations
 }
 
