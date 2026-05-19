@@ -5,7 +5,7 @@
 ```mermaid
 erDiagram
     reservations {
-        int id PK "予約ID"
+        uuid id PK "予約ID"
         string name "予約者名"
         int people "人数"
         date visit_date "来店日"
@@ -69,7 +69,7 @@ erDiagram
 
 | カラム名 | データ型 | NULL | デフォルト | 説明 |
 |----------|----------|------|------------|------|
-| id | SERIAL | NO | auto | 予約ID（主キー） |
+| id | UUID | NO | `gen_random_uuid()` | 予約ID（主キー） |
 | name | TEXT | NO | - | 予約者名 |
 | people | INTEGER | NO | - | 人数（1〜7） |
 | visit_date | DATE | NO | - | 来店日 |
@@ -84,12 +84,35 @@ erDiagram
 
 **制約:**
 - `people`: CHECK (people >= 1 AND people <= 7)
-- `status`: CHECK (status IN ('pending', 'approved', 'rejected', 'no_show'))
+- `status`: CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled', 'no_show'))
 - `source`: CHECK (source IN ('web', 'instagram', 'phone', 'walk_in', 'other'))
 
 **インデックス:**
 - `idx_reservations_visit_date`: visit_date（日付検索用）
 - `idx_reservations_status`: status（ステータス絞り込み用）
+- `idx_reservations_created_at`: created_at（半年経過データ削除バッチ用）
+- `idx_reservations_unique_active`: `(visit_date, visit_time, phone)` の部分ユニーク（`status IN ('pending', 'approved')` のみ。キャンセル・拒否後は同じ電話番号で再予約可）
+
+**ステータスの値:**
+| 値 | 説明 |
+|----|------|
+| pending | 申請中（Web 予約直後） |
+| approved | 承認済み |
+| rejected | 拒否 |
+| cancelled | メール連絡を受け、オーナーが手動でキャンセルに更新 |
+| no_show | 当日来店なし |
+
+**将来追加（メール送信実装時）:**
+
+非同期メール送信の送信済み判定・再送用。メールサービス（Resend / Cloud Tasks ワーカー）導入時に別マイグレーションで追加する。
+
+```sql
+ALTER TABLE reservations ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ;
+```
+
+- `NULL` = 未送信
+- 値あり = 送信済み（ワーカーが送信成功時に `NOW()` をセット）
+- 顧客向け API レスポンスには含めない（内部用）
 
 **sourceの値:**
 | 値 | 説明 |
@@ -183,7 +206,22 @@ erDiagram
 **備考:**
 - 1ファイルの SQL をトランザクションで実行し、成功後に `INSERT INTO schema_migrations (version) VALUES (...)` で記録する（実装は `applyMigration`）。
 
+### 2.6 マイグレーションファイル（`backend/migrations/`）
+
+`backend/cmd/migrate` が番号昇順で適用する SQL の一覧。`schema_migrations` は migrate 実行時に自動作成（2.5 参照）。
+
+| ファイル | version | 内容 |
+|----------|---------|------|
+| `000001_init_reservations.sql` | 1 | `reservations`（UUID、CHECK、インデックス、部分ユニーク） |
+| `000002_daily_schedules.sql` | 2 | `daily_schedules`、`update_updated_at_column()`、`daily_schedules` トリガー |
+| `000003_reservations_updated_at_trigger.sql` | 3 | `reservations` の `updated_at` トリガー |
+| `000004_suppliers.sql` | 4 | `suppliers`、インデックス、トリガー（未作成） |
+| `000005_admin_users.sql` | 5 | `admin_users`、トリガー（未作成） |
+| `000006_reservations_email_sent_at.sql` | 6 | `reservations.email_sent_at` 追加（未作成） |
+
 ## 3. DDL
+
+PostgreSQL 15（Supabase）では `gen_random_uuid()` に拡張不要。Web 上にキャンセル用トークン列（`cancel_token`）は設けない。キャンセル依頼はメール経由でオーナーが `status = cancelled` に手動更新する。
 
 ```sql
 -- マイグレーション履歴
@@ -194,7 +232,7 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 
 -- 予約テーブル
 CREATE TABLE IF NOT EXISTS reservations (
-    id          SERIAL PRIMARY KEY,
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name        TEXT NOT NULL,
     people      INTEGER NOT NULL CHECK (people >= 1 AND people <= 7),
     visit_date  DATE NOT NULL,
@@ -202,23 +240,25 @@ CREATE TABLE IF NOT EXISTS reservations (
     phone       TEXT NOT NULL,
     email       TEXT NOT NULL,
     note        TEXT,
-    status      TEXT NOT NULL DEFAULT 'pending' 
-                CHECK (status IN ('pending', 'approved', 'rejected', 'no_show')),
+    status      TEXT NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled', 'no_show')),
     source      TEXT NOT NULL DEFAULT 'web'
                 CHECK (source IN ('web', 'instagram', 'phone', 'walk_in', 'other')),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- インデックス
-CREATE INDEX idx_reservations_visit_date ON reservations(visit_date);
-CREATE INDEX idx_reservations_status ON reservations(status);
-CREATE INDEX idx_reservations_visit_date_status ON reservations(visit_date, status);
+CREATE INDEX IF NOT EXISTS idx_reservations_visit_date ON reservations (visit_date);
+CREATE INDEX IF NOT EXISTS idx_reservations_status ON reservations (status);
+CREATE INDEX IF NOT EXISTS idx_reservations_created_at ON reservations (created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_reservations_unique_active
+    ON reservations (visit_date, visit_time, phone)
+    WHERE status IN ('pending', 'approved');
 
 -- 日別スケジュールテーブル
 CREATE TABLE IF NOT EXISTS daily_schedules (
     date              DATE PRIMARY KEY,
-    schedule_type     TEXT NOT NULL 
+    schedule_type     TEXT NOT NULL
                       CHECK (schedule_type IN ('normal', 'morning', 'event', 'special_menu', 'closed')),
     capacity          INTEGER NOT NULL DEFAULT 10 CHECK (capacity >= 0),
     event_name        TEXT,
@@ -243,8 +283,8 @@ CREATE TABLE IF NOT EXISTS suppliers (
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_suppliers_display_order ON suppliers(display_order);
-CREATE INDEX idx_suppliers_is_active ON suppliers(is_active);
+CREATE INDEX IF NOT EXISTS idx_suppliers_display_order ON suppliers (display_order);
+CREATE INDEX IF NOT EXISTS idx_suppliers_is_active ON suppliers (is_active);
 
 -- 管理者ユーザーテーブル
 CREATE TABLE IF NOT EXISTS admin_users (
@@ -256,35 +296,37 @@ CREATE TABLE IF NOT EXISTS admin_users (
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- updated_at自動更新用のトリガー関数
+-- updated_at 自動更新用のトリガー関数
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = NOW();
+    IF NEW IS DISTINCT FROM OLD THEN
+        NEW.updated_at = NOW();
+    END IF;
     RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 -- トリガー設定
 CREATE TRIGGER update_reservations_updated_at
     BEFORE UPDATE ON reservations
     FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+    EXECUTE PROCEDURE update_updated_at_column();
 
 CREATE TRIGGER update_daily_schedules_updated_at
     BEFORE UPDATE ON daily_schedules
     FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+    EXECUTE PROCEDURE update_updated_at_column();
 
 CREATE TRIGGER update_suppliers_updated_at
     BEFORE UPDATE ON suppliers
     FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+    EXECUTE PROCEDURE update_updated_at_column();
 
 CREATE TRIGGER update_admin_users_updated_at
     BEFORE UPDATE ON admin_users
     FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+    EXECUTE PROCEDURE update_updated_at_column();
 ```
 
 ## 4. ステータス遷移図
@@ -295,10 +337,13 @@ stateDiagram-v2
 
     pending --> approved: オーナー承認
     pending --> rejected: オーナー拒否
+    pending --> cancelled: メール連絡後オーナーが手動更新
 
-    approved --> no_show: 無断キャンセル
+    approved --> no_show: 当日来店なし
+    approved --> cancelled: メール連絡後オーナーが手動更新
 
     rejected --> [*]
+    cancelled --> [*]
     no_show --> [*]
     approved --> [*]: 来店完了（状態変更なし）
 ```

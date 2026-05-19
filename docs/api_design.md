@@ -177,7 +177,7 @@ Web からの予約を申請する。リクエストボディに **`status` や 
 
 ```json
 {
-  "id": 123,
+  "id": "550e8400-e29b-41d4-a716-446655440000",
   "name": "山田太郎",
   "people": 2,
   "visit_date": "2025-02-10",
@@ -187,6 +187,19 @@ Web からの予約を申請する。リクエストボディに **`status` や 
   "note": "エビアレルギーあり",
   "status": "pending",
   "created_at": "2025-02-01T10:00:00+09:00"
+}
+```
+
+`id` は UUID 文字列（RFC 4122）。
+
+**二重予約時（409 Conflict）** — 同一電話番号で同一来店日時に `pending` / `approved` の予約が既にある場合（DB 部分ユニーク `idx_reservations_unique_active`）。
+
+```json
+{
+  "error": {
+    "code": "RESERVATION_CONFLICT",
+    "message": "同じ日時の予約が既に登録されています"
+  }
 }
 ```
 
@@ -324,7 +337,7 @@ GET /api/v1/schedules?year=2025&month=2
 | パラメータ | 位置 | 型 | 必須 | 説明 |
 |------------|------|-----|------|------|
 | date | query | string | No | 日付で絞り込み（YYYY-MM-DD） |
-| status | query | string | No | ステータスで絞り込み（`pending` / `approved` / `rejected` / `no_show`） |
+| status | query | string | No | ステータスで絞り込み（`pending` / `approved` / `rejected` / `cancelled` / `no_show`） |
 | source | query | string | No | 予約経路で絞り込み（`web` / `instagram` / `phone` / `walk_in` / `other`） |
 
 ```
@@ -340,7 +353,7 @@ GET /api/v1/admin/reservations?date=2025-02-10&status=pending
 {
   "reservations": [
     {
-      "id": 123,
+      "id": "550e8400-e29b-41d4-a716-446655440000",
       "name": "山田太郎",
       "people": 2,
       "visit_date": "2025-02-10",
@@ -366,7 +379,7 @@ Instagram・電話・知人経由など、オーナーが手動で予約を登�
 
 #### 列挙値（OpenAPI と同一）
 
-- **status（任意）**: `pending`, `approved`, `rejected`, `no_show`
+- **status（任意）**: `pending`, `approved`, `rejected`, `cancelled`, `no_show`
 - **source（必須）**: `web`, `instagram`, `phone`, `walk_in`, `other`
 
 #### リクエスト
@@ -417,16 +430,21 @@ Instagram・電話・知人経由など、オーナーが手動で予約を登�
 
 | フィールド | 型 | 必須 | 説明 |
 |------------|-----|------|------|
-| status | string | Yes | `approved` / `rejected` / `no_show`（`UpdateStatusRequest`） |
+| status | string | Yes | `approved` / `rejected` / `cancelled` / `no_show`（`UpdateStatusRequest`） |
+
+パス `{id}` は予約 UUID。形式不正は 400。
 
 #### ステータス遷移ルール
 
 | 現在のステータス | 変更可能なステータス |
 |------------------|----------------------|
-| pending | approved, rejected |
-| approved | no_show |
+| pending | approved, rejected, cancelled |
+| approved | no_show, cancelled |
 | rejected | （変更不可） |
+| cancelled | （変更不可） |
 | no_show | （変更不可） |
+
+`cancelled` は Web キャンセル機能ではなく、顧客からのメール連絡を受けたオーナーが管理画面から手動で設定する。
 
 #### レスポンス
 
@@ -434,7 +452,7 @@ Instagram・電話・知人経由など、オーナーが手動で予約を登�
 
 ```json
 {
-  "id": 123,
+  "id": "550e8400-e29b-41d4-a716-446655440000",
   "status": "approved",
   "updated_at": "2025-02-01T12:00:00+09:00"
 }
