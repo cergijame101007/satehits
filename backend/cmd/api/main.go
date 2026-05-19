@@ -11,7 +11,9 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
 
-	"github.com/cergijame101007/satehits/internal/application/usecase"
+	reservationusecase "github.com/cergijame101007/satehits/internal/application/usecase/reservation"
+	scheduleusecase "github.com/cergijame101007/satehits/internal/application/usecase/schedule"
+	"github.com/cergijame101007/satehits/internal/domain/service"
 	"github.com/cergijame101007/satehits/internal/handler"
 	"github.com/cergijame101007/satehits/internal/repository"
 )
@@ -42,15 +44,28 @@ func main() {
 	log.Println("Connected to Database!")
 
 	// DI: Repository -> UseCase -> Handler
-	repo := repository.NewPostgresReservationRepository(db)
-	createReservation := usecase.NewCreateReservationUseCase(repo)
 	const apiVersion = "v1"
+
+	reservationRepo := repository.NewPostgresReservationRepository(db)
+	createReservation := reservationusecase.NewCreateReservationUseCase(reservationRepo)
 	reservationsPath := fmt.Sprintf("/api/%s/reservations", apiVersion)
-	reservationHandler := handler.NewReservationHandler(repo, createReservation, reservationsPath)
+	reservationHandler := handler.NewReservationHandler(reservationRepo, createReservation, reservationsPath)
+
+	scheduleRepo := repository.NewPostgresScheduleRepository(db)
+	scheduleResolver := service.NewScheduleResolver(scheduleRepo)
+	setSchedule := scheduleusecase.NewSetScheduleUseCase(scheduleRepo)
+	listSchedules := scheduleusecase.NewListSchedulesUseCase(scheduleResolver)
+	getSchedule := scheduleusecase.NewGetScheduleUseCase(scheduleResolver)
+	schedulesPath := fmt.Sprintf("/api/%s/admin/schedules", apiVersion)
+	scheduleHandler := handler.NewScheduleHandler(setSchedule, listSchedules, getSchedule, schedulesPath)
 
 	// ルーティング（公開 API は /api/v1/...）
 	http.HandleFunc("/", handleRoot)
 	http.HandleFunc(reservationsPath, reservationHandler.HandleReservations)
+	// TODO: スケジュール管理は管理者 JWT 認証必須、認証ミドルウェア実装後に
+	// 本ルートをラップしてからハンドラへ渡す（現状は開発用に無認証）
+	http.HandleFunc(schedulesPath, scheduleHandler.HandleSchedules)
+	http.HandleFunc(schedulesPath+"/", scheduleHandler.HandleSchedules)
 
 	// サーバー起動
 	port := ":8080"

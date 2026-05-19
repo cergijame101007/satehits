@@ -7,7 +7,7 @@ import (
 	"mime"
 	"net/http"
 
-	"github.com/cergijame101007/satehits/internal/application/usecase"
+	usecase "github.com/cergijame101007/satehits/internal/application/usecase/reservation"
 	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
 	"github.com/cergijame101007/satehits/internal/privacy"

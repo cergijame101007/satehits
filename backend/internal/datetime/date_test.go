@@ -25,15 +25,15 @@ func TestParseDate(t *testing.T) {
 			d, err := ParseDate(tc.input)
 			if tc.wantErr {
 				if err == nil {
-					t.Fatal("expected error")
+					t.Fatalf("ParseDate(%q) err = nil, want error", tc.input)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("ParseDate: %v", err)
+				t.Fatalf("ParseDate(%q) err = %v, want nil", tc.input, err)
 			}
 			if got := d.String(); got != tc.want {
-				t.Fatalf("String() = %q, want %q", got, tc.want)
+				t.Fatalf("ParseDate(%q).String() = %q, want %q", tc.input, got, tc.want)
 			}
 		})
 	}

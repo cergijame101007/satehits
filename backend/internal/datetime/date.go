@@ -39,6 +39,15 @@ func MustParseDate(s string) Date {
 	return d
 }
 
+// Weekday は暦日の曜日（UTC 午前0時基準。店舗カレンダー上の「その日」と一致する）。
+func (d Date) Weekday() time.Weekday {
+	if d.IsZero() {
+		return time.Sunday
+	}
+	u := d.UTC()
+	return time.Date(u.Year(), u.Month(), u.Day(), 0, 0, 0, 0, time.UTC).Weekday()
+}
+
 // AddDays は n 日後の日付を返す（負数なら過去）。
 func (d Date) AddDays(n int) Date {
 	if d.IsZero() {

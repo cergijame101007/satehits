@@ -461,6 +461,21 @@ GET /api/v1/admin/schedules?year=2025&month=2
 
 **成功時（200 OK）** — `ScheduleListResponse`（`schedules` は `ScheduleResponse` の配列）。
 
+**バリデーションエラー時（400 Bad Request）** — `year` / `month` クエリの欠落・空白のみ・非数値は handler で `VALIDATION_ERROR`（`details[].field` は `year` または `month`）。範囲外（年 2000〜2100、月 1〜12）はユースケース層で同じ形式。
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "入力内容に誤りがあります",
+    "details": [
+      { "field": "year", "message": "年は必須です" },
+      { "field": "month", "message": "月は必須です" }
+    ]
+  }
+}
+```
+
 ---
 
 ### GET /admin/schedules/{date}
@@ -475,11 +490,23 @@ GET /api/v1/admin/schedules?year=2025&month=2
 
 ### PUT /admin/schedules/{date}
 
-指定日のスケジュールを設定する。
+指定日のスケジュールを設定する（`daily_schedules` への Upsert。初回・更新とも同一エンドポイント）。
 
 #### リクエスト
 
-`SetScheduleRequest`。**必須は `schedule_type`**。`capacity` は省略時デフォルト（OpenAPI上は説明で「10」）。`event_name` / `event_description` はイベント・特別メニュー時。時刻系は省略可（デフォルト適用）。
+```
+PUT /api/v1/admin/schedules/2025-02-11
+```
+
+パス `{date}` は `YYYY-MM-DD`。ボディは `SetScheduleRequest`（**`date` フィールドは含めない**）。
+
+**必須は `schedule_type`**。`capacity` は省略時デフォルト（OpenAPI上は説明で「10」）。
+
+| `schedule_type` | `event_name` / `event_description` | 時刻（`open_time` 等） |
+|-----------------|-------------------------------------|-------------------------|
+| `normal` / `morning` / `special_menu` | 任意（`special_menu` はメニュー名など） | 省略時は店舗デフォルトを適用 |
+| `event` | **両方必須** | **任意**（省略時は曜日別の店舗デフォルトを適用） |
+| `closed` | 不要 | 送信しても保存しない（常に NULL） |
 
 ```json
 {
@@ -488,9 +515,20 @@ GET /api/v1/admin/schedules?year=2025&month=2
 }
 ```
 
+イベント日の例（時刻省略・平日なら 11:30–15:00 が入る）:
+
+```json
+{
+  "schedule_type": "event",
+  "capacity": 10,
+  "event_name": "和紅茶をしばく会",
+  "event_description": "和紅茶をしばく会 入門編@店内開催"
+}
+```
+
 #### レスポンス
 
-**成功時（200 OK）** — `ScheduleResponse`
+**成功時（200 OK）** — `ScheduleResponse`（新規作成・更新のいずれも 200）
 
 ---
 

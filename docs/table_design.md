@@ -111,9 +111,9 @@ erDiagram
 | capacity | INTEGER | NO | 10 | 提供可能数 |
 | event_name | TEXT | YES | NULL | イベント名 |
 | event_description | TEXT | YES | NULL | イベント説明（顧客に表示） |
-| open_time | TIME | YES | NULL | 開店時間（NULLならデフォルト） |
-| last_order_time | TIME | YES | NULL | ラストオーダー時間 |
-| close_time | TIME | YES | NULL | 閉店時間 |
+| open_time | TIME | YES | NULL | 開店時間（`normal` / `morning` / `special_menu` / `event` で未指定時はアプリが店舗デフォルトを補完。`closed` は常に NULL） |
+| last_order_time | TIME | YES | NULL | ラストオーダー時間（上記と同様） |
+| close_time | TIME | YES | NULL | 閉店時間（上記と同様） |
 | created_at | TIMESTAMPTZ | NO | NOW() | 作成日時 |
 | updated_at | TIMESTAMPTZ | NO | NOW() | 更新日時 |
 
@@ -126,7 +126,7 @@ erDiagram
 |----|------|------|-------------------|
 | normal | 通常営業（月火水） | 可 | 11:30-15:00 (LO 14:00) |
 | morning | 朝営業（土日祝） | 可 | 8:30-15:00 (LO 14:00) |
-| event | イベント（和紅茶をしばく会等） | 可（注意書き表示） | イベントによる |
+| event | 店内イベント等（和紅茶をしばく会等）。名称・説明必須 | 可（注意書き表示） | 省略時は曜日別デフォルト |
 | special_menu | 特別メニュー（リゾットランチ等） | 可（注意書き表示） | 通常と同じ |
 | closed | 臨時休業 | 不可 | - |
 
