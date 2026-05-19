@@ -1,4 +1,5 @@
 ---
+import '../../styles/global.css';
 import LoginForm from '../../components/react/LoginForm.tsx';
 import MockBanner from '../../components/astro/MockBanner.astro';
 ---
@@ -17,7 +18,3 @@ import MockBanner from '../../components/astro/MockBanner.astro';
     <LoginForm client:load />
   </body>
 </html>
-
-<style is:global>
-  @import '../../styles/global.css';
-</style>

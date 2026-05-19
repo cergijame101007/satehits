@@ -1,7 +1,5 @@
 @import "tailwindcss";
-
-/* Google Fonts - Noto Serif JP (Mincho) */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;600;700&display=swap');
+@import "@fontsource-variable/noto-serif-jp/wght.css";
 
 /* Tailwind v4 Theme Configuration */
 @theme {
@@ -17,17 +15,17 @@
   --color-text-muted: #6b7280;
   
   /* Font Family */
-  --font-serif: 'Noto Serif JP', serif;
+  --font-serif: 'Noto Serif JP Variable', 'Hiragino Mincho ProN', 'Yu Mincho', serif;
   --font-sans: 'Noto Sans JP', sans-serif;
 }
 
 /* Base Styles */
 html {
   scroll-behavior: smooth;
+  font-family: var(--font-serif);
 }
 
 body {
-  font-family: var(--font-serif);
   background-color: var(--color-bg-white);
   color: var(--color-text-dark);
   line-height: 1.8;
