@@ -11,15 +11,17 @@ function formatDate(date: Date): string {
 
 /** ステータス遷移ルール */
 const statusTransitions: Record<ReservationStatus, ReservationStatus[]> = {
-  pending: ['approved', 'rejected'],
-  approved: ['no_show'],
+  pending: ['approved', 'rejected', 'cancelled'],
+  approved: ['no_show', 'cancelled'],
   rejected: [],
+  cancelled: [],
   no_show: [],
 };
 
 const actionLabels: Record<ReservationStatus, string> = {
   approved: '承認',
   rejected: '拒否',
+  cancelled: 'キャンセル',
   no_show: 'No Show',
   pending: '',
 };
@@ -27,6 +29,7 @@ const actionLabels: Record<ReservationStatus, string> = {
 const actionColors: Record<ReservationStatus, string> = {
   approved: 'bg-green-600 hover:bg-green-700',
   rejected: 'bg-red-600 hover:bg-red-700',
+  cancelled: 'bg-gray-500 hover:bg-gray-600',
   no_show: 'bg-gray-600 hover:bg-gray-700',
   pending: '',
 };
@@ -48,7 +51,7 @@ export default function ReservationTable() {
   // TODO: GET /api/v1/reservations/availability?date=YYYY-MM-DD に置き換え
   const availability = getAvailability(selectedDate);
 
-  const handleStatusChange = async (id: number, newStatus: ReservationStatus) => {
+  const handleStatusChange = async (id: string, newStatus: ReservationStatus) => {
     const reservation = reservationList.find((r) => r.id === id);
     if (!reservation) return;
 
@@ -92,6 +95,7 @@ export default function ReservationTable() {
           <option value="pending">申請中</option>
           <option value="approved">承認済み</option>
           <option value="rejected">拒否</option>
+          <option value="cancelled">キャンセル</option>
           <option value="no_show">No Show</option>
         </select>
       </div>

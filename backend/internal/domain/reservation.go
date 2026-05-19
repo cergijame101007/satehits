@@ -2,14 +2,20 @@ package domain
 
 import (
 	"context"
+	"errors"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/cergijame101007/satehits/internal/datetime"
 )
 
+// ErrReservationConflict は同一来店日時・電話番号のアクティブ予約が既にある
+var ErrReservationConflict = errors.New("reservation conflict")
+
 // Reservation はドメインエンティティ
 type Reservation struct {
-	ID        int           `json:"id"`
+	ID        uuid.UUID     `json:"id"`
 	Name      string        `json:"name"`
 	People    int           `json:"people"`
 	VisitDate datetime.Date `json:"visit_date"`

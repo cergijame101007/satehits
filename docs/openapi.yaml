@@ -138,7 +138,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ValidationErrorResponse"
         "409":
-          description: 予約可能数超過
+          description: |
+            - `CAPACITY_EXCEEDED`: 予約可能数超過
+            - `RESERVATION_CONFLICT`: 同一来店日時・電話番号のアクティブ予約が既にある
           content:
             application/json:
               schema:
@@ -320,6 +322,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: 同一来店日時・電話番号のアクティブ予約が既にある（`RESERVATION_CONFLICT`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /admin/reservations/{id}/status:
     patch:
@@ -332,10 +340,13 @@ paths:
         ### ステータス遷移ルール
         | 現在 | 変更可能 |
         |------|----------|
-        | pending | approved, rejected |
-        | approved | no_show |
+        | pending | approved, rejected, cancelled |
+        | approved | no_show, cancelled |
         | rejected | （変更不可） |
+        | cancelled | （変更不可） |
         | no_show | （変更不可） |
+
+        `cancelled` は顧客メール連絡後にオーナーが手動で設定する（Web キャンセル API なし）。
       operationId: updateReservationStatus
       security:
         - BearerAuth: []
@@ -343,9 +354,10 @@ paths:
         - name: id
           in: path
           required: true
-          description: 予約ID
+          description: 予約ID（UUID）
           schema:
-            type: integer
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
@@ -360,7 +372,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/UpdateStatusResponse"
         "400":
-          description: 無効なステータス遷移
+          description: 予約IDの形式不正、または無効なステータス遷移
           content:
             application/json:
               schema:
@@ -768,13 +780,14 @@ components:
     # ========================================
     ReservationStatus:
       type: string
-      enum: [pending, approved, rejected, no_show]
+      enum: [pending, approved, rejected, cancelled, no_show]
       description: |
         予約ステータス
         - `pending`: 申請中
         - `approved`: 承認済み
         - `rejected`: 拒否
-        - `no_show`: 無断キャンセル
+        - `cancelled`: キャンセル（メール連絡後、オーナーが手動更新）
+        - `no_show`: 当日来店なし
 
     ReservationSource:
       type: string
@@ -897,7 +910,8 @@ components:
       required: [id, name, people, visit_date, visit_time, phone, email, status, source, created_at]
       properties:
         id:
-          type: integer
+          type: string
+          format: uuid
         name:
           type: string
         people:
@@ -1072,14 +1086,15 @@ components:
       properties:
         status:
           type: string
-          enum: [approved, rejected, no_show]
+          enum: [approved, rejected, cancelled, no_show]
 
     UpdateStatusResponse:
       type: object
       required: [id, status, updated_at]
       properties:
         id:
-          type: integer
+          type: string
+          format: uuid
         status:
           $ref: "#/components/schemas/ReservationStatus"
         updated_at:

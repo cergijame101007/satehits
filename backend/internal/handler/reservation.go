@@ -123,12 +123,16 @@ func (h *ReservationHandler) handleCreate(w http.ResponseWriter, r *http.Request
 			respondWithError(w, http.StatusBadRequest, ValidationErrorCode, "入力内容に誤りがあります", details)
 			return
 		}
+		if errors.Is(err, domain.ErrReservationConflict) {
+			respondWithError(w, http.StatusConflict, ReservationConflictCode, "同じ日時の予約が既に登録されています", nil)
+			return
+		}
 		log.Printf("Failed to create reservation: %v", err)
 		respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
 		return
 	}
 
-	log.Printf("Saved Reservation id=%d name=%s phone=%s email=%s people=%d visitDate=%s visitTime=%s status=%s source=%s",
+	log.Printf("Saved Reservation id=%s name=%s phone=%s email=%s people=%d visitDate=%s visitTime=%s status=%s source=%s",
 		created.ID, privacy.MaskName(created.Name), privacy.MaskPhone(created.Phone), privacy.MaskEmail(created.Email),
 		created.People, created.VisitDate, created.VisitTime, created.Status, created.Source)
 

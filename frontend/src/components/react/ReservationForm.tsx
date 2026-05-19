@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, type FormEvent } from 'react';
 import type { ReservationRequest, AvailabilityResponse } from '../../types/reservation';
 import { getAvailability } from '../../mocks/reservation';
 
@@ -262,7 +262,7 @@ export default function ReservationForm() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!validate()) return;
 

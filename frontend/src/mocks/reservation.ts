@@ -9,7 +9,7 @@ import type {
 /** モック予約データ */
 export const mockReservations: Reservation[] = [
   {
-    id: 1,
+    id: 'a1000001-0000-4000-8000-000000000001',
     name: '山田太郎',
     people: 2,
     visit_date: '2026-03-14',
@@ -22,7 +22,7 @@ export const mockReservations: Reservation[] = [
     updated_at: '2026-03-10T10:00:00+09:00',
   },
   {
-    id: 2,
+    id: 'a1000001-0000-4000-8000-000000000002',
     name: '佐藤花子',
     people: 4,
     visit_date: '2026-03-14',
@@ -35,7 +35,7 @@ export const mockReservations: Reservation[] = [
     updated_at: '2026-03-10T09:00:00+09:00',
   },
   {
-    id: 3,
+    id: 'a1000001-0000-4000-8000-000000000003',
     name: '鈴木一郎',
     people: 1,
     visit_date: '2026-03-14',
@@ -48,7 +48,7 @@ export const mockReservations: Reservation[] = [
     updated_at: '2026-03-09T10:00:00+09:00',
   },
   {
-    id: 4,
+    id: 'a1000001-0000-4000-8000-000000000004',
     name: '田中美咲',
     people: 3,
     visit_date: '2026-03-15',
@@ -61,7 +61,7 @@ export const mockReservations: Reservation[] = [
     updated_at: '2026-03-11T08:00:00+09:00',
   },
   {
-    id: 5,
+    id: 'a1000001-0000-4000-8000-000000000005',
     name: '高橋健太',
     people: 2,
     visit_date: '2026-03-15',
@@ -69,7 +69,7 @@ export const mockReservations: Reservation[] = [
     phone: '080-7777-8888',
     email: 'takahashi@example.com',
     note: '',
-    status: 'rejected',
+    status: 'cancelled',
     created_at: '2026-03-10T20:00:00+09:00',
     updated_at: '2026-03-11T09:00:00+09:00',
   },
@@ -178,6 +178,7 @@ export const statusLabels: Record<string, string> = {
   pending: '申請中',
   approved: '承認済み',
   rejected: '拒否',
+  cancelled: 'キャンセル',
   no_show: 'No Show',
 };
 
@@ -186,6 +187,7 @@ export const statusColors: Record<string, string> = {
   pending: '#EAB308',
   approved: '#22C55E',
   rejected: '#EF4444',
+  cancelled: '#9CA3AF',
   no_show: '#6B7280',
 };
 
@@ -194,6 +196,7 @@ export const statusBadgeBg: Record<string, string> = {
   pending: '#FEF3C7',
   approved: '#DCFCE7',
   rejected: '#FEE2E2',
+  cancelled: '#F3F4F6',
   no_show: '#F3F4F6',
 };
 
@@ -202,6 +205,7 @@ export const statusBadgeText: Record<string, string> = {
   pending: '#92400E',
   approved: '#166534',
   rejected: '#991B1B',
+  cancelled: '#4B5563',
   no_show: '#374151',
 };
 

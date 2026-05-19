@@ -8,14 +8,15 @@ import (
 
 // エラーコード
 const (
-	InvalidRequestCode   = "INVALID_REQUEST"
-	ValidationErrorCode  = "VALIDATION_ERROR"
-	UnauthorizedCode     = "UNAUTHORIZED"
-	InvalidTokenCode     = "INVALID_TOKEN"
-	ForbiddenCode        = "FORBIDDEN"
-	NotFoundCode         = "NOT_FOUND"
-	CapacityExceededCode = "CAPACITY_EXCEEDED"
-	InternalErrorCode    = "INTERNAL_ERROR"
+	InvalidRequestCode      = "INVALID_REQUEST"
+	ValidationErrorCode     = "VALIDATION_ERROR"
+	UnauthorizedCode        = "UNAUTHORIZED"
+	InvalidTokenCode        = "INVALID_TOKEN"
+	ForbiddenCode           = "FORBIDDEN"
+	NotFoundCode            = "NOT_FOUND"
+	CapacityExceededCode    = "CAPACITY_EXCEEDED"
+	ReservationConflictCode = "RESERVATION_CONFLICT"
+	InternalErrorCode       = "INTERNAL_ERROR"
 )
 
 // JSONResponse はAPIレスポンスの共通構造体

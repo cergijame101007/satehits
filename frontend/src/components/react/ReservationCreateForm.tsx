@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import type { AdminReservationRequest } from '../../types/reservation';
 
 export default function ReservationCreateForm() {
@@ -42,7 +42,7 @@ export default function ReservationCreateForm() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!validate()) return;
 

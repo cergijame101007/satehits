@@ -3,6 +3,9 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/cergijame101007/satehits/internal/domain"
 )
@@ -41,7 +44,18 @@ RETURNING id, name, people, visit_date, visit_time, phone, email, COALESCE(note,
 		&out.CreatedAt,
 		&out.UpdatedAt,
 	)
-	return out, err
+	if err != nil {
+		if isUniqueViolation(err) {
+			return domain.Reservation{}, domain.ErrReservationConflict
+		}
+		return domain.Reservation{}, err
+	}
+	return out, nil
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 // GetAll は全ての予約データを取得する

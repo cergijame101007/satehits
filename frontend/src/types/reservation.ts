@@ -1,9 +1,9 @@
 /** 予約ステータス */
-export type ReservationStatus = 'pending' | 'approved' | 'rejected' | 'no_show';
+export type ReservationStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'no_show';
 
 /** 予約データ */
 export interface Reservation {
-  id: number;
+  id: string;
   name: string;
   people: number;
   visit_date: string;
