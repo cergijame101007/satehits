@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/cergijame101007/satehits/internal/datetime"
+	"github.com/cergijame101007/satehits/internal/domain"
 )
 
 // 営業時刻のデフォルト（docs/domain_knowledge.md §6 / table_design.md）
@@ -47,17 +48,17 @@ func ApplyEventDefaultBusinessHours(date datetime.Date, openTime, lastOrder, clo
 func defaultBusinessHoursTypeForEventDate(date datetime.Date) string {
 	switch date.Weekday() {
 	case time.Saturday, time.Sunday:
-		return "morning"
+		return domain.ScheduleTypeMorning
 	default:
-		return "normal"
+		return domain.ScheduleTypeNormal
 	}
 }
 
 func defaultBusinessHoursForType(scheduleType string) (openTime, lastOrder, closeTime datetime.Time, ok bool) {
 	switch scheduleType {
-	case "normal", "special_menu":
+	case domain.ScheduleTypeNormal, domain.ScheduleTypeSpecialMenu:
 		return defaultNormalOpenTime, defaultNormalLastOrderTime, defaultNormalCloseTime, true
-	case "morning":
+	case domain.ScheduleTypeMorning:
 		return defaultMorningOpenTime, defaultMorningLastOrderTime, defaultMorningCloseTime, true
 	default:
 		// event: ApplyEventDefaultBusinessHours を使用 / closed: 休業（時刻は保存しない）

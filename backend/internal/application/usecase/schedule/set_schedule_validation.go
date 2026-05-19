@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/cergijame101007/satehits/internal/datetime"
+	"github.com/cergijame101007/satehits/internal/domain"
 )
 
 // OpenAPI SetScheduleRequest / docs/table_design.md の daily_schedules 制約に準拠
@@ -15,11 +16,11 @@ const (
 )
 
 var allowedScheduleTypes = map[string]struct{}{
-	"normal":       {},
-	"morning":      {},
-	"event":        {},
-	"special_menu": {},
-	"closed":       {},
+	domain.ScheduleTypeNormal:      {},
+	domain.ScheduleTypeMorning:     {},
+	domain.ScheduleTypeEvent:       {},
+	domain.ScheduleTypeSpecialMenu: {},
+	domain.ScheduleTypeClosed:      {},
 }
 
 func validateSetSchedule(cmd SetScheduleCommand) []FieldViolation {
@@ -51,7 +52,7 @@ func validateSetSchedule(cmd SetScheduleCommand) []FieldViolation {
 		if utf8.RuneCountInString(eventDesc) > maxEventDescriptionRunes {
 			violations = append(violations, FieldViolation{Field: "event_description", Message: fmt.Sprintf("イベント説明は%d文字以内で入力してください", maxEventDescriptionRunes)})
 		}
-		if st == "event" {
+		if st == domain.ScheduleTypeEvent {
 			violations = append(violations, validateEventSchedule(eventName, eventDesc)...)
 		}
 	}
@@ -63,7 +64,9 @@ func validateSetSchedule(cmd SetScheduleCommand) []FieldViolation {
 
 // scheduleTypeForbidsEventText は event_name / event_description を保存しない schedule_type
 func scheduleTypeForbidsEventText(scheduleType string) bool {
-	return scheduleType == "normal" || scheduleType == "morning" || scheduleType == "closed"
+	return scheduleType == domain.ScheduleTypeNormal ||
+		scheduleType == domain.ScheduleTypeMorning ||
+		scheduleType == domain.ScheduleTypeClosed
 }
 
 // validateForbiddenEventText はイベント欄を受け付けない schedule_type 向け

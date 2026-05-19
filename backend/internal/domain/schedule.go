@@ -7,6 +7,15 @@ import (
 	"github.com/cergijame101007/satehits/internal/datetime"
 )
 
+// schedule_type の列挙値（docs/table_design.md daily_schedules CHECK 制約）
+const (
+	ScheduleTypeNormal      = "normal"
+	ScheduleTypeMorning     = "morning"
+	ScheduleTypeEvent       = "event"
+	ScheduleTypeSpecialMenu = "special_menu"
+	ScheduleTypeClosed      = "closed"
+)
+
 // Schedule はドメインエンティティ
 type Schedule struct {
 	Date             datetime.Date `json:"date"`
