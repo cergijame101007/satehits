@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -16,6 +15,7 @@ import (
 	"github.com/cergijame101007/satehits/internal/domain/service"
 	"github.com/cergijame101007/satehits/internal/handler"
 	"github.com/cergijame101007/satehits/internal/repository"
+	"github.com/cergijame101007/satehits/pkg/config"
 )
 
 func main() {
@@ -24,14 +24,10 @@ func main() {
 		log.Printf("Error loading .env file: %v", err)
 	}
 
-	// DBのURLを取得
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		log.Fatal("DATABASE_URL is not set")
-	}
+	cfg := config.Load()
 
 	// DB接続を開く
-	db, err := sql.Open("pgx", dbURL)
+	db, err := sql.Open("pgx", cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("Unable to parse DB URL: %v", err)
 	}
