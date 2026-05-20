@@ -123,11 +123,12 @@ sequenceDiagram
     participant Handler as AuthHandler
     participant UseCase as LoginUseCase
     participant AdminUserRepo as AdminUserRepository
+    participant RefreshRepo as RefreshTokenRepository
     participant JWT as JWTService
     participant DB as Supabase
 
     Owner->>Frontend: メールアドレス・パスワードを入力
-    Frontend->>Handler: POST /admin/login {email, password}
+    Frontend->>Handler: POST /admin/login {email, password} (credentials: include)
     
     Handler->>UseCase: Execute(email, password)
     
@@ -137,13 +138,60 @@ sequenceDiagram
     AdminUserRepo-->>UseCase: AdminUser
     
     UseCase->>UseCase: bcrypt.Compare(password, hash)
-    UseCase->>JWT: Generate(user_id, role)
-    JWT-->>UseCase: token
+    UseCase->>JWT: Generate(user_id, email, role)
+    JWT-->>UseCase: access_token, expires_at
+    UseCase->>UseCase: リフレッシュトークン生成 (crypto/rand)
+    UseCase->>RefreshRepo: Issue(user_id, sha256(rt), expires_at=now+30d)
+    RefreshRepo->>DB: INSERT INTO refresh_tokens
+    DB-->>RefreshRepo: OK
+    RefreshRepo-->>UseCase: OK
     
-    UseCase-->>Handler: LoginResponse{token, user}
-    Handler-->>Frontend: 200 OK {token: "xxx", user: {...}}
-    Frontend->>Frontend: トークンを保存
+    UseCase-->>Handler: LoginResult{access_token, refresh_token, user}
+    Handler-->>Frontend: 200 OK JSON {token, expires_at, user}<br/>Set-Cookie: refresh_token (HttpOnly)
+    Frontend->>Frontend: アクセストークンをメモリに保持（localStorage は使わない）
     Frontend-->>Owner: ダッシュボードへ遷移
+```
+
+## 4.1. アクセストークン更新（リフレッシュ）
+
+ページ再読み込みや AT 期限切れ（401）時に、Cookie の RT で新しい AT を取得する。
+
+```mermaid
+sequenceDiagram
+    participant Frontend as フロントエンド
+    participant Handler as AuthHandler
+    participant UseCase as RefreshUseCase
+    participant RefreshRepo as RefreshTokenRepository
+    participant JWT as JWTService
+    participant DB as Supabase
+
+    Frontend->>Handler: POST /admin/refresh<br/>Cookie: refresh_token<br/>Origin: 許可オリジン (credentials: include)
+    
+    Handler->>Handler: Origin / Referer 検証
+    Handler->>UseCase: Execute(refresh_token)
+    
+    UseCase->>RefreshRepo: FindByHash(sha256(rt))
+    RefreshRepo->>DB: SELECT (revoked_at IS NULL AND expires_at > now)
+    DB-->>RefreshRepo: row / none
+    
+    alt RT 無効・期限切れ
+        RefreshRepo-->>UseCase: not found
+        UseCase-->>Handler: INVALID_TOKEN
+        Handler-->>Frontend: 401 → /admin/login へ
+    else 既に revoke 済み RT の再利用
+        RefreshRepo-->>UseCase: revoked row
+        UseCase->>RefreshRepo: RevokeAllByUser(user_id)
+        UseCase-->>Handler: INVALID_TOKEN
+        Handler-->>Frontend: 401
+    else 正常
+        UseCase->>RefreshRepo: Revoke(旧 RT)
+        UseCase->>RefreshRepo: Issue(新 RT, expires_at=now+30d)
+        UseCase->>JWT: Generate(user_id, email, role)
+        JWT-->>UseCase: 新 access_token
+        UseCase-->>Handler: RefreshResult
+        Handler-->>Frontend: 200 {token, expires_at}<br/>Set-Cookie: 新 refresh_token
+        Frontend->>Frontend: メモリ上の AT を更新
+    end
 ```
 
 ## 5. 予約一覧取得（オーナー）
