@@ -24,6 +24,7 @@
 | メソッド | エンドポイント | 説明 |
 |----------|----------------|------|
 | POST | `/admin/login` | ログイン |
+| POST | `/admin/refresh` | アクセストークン更新（リフレッシュトークン） |
 | POST | `/admin/logout` | ログアウト |
 | GET | `/admin/reservations` | 予約一覧を取得 |
 | POST | `/admin/reservations` | 予約を登録（オーナー手動・Instagram/電話等） |
@@ -264,9 +265,69 @@ GET /api/v1/schedules?year=2025&month=2
 
 ## 5. 管理者向けAPI詳細
 
+### 認証方式（概要）
+
+管理者 API は **アクセストークン（AT）** と **リフレッシュトークン（RT）** の二層で認証する。
+
+| トークン | 形式 | 有効期限 | 保存場所（クライアント） | 用途 |
+|----------|------|----------|--------------------------|------|
+| AT | JWT（HS256） | 1時間 | JS メモリ（React state 等）。`localStorage` には保存しない | `Authorization: Bearer {AT}` で保護 API を呼ぶ |
+| RT | 不透明ランダム文字列（DB に SHA-256 ハッシュのみ保存） | 発行から30日（スライディング。下記） | `httpOnly` Cookie | `POST /admin/refresh`・`POST /admin/logout` のみ |
+
+**環境変数**（`pkg/config.Load()` で読み込み。`JWT_SECRET` は起動時に 32 バイト未満なら fatal）:
+
+| 変数 | 説明 |
+|------|------|
+| `JWT_SECRET` | AT 署名用（32 バイト以上。例: `openssl rand -base64 48`） |
+| `CORS_ORIGINS` | 許可オリジン（カンマ区切り。例: `https://satehits.com,http://localhost:4321`） |
+| `COOKIE_DOMAIN` | RT Cookie の `Domain`。開発時は空、本番は API ホスト名 |
+
+**AT の JWT クレーム**（検証時は `alg=HS256` のみ許可、`iss` / `aud` / 時刻クレームを必須検証）:
+
+```json
+{
+  "sub": "1",
+  "email": "owner@example.com",
+  "role": "owner",
+  "iss": "satehits-api",
+  "aud": "satehits-admin",
+  "exp": 1738425600,
+  "iat": 1738422000,
+  "nbf": 1738422000,
+  "jti": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+- `sub`: `admin_users.id`（文字列）
+- `role`: `owner` または `developer`
+
+**RT Cookie 仕様**（ログイン成功時および `refresh` 成功時に `Set-Cookie`）:
+
+| 属性 | 値 |
+|------|-----|
+| 名前 | `refresh_token` |
+| `HttpOnly` | 必須 |
+| `Secure` | 必須（本番 HTTPS） |
+| `SameSite` | `None`（Cloudflare Pages ↔ Cloud Run のクロスオリジン） |
+| `Path` | `/api/v1/admin` |
+| `Max-Age` | 2592000（30日） |
+| `Domain` | `COOKIE_DOMAIN` が空なら省略、設定時のみ付与 |
+
+JSON ボディに RT は含めない（XSS で読まれないようにする）。
+
+**CSRF 緩和**: RT を読む `POST /admin/refresh` と `POST /admin/logout` では、サーバが `Origin` または `Referer` を `CORS_ORIGINS` の許可リストと照合する。不一致は **403 Forbidden**（`FORBIDDEN`）。
+
+**RT ローテーション**: `refresh` 成功時に旧 RT を DB で revoke し、新 RT を Cookie で返す。既に revoke 済みの RT が再送された場合は漏洩疑いとして当該ユーザの全 RT を revoke し **401**（`INVALID_TOKEN`）。
+
+**RT 有効期限（スライディング）**: ログインおよび `refresh` 成功時に、DB の `expires_at` と Cookie の `Max-Age` を **その時点から30日後** に設定する。30日以内に一度でも `refresh` が成功すれば期限は延びる。**連続30日間** 一度も `refresh` されなかった RT は無効となり、次回の管理画面アクセスではパスワードによる再ログインが必要（初回ログインから30日で固定切れにはしない）。
+
+**保護 API**: 上記以外の `/admin/*` は `Authorization: Bearer {AT}` 必須。ヘッダ無し → `UNAUTHORIZED`、検証失敗・期限切れ → `INVALID_TOKEN`。
+
+---
+
 ### POST /admin/login
 
-ログインしてJWTトークンを取得する。
+メールアドレスとパスワードで認証し、AT を JSON で返し、RT を Cookie で返す。
 
 #### リクエスト
 
@@ -279,7 +340,7 @@ GET /api/v1/schedules?year=2025&month=2
 
 #### レスポンス
 
-**成功時（200 OK）** — `user.role` は `owner` または `developer`（OpenAPI `LoginResponse`）。
+**成功時（200 OK）** — ボディは OpenAPI `LoginResponse`（`refresh_token` は含めない）。`Set-Cookie` で RT を付与。
 
 ```json
 {
@@ -293,6 +354,12 @@ GET /api/v1/schedules?year=2025&month=2
 }
 ```
 
+レスポンスヘッダ例:
+
+```
+Set-Cookie: refresh_token=<opaque>; HttpOnly; Secure; SameSite=None; Path=/api/v1/admin; Max-Age=2592000
+```
+
 **認証失敗時（401 Unauthorized）**
 
 ```json
@@ -304,15 +371,49 @@ GET /api/v1/schedules?year=2025&month=2
 }
 ```
 
-#### JWTペイロード
+---
+
+### POST /admin/refresh
+
+Cookie の RT で新しい AT を発行する。成功時は RT をローテーションし、新 RT を `Set-Cookie` で返す。
+
+#### リクエスト
+
+- ボディ: なし
+- `Cookie: refresh_token=<opaque>` 必須
+- フロントは `fetch(..., { credentials: 'include' })` で呼ぶ
+- `Origin` または `Referer` が許可オリジンであること（CSRF 緩和）
+
+#### レスポンス
+
+**成功時（200 OK）** — ボディは `LoginResponse` と同型（`token`, `expires_at`。`user` は省略可）。
 
 ```json
 {
-  "sub": 1,
-  "email": "owner@example.com",
-  "role": "owner",
-  "exp": 1738425600,
-  "iat": 1738382400
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expires_at": "2025-02-01T23:00:00+09:00"
+}
+```
+
+**トークン無効・期限切れ・再利用検知時（401 Unauthorized）**
+
+```json
+{
+  "error": {
+    "code": "INVALID_TOKEN",
+    "message": "セッションが無効です。再度ログインしてください"
+  }
+}
+```
+
+**Origin / Referer 不一致時（403 Forbidden）**
+
+```json
+{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "リクエストが拒否されました"
+  }
 }
 ```
 
@@ -320,11 +421,19 @@ GET /api/v1/schedules?year=2025&month=2
 
 ### POST /admin/logout
 
-ログアウトする（トークンを無効化）。
+Cookie の RT を revoke し、同名 Cookie を削除する。リクエストには有効な AT（`Authorization: Bearer`）も付与する。
+
+#### リクエスト
+
+- `Authorization: Bearer {AT}` 必須
+- `Cookie: refresh_token=<opaque>`
+- `Origin` / `Referer` 検証（`refresh` と同様）
 
 #### レスポンス
 
-**成功時（204 No Content）**
+**成功時（204 No Content）** — `Set-Cookie` で `refresh_token` を `Max-Age=0` にして削除。
+
+**認証エラー時（401 Unauthorized）** — AT 無し・無効時は `UNAUTHORIZED` / `INVALID_TOKEN`。
 
 ---
 
