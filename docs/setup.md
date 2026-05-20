@@ -60,6 +60,22 @@ make migrate
 
 リポジトリルートから `go run ./backend/cmd/migrate` などカレントが `backend/` でない場合は、`MIGRATIONS_DIR` に `backend/migrations` のようにパスを指定してください。
 
+### シード（開発用）
+
+`admin_users` にオーナー・開発者の初期ユーザを投入する（`backend/cmd/seed`）。
+
+```bash
+# backend/.env に SEED_ADMIN_PASSWORD を設定してから
+make seed
+```
+
+| メール | ロール |
+|--------|--------|
+| `owner@example.com` | `owner` |
+| `dev@example.com` | `developer` |
+
+既存メールはスキップされる。パスワードを変えて再投入したい場合は該当行を削除してから再実行する。
+
 ## Makefile コマンド一覧
 
 | コマンド | 説明 |
@@ -68,6 +84,7 @@ make migrate
 | `make dev-build` | 開発用 Docker イメージのビルド（初回・Dockerfile 変更時など） |
 | `make dev-down` | Docker コンテナの停止 |
 | `make migrate` | マイグレーション実行（一時コンテナで `go run ./cmd/migrate`） |
+| `make seed` | 開発用シード投入（`go run ./cmd/seed`） |
 | `make prod` | 本番用イメージのビルド＆ `docker-compose.prod.yml` で起動 |
 | `make prod-build` | 本番用 Docker イメージのビルドのみ |
 | `make prod-down` | 本番 compose の停止 |

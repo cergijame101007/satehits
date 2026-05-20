@@ -1,4 +1,4 @@
-.PHONY: dev dev-build dev-down dev-front prod prod-build prod-down build run test test-coverage lint clean migrate
+.PHONY: dev dev-build dev-down dev-front prod prod-build prod-down build run test test-coverage lint clean migrate seed
 
 # ===== 開発環境（Docker） =====
 dev:
@@ -32,6 +32,9 @@ build:
 # DATABASE_URL / MIGRATIONS_DIR などは docker compose の env_file（./backend/.env）で注入
 migrate:
 	docker compose run --rm backend go run ./cmd/migrate
+
+seed:
+	docker compose run --rm backend go run ./cmd/seed
 
 # ===== ローカル実行（Dockerなし） =====
 run:
