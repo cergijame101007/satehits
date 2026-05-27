@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 type Claims struct {
@@ -48,10 +48,8 @@ func (s *JWTService) GenerateToken(userID int64, email string, role string) (str
 		},
 	}
 
-	// 新しいトークンを生成して署名
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-	// 署名されたトークン文字列を取得
 	tokenString, err := token.SignedString(s.secret)
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("failed to sign token: %w", err)
@@ -61,26 +59,27 @@ func (s *JWTService) GenerateToken(userID int64, email string, role string) (str
 
 func (s *JWTService) VerifyToken(tokenString string) (*Claims, error) {
 	claims := &Claims{}
-	// トークンを検証
 	token, err := jwt.ParseWithClaims(
-		tokenString, 
-		claims, 
+		tokenString,
+		claims,
 		func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
 			return s.secret, nil
 		},
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+		jwt.WithIssuer(s.issuer),
+		jwt.WithAudience(s.audience),
+		jwt.WithExpirationRequired(),
+		jwt.WithNotBeforeRequired(),
+		jwt.WithIssuedAt(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse token: %w", err)
 	}
 
-    // クレームを取得して検証
-    if claims, ok := token.Claims.(*Claims); ok && token.Valid {
-        // もし追加の検証が必要なら、ロジックをここに実装
-        // 例：ブラックリストチェックなど
-        return claims, nil
-    }
-    return nil, fmt.Errorf("invalid token")
+	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		// もし追加の検証が必要なら、ロジックをここに実装
+		// 例：ブラックリストチェックなど
+		return claims, nil
+	}
+	return nil, fmt.Errorf("invalid token")
 }
