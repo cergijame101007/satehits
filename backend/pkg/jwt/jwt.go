@@ -32,6 +32,9 @@ func NewJWTService(secret []byte, issuer string, audience string, ttl time.Durat
 }
 
 func (s *JWTService) GenerateToken(userID int64, email string, role string) (string, time.Time, error) {
+	if err := validateUserID(userID); err != nil {
+		return "", time.Time{}, fmt.Errorf("invalid user id (subject): %w", err)
+	}
 	if err := validateRole(role); err != nil {
 		return "", time.Time{}, fmt.Errorf("invalid role: %w", err)
 	}
@@ -62,7 +65,7 @@ func (s *JWTService) GenerateToken(userID int64, email string, role string) (str
 
 func (s *JWTService) VerifyToken(tokenString string) (*Claims, error) {
 	claims := &Claims{}
-	_, err := jwt.ParseWithClaims(
+	token, err := jwt.ParseWithClaims(
 		tokenString,
 		claims,
 		func(token *jwt.Token) (interface{}, error) {
@@ -78,6 +81,9 @@ func (s *JWTService) VerifyToken(tokenString string) (*Claims, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse token: %w", err)
 	}
+	if !token.Valid {
+		return nil, fmt.Errorf("invalid token: invalid signature")
+	}
 
 	if claims.IssuedAt == nil {
 		return nil, fmt.Errorf("invalid token: missing iat")
@@ -91,15 +97,24 @@ func (s *JWTService) VerifyToken(tokenString string) (*Claims, error) {
 	return claims, nil
 }
 
-// validateSubject は sub（admin_users.id）が空でなく数値であることを確認する
+// validateUserID は admin_users.id が正の整数であることを確認する
+func validateUserID(userID int64) error {
+	if userID <= 0 {
+		return fmt.Errorf("non-positive user id: %d", userID)
+	}
+	return nil
+}
+
+// validateSubject は sub（admin_users.id）が正の整数文字列であることを確認する
 func validateSubject(sub string) error {
 	if sub == "" {
 		return fmt.Errorf("empty subject")
 	}
-	if _, err := strconv.ParseInt(sub, 10, 64); err != nil {
+	id, err := strconv.ParseInt(sub, 10, 64)
+	if err != nil {
 		return fmt.Errorf("non-numeric subject: %w", err)
 	}
-	return nil
+	return validateUserID(id)
 }
 
 // validateRole は role が docs の owner / developer のいずれかであることを確認する
