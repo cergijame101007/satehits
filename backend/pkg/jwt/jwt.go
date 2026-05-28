@@ -1,3 +1,4 @@
+// Package jwt は管理者 API 用アクセストークン（AT）の生成・検証を担う（RT は対象外）
 package jwt
 
 import (
@@ -9,12 +10,14 @@ import (
 	"github.com/google/uuid"
 )
 
+// Claims は AT ペイロード（docs/api_design.md の AT クレーム）
 type Claims struct {
 	Email string `json:"email"`
 	Role  string `json:"role"`
 	jwt.RegisteredClaims
 }
 
+// JWTService は管理者向け AT（JWT HS256）の発行・検証
 type JWTService struct {
 	secret   []byte
 	issuer   string        // "satehits-api"
@@ -22,6 +25,7 @@ type JWTService struct {
 	ttl      time.Duration // 1 hour
 }
 
+// NewJWTService は AT 用の JWTService を生成する
 func NewJWTService(secret []byte, issuer string, audience string, ttl time.Duration) *JWTService {
 	return &JWTService{
 		secret:   secret,
@@ -31,7 +35,9 @@ func NewJWTService(secret []byte, issuer string, audience string, ttl time.Durat
 	}
 }
 
-func (s *JWTService) GenerateToken(userID int64, email string, role string) (string, time.Time, error) {
+// GenerateAccessToken は AT を発行する
+// userID と role は AT 契約どおりか検証する。email はクレームに載せるのみ（形式・存在確認はログイン usecase）
+func (s *JWTService) GenerateAccessToken(userID int64, email string, role string) (string, time.Time, error) {
 	if err := validateUserID(userID); err != nil {
 		return "", time.Time{}, fmt.Errorf("invalid user id (subject): %w", err)
 	}
@@ -63,7 +69,10 @@ func (s *JWTService) GenerateToken(userID int64, email string, role string) (str
 	return tokenString, expiresAt, nil
 }
 
-func (s *JWTService) VerifyToken(tokenString string) (*Claims, error) {
+// VerifyAccessToken は AT を検証する
+// 署名・alg・iss・aud・時刻クレームに加え sub（admin_users.id）と role（owner / developer）を検証する
+// email は検証しない。API ごとの認可は usecase / handler 側
+func (s *JWTService) VerifyAccessToken(tokenString string) (*Claims, error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(
 		tokenString,
@@ -105,7 +114,7 @@ func validateUserID(userID int64) error {
 	return nil
 }
 
-// validateSubject は sub（admin_users.id）が正の整数文字列であることを確認する
+// validateSubject は sub が admin_users.id として正の整数文字列か確認する
 func validateSubject(sub string) error {
 	if sub == "" {
 		return fmt.Errorf("empty subject")
@@ -117,7 +126,7 @@ func validateSubject(sub string) error {
 	return validateUserID(id)
 }
 
-// validateRole は role が docs の owner / developer のいずれかであることを確認する
+// validateRole は role が owner / developer か確認する
 func validateRole(role string) error {
 	if role == "" {
 		return fmt.Errorf("empty role")

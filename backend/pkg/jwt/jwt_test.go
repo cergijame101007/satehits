@@ -27,20 +27,20 @@ func testJWTService(t *testing.T, ttl time.Duration) *JWTService {
 func TestJWTService_GenerateAndVerify(t *testing.T) {
 	svc := testJWTService(t, time.Hour)
 
-	token, expiresAt, err := svc.GenerateToken(42, "owner@example.com", "owner")
+	token, expiresAt, err := svc.GenerateAccessToken(42, "owner@example.com", "owner")
 	if err != nil {
-		t.Fatalf("GenerateToken() err = %v, want nil", err)
+		t.Fatalf("GenerateAccessToken() err = %v, want nil", err)
 	}
 	if token == "" {
-		t.Fatal("GenerateToken() token is empty")
+		t.Fatal("GenerateAccessToken() token is empty")
 	}
 	if expiresAt.Before(time.Now()) {
 		t.Fatalf("expiresAt = %v, want after now", expiresAt)
 	}
 
-	claims, err := svc.VerifyToken(token)
+	claims, err := svc.VerifyAccessToken(token)
 	if err != nil {
-		t.Fatalf("VerifyToken() err = %v, want nil", err)
+		t.Fatalf("VerifyAccessToken() err = %v, want nil", err)
 	}
 	if got, want := claims.Subject, "42"; got != want {
 		t.Fatalf("Subject = %q, want %q", got, want)
@@ -62,14 +62,14 @@ func TestJWTService_GenerateAndVerify(t *testing.T) {
 func TestJWTService_GenerateAndVerify_developerRole(t *testing.T) {
 	svc := testJWTService(t, time.Hour)
 
-	token, _, err := svc.GenerateToken(2, "dev@example.com", "developer")
+	token, _, err := svc.GenerateAccessToken(2, "dev@example.com", "developer")
 	if err != nil {
-		t.Fatalf("GenerateToken() err = %v, want nil", err)
+		t.Fatalf("GenerateAccessToken() err = %v, want nil", err)
 	}
 
-	claims, err := svc.VerifyToken(token)
+	claims, err := svc.VerifyAccessToken(token)
 	if err != nil {
-		t.Fatalf("VerifyToken() err = %v, want nil", err)
+		t.Fatalf("VerifyAccessToken() err = %v, want nil", err)
 	}
 	if got, want := claims.Role, "developer"; got != want {
 		t.Fatalf("Role = %q, want %q", got, want)
@@ -77,25 +77,26 @@ func TestJWTService_GenerateAndVerify_developerRole(t *testing.T) {
 }
 
 func TestJWTService_GenerateAndVerify_maxUserID(t *testing.T) {
+	// 本来、オーナーと開発者だけの想定だが、念のためテスト
 	svc := testJWTService(t, time.Hour)
 	maxID := int64(math.MaxInt64)
 	wantSub := strconv.FormatInt(maxID, 10)
 
-	token, _, err := svc.GenerateToken(maxID, "owner@example.com", "owner")
+	token, _, err := svc.GenerateAccessToken(maxID, "owner@example.com", "owner")
 	if err != nil {
-		t.Fatalf("GenerateToken() err = %v, want nil", err)
+		t.Fatalf("GenerateAccessToken() err = %v, want nil", err)
 	}
 
-	claims, err := svc.VerifyToken(token)
+	claims, err := svc.VerifyAccessToken(token)
 	if err != nil {
-		t.Fatalf("VerifyToken() err = %v, want nil", err)
+		t.Fatalf("VerifyAccessToken() err = %v, want nil", err)
 	}
 	if got, want := claims.Subject, wantSub; got != want {
 		t.Fatalf("Subject = %q, want %q", got, want)
 	}
 }
 
-func TestJWTService_GenerateToken_rejectsInvalidRole(t *testing.T) {
+func TestJWTService_GenerateAccessToken_rejectsInvalidRole(t *testing.T) {
 	svc := testJWTService(t, time.Hour)
 
 	tests := []struct {
@@ -110,9 +111,9 @@ func TestJWTService_GenerateToken_rejectsInvalidRole(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			token, expiresAt, err := svc.GenerateToken(1, "owner@example.com", tt.role)
+			token, expiresAt, err := svc.GenerateAccessToken(1, "owner@example.com", tt.role)
 			if err == nil {
-				t.Fatal("GenerateToken() err = nil, want error")
+				t.Fatal("GenerateAccessToken() err = nil, want error")
 			}
 			if token != "" {
 				t.Fatalf("token = %q, want empty", token)
@@ -124,7 +125,7 @@ func TestJWTService_GenerateToken_rejectsInvalidRole(t *testing.T) {
 	}
 }
 
-func TestJWTService_GenerateToken_rejectsInvalidUserID(t *testing.T) {
+func TestJWTService_GenerateAccessToken_rejectsInvalidUserID(t *testing.T) {
 	svc := testJWTService(t, time.Hour)
 
 	tests := []struct {
@@ -137,9 +138,9 @@ func TestJWTService_GenerateToken_rejectsInvalidUserID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			token, expiresAt, err := svc.GenerateToken(tt.userID, "owner@example.com", "owner")
+			token, expiresAt, err := svc.GenerateAccessToken(tt.userID, "owner@example.com", "owner")
 			if err == nil {
-				t.Fatal("GenerateToken() err = nil, want error")
+				t.Fatal("GenerateAccessToken() err = nil, want error")
 			}
 			if token != "" {
 				t.Fatalf("token = %q, want empty", token)
@@ -151,11 +152,11 @@ func TestJWTService_GenerateToken_rejectsInvalidUserID(t *testing.T) {
 	}
 }
 
-func TestJWTService_VerifyToken_rejectsInvalid(t *testing.T) {
+func TestJWTService_VerifyAccessToken_rejectsInvalid(t *testing.T) {
 	good := testJWTService(t, time.Hour)
-	validToken, _, err := good.GenerateToken(1, "owner@example.com", "owner")
+	validToken, _, err := good.GenerateAccessToken(1, "owner@example.com", "owner")
 	if err != nil {
-		t.Fatalf("setup GenerateToken() err = %v", err)
+		t.Fatalf("setup GenerateAccessToken() err = %v", err)
 	}
 
 	tests := []struct {
@@ -192,9 +193,9 @@ func TestJWTService_VerifyToken_rejectsInvalid(t *testing.T) {
 			name: "rejects token signed with wrong secret",
 			token: func() string {
 				other := NewJWTService([]byte("another-secret-at-least-32-bytes-xx"), testIssuer, testAudience, time.Hour)
-				tok, _, err := other.GenerateToken(1, "owner@example.com", "owner")
+				tok, _, err := other.GenerateAccessToken(1, "owner@example.com", "owner")
 				if err != nil {
-					t.Fatalf("setup other GenerateToken() err = %v", err)
+					t.Fatalf("setup other GenerateAccessToken() err = %v", err)
 				}
 				return tok
 			}(),
@@ -284,26 +285,26 @@ func TestJWTService_VerifyToken_rejectsInvalid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := tt.verifyWith.VerifyToken(tt.token)
+			_, err := tt.verifyWith.VerifyAccessToken(tt.token)
 			if err == nil {
-				t.Fatal("VerifyToken() err = nil, want error")
+				t.Fatal("VerifyAccessToken() err = nil, want error")
 			}
 		})
 	}
 }
 
-func TestJWTService_VerifyToken_rejectsExpired(t *testing.T) {
+func TestJWTService_VerifyAccessToken_rejectsExpired(t *testing.T) {
 	// 負の TTL で発行時点から期限切れにし、time.Sleep に依存しない
 	svc := testJWTService(t, -time.Hour)
 
-	token, _, err := svc.GenerateToken(1, "owner@example.com", "owner")
+	token, _, err := svc.GenerateAccessToken(1, "owner@example.com", "owner")
 	if err != nil {
-		t.Fatalf("GenerateToken() err = %v", err)
+		t.Fatalf("GenerateAccessToken() err = %v", err)
 	}
 
-	_, err = svc.VerifyToken(token)
+	_, err = svc.VerifyAccessToken(token)
 	if err == nil {
-		t.Fatal("VerifyToken() err = nil, want error for expired token")
+		t.Fatal("VerifyAccessToken() err = nil, want error for expired token")
 	}
 }
 
@@ -312,9 +313,9 @@ func TestJWTService_VerifyToken_rejectsExpired(t *testing.T) {
 func mustTokenWithWrongIssuer(t *testing.T) string {
 	t.Helper()
 	evil := NewJWTService(testSecret, "evil-issuer", testAudience, time.Hour)
-	tok, _, err := evil.GenerateToken(1, "owner@example.com", "owner")
+	tok, _, err := evil.GenerateAccessToken(1, "owner@example.com", "owner")
 	if err != nil {
-		t.Fatalf("GenerateToken() err = %v", err)
+		t.Fatalf("GenerateAccessToken() err = %v", err)
 	}
 	return tok
 }
@@ -322,9 +323,9 @@ func mustTokenWithWrongIssuer(t *testing.T) string {
 func mustTokenWithWrongAudience(t *testing.T) string {
 	t.Helper()
 	evil := NewJWTService(testSecret, testIssuer, "evil-audience", time.Hour)
-	tok, _, err := evil.GenerateToken(1, "owner@example.com", "owner")
+	tok, _, err := evil.GenerateAccessToken(1, "owner@example.com", "owner")
 	if err != nil {
-		t.Fatalf("GenerateToken() err = %v", err)
+		t.Fatalf("GenerateAccessToken() err = %v", err)
 	}
 	return tok
 }
