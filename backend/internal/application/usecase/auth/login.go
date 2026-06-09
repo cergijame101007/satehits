@@ -128,8 +128,7 @@ func generateRefreshToken() (token string, tokenHash string, err error) {
 	}
 	token = hex.EncodeToString(b)
 
-	hash := sha256.Sum256([]byte(token))
-	tokenHash = hex.EncodeToString(hash[:])
+	tokenHash = HashRefreshTokenPlain(token)
 
 	return token, tokenHash, nil
 }

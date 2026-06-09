@@ -2,8 +2,6 @@ package usecase
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -32,7 +30,7 @@ func (u *LogoutUseCase) Execute(ctx context.Context, cmd LogoutCommand) error {
 		return nil
 	}
 
-	tokenHash := hashRefreshTokenPlain(cmd.RefreshToken)
+	tokenHash := HashRefreshTokenPlain(cmd.RefreshToken)
 
 	rt, err := u.refreshTokenRepo.FindByTokenHash(ctx, tokenHash)
 	if err != nil {
@@ -47,9 +45,4 @@ func (u *LogoutUseCase) Execute(ctx context.Context, cmd LogoutCommand) error {
 	}
 
 	return nil
-}
-
-func hashRefreshTokenPlain(plain string) string {
-	sum := sha256.Sum256([]byte(plain))
-	return hex.EncodeToString(sum[:])
 }

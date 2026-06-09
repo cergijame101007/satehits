@@ -50,7 +50,7 @@ func newTestLogoutUseCase(refresh *logoutFakeRefreshTokenRepo) *LogoutUseCase {
 
 func TestLogoutUseCase_Execute(t *testing.T) {
 	plainToken := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	tokenHash := hashRefreshTokenPlain(plainToken)
+	tokenHash := HashRefreshTokenPlain(plainToken)
 	revokedAt := time.Now()
 
 	tests := []struct {
