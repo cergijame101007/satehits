@@ -30,7 +30,7 @@ func (u *LogoutUseCase) Execute(ctx context.Context, cmd LogoutCommand) error {
 		return nil
 	}
 
-	tokenHash := HashRefreshTokenPlain(cmd.RefreshToken)
+	tokenHash := hashRefreshTokenPlain(cmd.RefreshToken)
 
 	rt, err := u.refreshTokenRepo.FindByTokenHash(ctx, tokenHash)
 	if err != nil {

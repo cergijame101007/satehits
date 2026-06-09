@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 )
 
-// HashRefreshTokenPlain はリフレッシュトークンの平文をハッシュ化する
-func HashRefreshTokenPlain(plain string) string {
+// hashRefreshTokenPlain はリフレッシュトークンの平文をハッシュ化する
+func hashRefreshTokenPlain(plain string) string {
 	sum := sha256.Sum256([]byte(plain))
 	return hex.EncodeToString(sum[:])
 }

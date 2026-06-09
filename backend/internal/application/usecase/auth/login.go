@@ -3,7 +3,6 @@ package usecase
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -128,7 +127,7 @@ func generateRefreshToken() (token string, tokenHash string, err error) {
 	}
 	token = hex.EncodeToString(b)
 
-	tokenHash = HashRefreshTokenPlain(token)
+	tokenHash = hashRefreshTokenPlain(token)
 
 	return token, tokenHash, nil
 }
