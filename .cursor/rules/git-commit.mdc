@@ -1,0 +1,41 @@
+---
+description: Git コミットメッセージの規約（Conventional Commits・日本語一行）
+alwaysApply: true
+---
+
+# Git コミット規約
+
+## メッセージ形式
+
+- **Conventional Commits** で統一する: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci` など
+- 本文は **日本語・一行・簡潔**（例: `docs: refresh_tokens テーブル定義を追加`）
+- **改行しない**（どうしても必要な場合のみ複数行。原則禁止）
+- **絵文字・冗長な説明・複数目的を1コミットに混ぜない**
+
+## コマンド
+
+```bash
+git commit -m "type: 日本語の説明"
+```
+
+- **上記以外の git commit オプションは使わない**（`--trailer` 禁止）
+- `-m` は **1回だけ**（`-m` を複数回使わない）
+- `--amend` でメッセージを足さない（ユーザーが明示指示した場合を除く）
+
+## Co-authored-by 禁止（厳守）
+
+- **`Co-authored-by` を付けない**（Cursor 等の AI ツール名がコミット履歴に残らないようにする）
+- **`--trailer "Co-authored-by: ..."` を絶対に使わない**（Cursor が自動付与する trailer も含む）
+- コミット本文・フッターに `Co-authored-by:` 行を追加しない
+- AI エージェントが `git commit` を実行するときも、`-m` の一行メッセージのみとする
+
+## 例
+
+```
+feat: 管理者ログイン API を追加
+fix: refresh 時の RT ローテーション漏れを修正
+docs: ログアウトのシーケンス図を追加
+chore: golang-jwt を追加
+test: LoginUseCase の正常系テストを追加
+ci: backend の lint ジョブを追加
+```
