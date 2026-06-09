@@ -22,7 +22,7 @@ func NewPostgresRefreshTokenRepository(db *sql.DB) *PostgresRefreshTokenReposito
 func (r *PostgresRefreshTokenRepository) Issue(ctx context.Context, input domain.CreateRefreshTokenInput) (domain.RefreshToken, error) {
 	query := `INSERT INTO refresh_tokens (admin_user_id, token_hash, expires_at) VALUES ($1, $2, $3) RETURNING id, admin_user_id, token_hash, expires_at, revoked_at, created_at`
 	var out domain.RefreshToken
-	err := r.db.QueryRowContext(ctx, query, 
+	err := r.db.QueryRowContext(ctx, query,
 		input.AdminUserID, input.TokenHash, input.ExpiresAt,
 	).Scan(
 		&out.ID,

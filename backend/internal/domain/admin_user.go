@@ -24,6 +24,6 @@ type AdminUser struct {
 
 // AdminUserRepository は管理者ユーザーの永続化するためのインターフェース
 type AdminUserRepository interface {
-    FindByEmail(ctx context.Context, email string) (AdminUser, error)
+	FindByEmail(ctx context.Context, email string) (AdminUser, error)
 	FindByID(ctx context.Context, id int64) (AdminUser, error)
 }

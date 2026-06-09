@@ -131,14 +131,14 @@ func TestLoginUseCase_Execute(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
-		cmd           LoginCommand
-		adminRepo     *fakeAdminUserRepo
-		refresh       *fakeRefreshTokenRepo
-		wantValErr    string
-		wantErrIs     error
+		name            string
+		cmd             LoginCommand
+		adminRepo       *fakeAdminUserRepo
+		refresh         *fakeRefreshTokenRepo
+		wantValErr      string
+		wantErrIs       error
 		wantErrContains string
-		checkResult   func(t *testing.T, admin *fakeAdminUserRepo, refresh *fakeRefreshTokenRepo, result *LoginResult)
+		checkResult     func(t *testing.T, admin *fakeAdminUserRepo, refresh *fakeRefreshTokenRepo, result *LoginResult)
 	}{
 		{
 			name:       "returns validation error when email is empty",

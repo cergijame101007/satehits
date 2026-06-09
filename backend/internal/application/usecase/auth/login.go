@@ -42,15 +42,15 @@ type LoginCommand struct {
 
 // LoginUseCase はログインユースケース
 type LoginUseCase struct {
-	adminUserRepo       domain.AdminUserRepository
-	refreshTokenRepo    domain.RefreshTokenRepository
-	jwtService          *jwt.JWTService
+	adminUserRepo    domain.AdminUserRepository
+	refreshTokenRepo domain.RefreshTokenRepository
+	jwtService       *jwt.JWTService
 }
 
 // NewLoginUseCase はLoginUseCaseのインスタンスを作成する
 func NewLoginUseCase(
-	adminUserRepo domain.AdminUserRepository, 
-	refreshTokenRepo domain.RefreshTokenRepository, 
+	adminUserRepo domain.AdminUserRepository,
+	refreshTokenRepo domain.RefreshTokenRepository,
 	jwtService *jwt.JWTService,
 ) *LoginUseCase {
 	return &LoginUseCase{adminUserRepo: adminUserRepo, refreshTokenRepo: refreshTokenRepo, jwtService: jwtService}
@@ -101,21 +101,21 @@ func (u *LoginUseCase) Execute(ctx context.Context, cmd LoginCommand) (*LoginRes
 
 	_, err = u.refreshTokenRepo.Issue(ctx, domain.CreateRefreshTokenInput{
 		AdminUserID: user.ID,
-		TokenHash: refreshTokenHash,
-		ExpiresAt: time.Now().Add(refreshTokenTTL),
+		TokenHash:   refreshTokenHash,
+		ExpiresAt:   time.Now().Add(refreshTokenTTL),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to issue refresh token: %w", err)
 	}
 
 	return &LoginResult{
-		AccessToken: accessToken,
-		ExpiresAt: expiresAt,
+		AccessToken:  accessToken,
+		ExpiresAt:    expiresAt,
 		RefreshToken: refreshToken,
 		User: LoginUser{
-			ID: user.ID,
+			ID:    user.ID,
 			Email: user.Email,
-			Role: user.Role,
+			Role:  user.Role,
 		},
 	}, nil
 }
