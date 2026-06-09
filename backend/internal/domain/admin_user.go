@@ -9,6 +9,9 @@ import (
 // ErrAdminUserNotFound は管理者ユーザーが見つからないエラー
 var ErrAdminUserNotFound = errors.New("admin user not found")
 
+// ErrAdminUserUnauthorized は管理者ユーザーが認証失敗したエラー
+var ErrAdminUserUnauthorized = errors.New("admin user unauthorized")
+
 // AdminUser は管理者ユーザーのドメインエンティティ
 type AdminUser struct {
 	ID           int64     `json:"id"`
