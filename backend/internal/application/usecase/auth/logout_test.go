@@ -66,9 +66,7 @@ func TestLogoutUseCase_Execute(t *testing.T) {
 			refresh: &logoutFakeRefreshTokenRepo{findToken: domain.RefreshToken{ID: 42, TokenHash: tokenHash}},
 			check: func(t *testing.T, refresh *logoutFakeRefreshTokenRepo) {
 				t.Helper()
-				if refresh.lastHash != tokenHash {
-					t.Fatalf("FindByTokenHash hash = %q, want %q", refresh.lastHash, tokenHash)
-				}
+				assertRefreshTokenHash(t, plainToken, refresh.lastHash)
 				if refresh.revokeCalls != 1 {
 					t.Fatalf("Revoke calls = %d, want 1", refresh.revokeCalls)
 				}
