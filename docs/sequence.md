@@ -194,6 +194,48 @@ sequenceDiagram
     end
 ```
 
+## 4.2. ログアウト（オーナー）
+
+Cookie の RT をサーバ側で revoke し、Cookie を削除する。有効な AT（`Authorization: Bearer`）も必須（`api_design.md` 参照）。
+
+```mermaid
+sequenceDiagram
+    participant Owner as オーナー
+    participant Frontend as フロントエンド
+    participant Handler as AuthHandler
+    participant Middleware as AuthMiddleware
+    participant UseCase as LogoutUseCase
+    participant RefreshRepo as RefreshTokenRepository
+    participant DB as Supabase
+
+    Owner->>Frontend: ログアウトを実行
+    Frontend->>Middleware: POST /admin/logout<br/>Authorization: Bearer {AT}<br/>Cookie: refresh_token<br/>Origin: 許可オリジン (credentials: include)
+
+    Middleware->>Middleware: JWT 検証（AT）
+    alt AT 無し・無効・期限切れ
+        Middleware-->>Frontend: 401 { code: "UNAUTHORIZED" or "INVALID_TOKEN" }
+        Frontend-->>Owner: ログイン画面へ
+    else AT 有効
+        Middleware->>Handler: Request（ユーザー context 付き）
+        Handler->>Handler: Origin / Referer 検証
+        alt Origin / Referer 不一致
+            Handler-->>Frontend: 403 { code: "FORBIDDEN" }
+        else 検証 OK
+            Handler->>UseCase: Execute(refresh_token)
+            UseCase->>RefreshRepo: FindByHash(sha256(rt))
+            RefreshRepo->>DB: SELECT (revoked_at IS NULL)
+            DB-->>RefreshRepo: row / none
+            UseCase->>RefreshRepo: Revoke(該当 RT)
+            RefreshRepo->>DB: UPDATE refresh_tokens SET revoked_at = NOW()
+            DB-->>RefreshRepo: OK
+            UseCase-->>Handler: OK
+            Handler-->>Frontend: 204 No Content<br/>Set-Cookie: refresh_token (Max-Age=0 で削除)
+            Frontend->>Frontend: メモリ上の AT を破棄
+            Frontend-->>Owner: ログイン画面へ遷移
+        end
+    end
+```
+
 ## 5. 予約一覧取得（オーナー）
 
 ```mermaid
