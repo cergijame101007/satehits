@@ -9,6 +9,9 @@ import (
 // ErrRefreshTokenNotFound はリフレッシュトークンが見つからないエラー
 var ErrRefreshTokenNotFound = errors.New("refresh token not found")
 
+// ErrRefreshTokenInvalid はリフレッシュトークンが無効なエラー
+var ErrRefreshTokenInvalid = errors.New("refresh token invalid")
+
 // RefreshToken はリフレッシュトークンのドメインエンティティ
 type RefreshToken struct {
 	ID          int64      `json:"id"`

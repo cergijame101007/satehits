@@ -156,11 +156,14 @@ sequenceDiagram
 
 ページ再読み込みや AT 期限切れ（401）時に、Cookie の RT で新しい AT を取得する。
 
+正常系は **検証 → 読み取り（ユーザー取得・AT 生成）→ 旧 RT の Revoke と新 RT の Issue を 1 トランザクション** の順で行う。副作用のない処理を先に済ませ、状態を変える Revoke / Issue を最後にまとめることで、途中失敗でセッションを壊さない。
+
 ```mermaid
 sequenceDiagram
     participant Frontend as フロントエンド
     participant Handler as AuthHandler
     participant UseCase as RefreshUseCase
+    participant AdminRepo as AdminUserRepository
     participant RefreshRepo as RefreshTokenRepository
     participant JWT as JWTService
     participant DB as Supabase
@@ -170,24 +173,31 @@ sequenceDiagram
     Handler->>Handler: Origin / Referer 検証
     Handler->>UseCase: Execute(refresh_token)
     
-    UseCase->>RefreshRepo: FindByHash(sha256(rt))
-    RefreshRepo->>DB: SELECT (revoked_at IS NULL AND expires_at > now)
+    UseCase->>RefreshRepo: FindByTokenHash(sha256(rt))
+    RefreshRepo->>DB: SELECT WHERE token_hash = $1（revoked / 期限は絞らない）
     DB-->>RefreshRepo: row / none
     
-    alt RT 無効・期限切れ
+    alt 該当行なし
         RefreshRepo-->>UseCase: not found
         UseCase-->>Handler: INVALID_TOKEN
         Handler-->>Frontend: 401 → /admin/login へ
-    else 既に revoke 済み RT の再利用
-        RefreshRepo-->>UseCase: revoked row
+    else 既に revoke 済み RT の再利用（revoked_at != NULL）
+        RefreshRepo-->>UseCase: row
         UseCase->>RefreshRepo: RevokeAllByUser(user_id)
         UseCase-->>Handler: INVALID_TOKEN
         Handler-->>Frontend: 401
+    else 期限切れ（expires_at <= now）
+        RefreshRepo-->>UseCase: row
+        UseCase-->>Handler: INVALID_TOKEN
+        Handler-->>Frontend: 401 → /admin/login へ
     else 正常
-        UseCase->>RefreshRepo: Revoke(旧 RT)
-        UseCase->>RefreshRepo: Issue(新 RT, expires_at=now+30d)
+        UseCase->>AdminRepo: FindByID(user_id)
+        AdminRepo-->>UseCase: admin_user
         UseCase->>JWT: Generate(user_id, email, role)
         JWT-->>UseCase: 新 access_token
+        UseCase->>RefreshRepo: 1 トランザクションで Revoke(旧 RT) → Issue(新 RT, expires_at=now+30d)
+        RefreshRepo->>DB: BEGIN → UPDATE revoked_at → INSERT → COMMIT
+        DB-->>RefreshRepo: OK
         UseCase-->>Handler: RefreshResult
         Handler-->>Frontend: 200 {token, expires_at}<br/>Set-Cookie: 新 refresh_token
         Frontend->>Frontend: メモリ上の AT を更新
@@ -222,10 +232,10 @@ sequenceDiagram
             Handler-->>Frontend: 403 { code: "FORBIDDEN" }
         else 検証 OK
             Handler->>UseCase: Execute(refresh_token)
-            UseCase->>RefreshRepo: FindByHash(sha256(rt))
-            RefreshRepo->>DB: SELECT (revoked_at IS NULL)
+            UseCase->>RefreshRepo: FindByTokenHash(sha256(rt))
+            RefreshRepo->>DB: SELECT WHERE token_hash = $1（revoked は絞らない）
             DB-->>RefreshRepo: row / none
-            UseCase->>RefreshRepo: Revoke(該当 RT)
+            UseCase->>RefreshRepo: Revoke(該当 RT) ※未登録・失効済みでも成功扱い
             RefreshRepo->>DB: UPDATE refresh_tokens SET revoked_at = NOW()
             DB-->>RefreshRepo: OK
             UseCase-->>Handler: OK
