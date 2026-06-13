@@ -57,12 +57,12 @@ func main() {
 }
 
 func seedAdminUsers(ctx context.Context, db *sql.DB, plainPassword string) error {
-	hash, err := bcrypt.GenerateFromPassword([]byte(plainPassword), bcryptCost)
-	if err != nil {
-		return fmt.Errorf("hash password: %w", err)
-	}
-
 	for _, u := range adminUsers {
+		hash, err := bcrypt.GenerateFromPassword([]byte(plainPassword), bcryptCost)
+		if err != nil {
+			return fmt.Errorf("hash password: %w", err)
+		}
+
 		res, err := db.ExecContext(ctx, `
 INSERT INTO admin_users (email, password_hash, role)
 VALUES ($1, $2, $3)
