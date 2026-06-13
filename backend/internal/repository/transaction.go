@@ -61,7 +61,9 @@ func (m *TxManager) DoInTx(ctx context.Context, fn func(ctx context.Context) err
 	}
 	defer func() {
 		if p := recover(); p != nil {
-			_ = tx.Rollback()
+			if rbErr := tx.Rollback(); rbErr != nil {
+				panic(fmt.Errorf("rollback after panic: %w (original panic: %v)", rbErr, p))
+			}
 			panic(p)
 		}
 		if err != nil {
