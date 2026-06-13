@@ -40,6 +40,10 @@ func (f *logoutFakeRefreshTokenRepo) Revoke(_ context.Context, id int64) error {
 	return f.revokeErr
 }
 
+func (f *logoutFakeRefreshTokenRepo) RevokeIfActive(context.Context, int64) (bool, error) {
+	return false, errors.New("not implemented")
+}
+
 func (f *logoutFakeRefreshTokenRepo) RevokeAllByUser(context.Context, int64) error {
 	return errors.New("not implemented")
 }

@@ -40,6 +40,10 @@ type refreshFakeTokenRepo struct {
 	revokeErr   error
 	revokeCalls int
 
+	revokeIfActiveResult *bool
+	revokeIfActiveErr    error
+	revokeIfActiveCalls  int
+
 	revokeAllUserID int64
 	revokeAllErr    error
 	revokeAllCalls  int
@@ -74,6 +78,18 @@ func (f *refreshFakeTokenRepo) Revoke(_ context.Context, id int64) error {
 	f.revokeCalls++
 	f.revokeID = id
 	return f.revokeErr
+}
+
+func (f *refreshFakeTokenRepo) RevokeIfActive(_ context.Context, id int64) (bool, error) {
+	f.revokeIfActiveCalls++
+	f.revokeID = id
+	if f.revokeIfActiveErr != nil {
+		return false, f.revokeIfActiveErr
+	}
+	if f.revokeIfActiveResult != nil {
+		return *f.revokeIfActiveResult, nil
+	}
+	return true, nil
 }
 
 func (f *refreshFakeTokenRepo) RevokeAllByUser(_ context.Context, adminUserID int64) error {
@@ -186,8 +202,8 @@ func TestRefreshUseCase_Execute(t *testing.T) {
 				if admin.findIDCalls != 0 {
 					t.Fatalf("FindByID calls = %d, want 0", admin.findIDCalls)
 				}
-				if refresh.revokeCalls != 0 || txm.calls != 0 {
-					t.Fatalf("Revoke=%d DoInTx=%d, want 0/0", refresh.revokeCalls, txm.calls)
+				if refresh.revokeIfActiveCalls != 0 || txm.calls != 0 {
+					t.Fatalf("RevokeIfActive=%d DoInTx=%d, want 0/0", refresh.revokeIfActiveCalls, txm.calls)
 				}
 			},
 		},
@@ -220,8 +236,8 @@ func TestRefreshUseCase_Execute(t *testing.T) {
 				if admin.findIDCalls != 0 {
 					t.Fatalf("FindByID calls = %d, want 0", admin.findIDCalls)
 				}
-				if refresh.revokeCalls != 0 || refresh.issueInput != nil || txm.calls != 0 {
-					t.Fatalf("Revoke=%d Issue=%v DoInTx=%d, want no mutation", refresh.revokeCalls, refresh.issueInput, txm.calls)
+				if refresh.revokeIfActiveCalls != 0 || refresh.issueInput != nil || txm.calls != 0 {
+					t.Fatalf("RevokeIfActive=%d Issue=%v DoInTx=%d, want no mutation", refresh.revokeIfActiveCalls, refresh.issueInput, txm.calls)
 				}
 			},
 		},
@@ -235,16 +251,16 @@ func TestRefreshUseCase_Execute(t *testing.T) {
 			check: func(t *testing.T, _ *refreshFakeAdminRepo, refresh *refreshFakeTokenRepo, txm *stubTxManager, _ *RefreshResult) {
 				t.Helper()
 				// JWT 生成・ローテーション前なので mutation は一切起きない
-				if refresh.revokeCalls != 0 || txm.calls != 0 {
-					t.Fatalf("Revoke=%d DoInTx=%d, want 0/0", refresh.revokeCalls, txm.calls)
+				if refresh.revokeIfActiveCalls != 0 || txm.calls != 0 {
+					t.Fatalf("RevokeIfActive=%d DoInTx=%d, want 0/0", refresh.revokeIfActiveCalls, txm.calls)
 				}
 			},
 		},
 		{
-			name:            "returns rotate error when Revoke fails inside tx",
+			name:            "returns rotate error when RevokeIfActive fails inside tx",
 			cmd:             RefreshCommand{RefreshToken: plainToken},
 			admin:           &refreshFakeAdminRepo{user: owner},
-			refresh:         &refreshFakeTokenRepo{findToken: validRT(), revokeErr: errors.New("revoke failed")},
+			refresh:         &refreshFakeTokenRepo{findToken: validRT(), revokeIfActiveErr: errors.New("revoke failed")},
 			txm:             &stubTxManager{},
 			wantErrContains: "failed to rotate refresh token",
 			check: func(t *testing.T, _ *refreshFakeAdminRepo, refresh *refreshFakeTokenRepo, txm *stubTxManager, _ *RefreshResult) {
@@ -252,12 +268,40 @@ func TestRefreshUseCase_Execute(t *testing.T) {
 				if txm.calls != 1 {
 					t.Fatalf("DoInTx calls = %d, want 1", txm.calls)
 				}
-				if refresh.revokeCalls != 1 {
-					t.Fatalf("Revoke calls = %d, want 1", refresh.revokeCalls)
+				if refresh.revokeIfActiveCalls != 1 {
+					t.Fatalf("RevokeIfActive calls = %d, want 1", refresh.revokeIfActiveCalls)
 				}
-				// Revoke 失敗で打ち切るので Issue は呼ばれない
 				if refresh.issueInput != nil {
-					t.Fatalf("Issue was called, want not called when Revoke fails")
+					t.Fatal("Issue was called, want not called when RevokeIfActive fails")
+				}
+			},
+		},
+		{
+			name: "returns invalid when RevokeIfActive finds token already revoked in tx",
+			cmd:  RefreshCommand{RefreshToken: plainToken},
+			admin: &refreshFakeAdminRepo{user: owner},
+			refresh: func() *refreshFakeTokenRepo {
+				notActive := false
+				return &refreshFakeTokenRepo{findToken: validRT(), revokeIfActiveResult: &notActive}
+			}(),
+			txm:       &stubTxManager{},
+			wantErrIs: domain.ErrRefreshTokenInvalid,
+			check: func(t *testing.T, _ *refreshFakeAdminRepo, refresh *refreshFakeTokenRepo, txm *stubTxManager, _ *RefreshResult) {
+				t.Helper()
+				if txm.calls != 1 {
+					t.Fatalf("DoInTx calls = %d, want 1", txm.calls)
+				}
+				if refresh.revokeIfActiveCalls != 1 {
+					t.Fatalf("RevokeIfActive calls = %d, want 1", refresh.revokeIfActiveCalls)
+				}
+				if refresh.revokeAllCalls != 1 {
+					t.Fatalf("RevokeAllByUser calls = %d, want 1", refresh.revokeAllCalls)
+				}
+				if refresh.revokeAllUserID != owner.ID {
+					t.Fatalf("RevokeAllByUser userID = %d, want %d", refresh.revokeAllUserID, owner.ID)
+				}
+				if refresh.issueInput != nil {
+					t.Fatal("Issue was called, want not called when token not active")
 				}
 			},
 		},
@@ -273,8 +317,8 @@ func TestRefreshUseCase_Execute(t *testing.T) {
 				if txm.calls != 1 {
 					t.Fatalf("DoInTx calls = %d, want 1", txm.calls)
 				}
-				if refresh.revokeCalls != 1 {
-					t.Fatalf("Revoke calls = %d, want 1", refresh.revokeCalls)
+				if refresh.revokeIfActiveCalls != 1 {
+					t.Fatalf("RevokeIfActive calls = %d, want 1", refresh.revokeIfActiveCalls)
 				}
 			},
 		},
@@ -302,8 +346,8 @@ func TestRefreshUseCase_Execute(t *testing.T) {
 				if txm.calls != 1 {
 					t.Fatalf("DoInTx calls = %d, want 1", txm.calls)
 				}
-				if refresh.revokeCalls != 1 || refresh.revokeID != 42 {
-					t.Fatalf("Revoke calls=%d id=%d, want 1/42", refresh.revokeCalls, refresh.revokeID)
+				if refresh.revokeIfActiveCalls != 1 || refresh.revokeID != 42 {
+					t.Fatalf("RevokeIfActive calls=%d id=%d, want 1/42", refresh.revokeIfActiveCalls, refresh.revokeID)
 				}
 				if refresh.issueInput == nil {
 					t.Fatal("Issue was not called")

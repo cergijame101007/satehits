@@ -59,7 +59,7 @@ func (r *PostgresRefreshTokenRepository) FindByTokenHash(ctx context.Context, to
 	return out, nil
 }
 
-// Revoke はリフレッシュトークンを失効させる
+// Revoke はリフレッシュトークンを失効させる（ログアウト用）
 // 存在しない id・既に revoke 済みは 0 行更新だがエラーにしない
 func (r *PostgresRefreshTokenRepository) Revoke(ctx context.Context, id int64) error {
 	query := `UPDATE refresh_tokens SET revoked_at = NOW() WHERE id = $1 AND revoked_at IS NULL`
@@ -68,6 +68,21 @@ func (r *PostgresRefreshTokenRepository) Revoke(ctx context.Context, id int64) e
 		return err
 	}
 	return nil
+}
+
+// RevokeIfActive は未失効の RT を revoke する（refresh ローテーション用）
+// 1 行更新できたら true。既に revoke 済み・存在しない id は false（エラーなし）
+func (r *PostgresRefreshTokenRepository) RevokeIfActive(ctx context.Context, id int64) (bool, error) {
+	query := `UPDATE refresh_tokens SET revoked_at = NOW() WHERE id = $1 AND revoked_at IS NULL`
+	res, err := r.getDB(ctx).ExecContext(ctx, query, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n == 1, nil
 }
 
 // RevokeAllByUser はユーザーIDでリフレッシュトークンを失効させる

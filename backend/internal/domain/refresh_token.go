@@ -32,5 +32,6 @@ type RefreshTokenRepository interface {
 	Issue(ctx context.Context, input CreateRefreshTokenInput) (RefreshToken, error)
 	FindByTokenHash(ctx context.Context, tokenHash string) (RefreshToken, error)
 	Revoke(ctx context.Context, id int64) error
+	RevokeIfActive(ctx context.Context, id int64) (bool, error)
 	RevokeAllByUser(ctx context.Context, adminUserID int64) error
 }

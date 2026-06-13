@@ -65,6 +65,10 @@ func (f *fakeRefreshTokenRepo) Revoke(context.Context, int64) error {
 	return errors.New("not implemented")
 }
 
+func (f *fakeRefreshTokenRepo) RevokeIfActive(context.Context, int64) (bool, error) {
+	return true, nil
+}
+
 func (f *fakeRefreshTokenRepo) RevokeAllByUser(context.Context, int64) error {
 	return errors.New("not implemented")
 }

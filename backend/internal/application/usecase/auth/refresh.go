@@ -87,16 +87,26 @@ func (u *RefreshUseCase) Execute(ctx context.Context, cmd RefreshCommand) (*Refr
 	}
 
 	if err := u.txManager.DoInTx(ctx, func(ctx context.Context) error {
-		if err := u.refreshTokenRepo.Revoke(ctx, rt.ID); err != nil {
+		revoked, err := u.refreshTokenRepo.RevokeIfActive(ctx, rt.ID)
+		if err != nil {
 			return err
 		}
-		_, err := u.refreshTokenRepo.Issue(ctx, domain.CreateRefreshTokenInput{
+		if !revoked {
+			return domain.ErrRefreshTokenInvalid
+		}
+		_, err = u.refreshTokenRepo.Issue(ctx, domain.CreateRefreshTokenInput{
 			AdminUserID: rt.AdminUserID,
 			TokenHash:   refreshTokenHash,
 			ExpiresAt:   now.Add(refreshTokenTTL),
 		})
 		return err
 	}); err != nil {
+		if errors.Is(err, domain.ErrRefreshTokenInvalid) {
+			if revokeErr := u.refreshTokenRepo.RevokeAllByUser(ctx, rt.AdminUserID); revokeErr != nil {
+				return nil, fmt.Errorf("failed to revoke refresh token: %w", revokeErr)
+			}
+			return nil, domain.ErrRefreshTokenInvalid
+		}
 		return nil, fmt.Errorf("failed to rotate refresh token: %w", err)
 	}
 
