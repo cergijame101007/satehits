@@ -5,7 +5,7 @@ import "net/http"
 // RT Cookie の仕様
 const (
 	refreshTokenCookieName = "refresh_token"
-	refreshTokenCookiePath = "/api/v1/admin"
+	adminCookiePath        = "/api/v1/admin"
 	refreshTokenMaxAge     = 30 * 24 * 60 * 60 // 30日（秒）
 )
 
@@ -14,7 +14,7 @@ func setRefreshTokenCookie(w http.ResponseWriter, token string, domain string) {
 	cookie := &http.Cookie{
 		Name:     refreshTokenCookieName,
 		Value:    token,
-		Path:     refreshTokenCookiePath,
+		Path:     adminCookiePath,
 		MaxAge:   refreshTokenMaxAge,
 		HttpOnly: true,
 		Secure:   true,
@@ -31,7 +31,7 @@ func clearRefreshTokenCookie(w http.ResponseWriter, domain string) {
 	cookie := &http.Cookie{
 		Name:     refreshTokenCookieName,
 		Value:    "",
-		Path:     refreshTokenCookiePath,
+		Path:     adminCookiePath,
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   true,
