@@ -163,10 +163,15 @@ func TestRefreshUseCase_Execute(t *testing.T) {
 			wantErrContains: "connection refused",
 		},
 		{
-			name:      "detects reuse and revokes all when token is already revoked",
-			cmd:       RefreshCommand{RefreshToken: plainToken},
-			admin:     &refreshFakeAdminRepo{user: owner},
-			refresh:   func() *refreshFakeTokenRepo { rt := validRT(); revokedAt := now.Add(-time.Hour); rt.RevokedAt = &revokedAt; return &refreshFakeTokenRepo{findToken: rt} }(),
+			name:  "detects reuse and revokes all when token is already revoked",
+			cmd:   RefreshCommand{RefreshToken: plainToken},
+			admin: &refreshFakeAdminRepo{user: owner},
+			refresh: func() *refreshFakeTokenRepo {
+				rt := validRT()
+				revokedAt := now.Add(-time.Hour)
+				rt.RevokedAt = &revokedAt
+				return &refreshFakeTokenRepo{findToken: rt}
+			}(),
 			txm:       &stubTxManager{},
 			wantErrIs: domain.ErrRefreshTokenInvalid,
 			check: func(t *testing.T, admin *refreshFakeAdminRepo, refresh *refreshFakeTokenRepo, txm *stubTxManager, _ *RefreshResult) {
@@ -187,18 +192,27 @@ func TestRefreshUseCase_Execute(t *testing.T) {
 			},
 		},
 		{
-			name:            "returns wrapped error when RevokeAllByUser fails during reuse detection",
-			cmd:             RefreshCommand{RefreshToken: plainToken},
-			admin:           &refreshFakeAdminRepo{user: owner},
-			refresh:         func() *refreshFakeTokenRepo { rt := validRT(); revokedAt := now.Add(-time.Hour); rt.RevokedAt = &revokedAt; return &refreshFakeTokenRepo{findToken: rt, revokeAllErr: errors.New("update failed")} }(),
+			name:  "returns wrapped error when RevokeAllByUser fails during reuse detection",
+			cmd:   RefreshCommand{RefreshToken: plainToken},
+			admin: &refreshFakeAdminRepo{user: owner},
+			refresh: func() *refreshFakeTokenRepo {
+				rt := validRT()
+				revokedAt := now.Add(-time.Hour)
+				rt.RevokedAt = &revokedAt
+				return &refreshFakeTokenRepo{findToken: rt, revokeAllErr: errors.New("update failed")}
+			}(),
 			txm:             &stubTxManager{},
 			wantErrContains: "failed to revoke refresh token",
 		},
 		{
-			name:      "returns invalid when refresh token is expired",
-			cmd:       RefreshCommand{RefreshToken: plainToken},
-			admin:     &refreshFakeAdminRepo{user: owner},
-			refresh:   func() *refreshFakeTokenRepo { rt := validRT(); rt.ExpiresAt = now.Add(-time.Hour); return &refreshFakeTokenRepo{findToken: rt} }(),
+			name:  "returns invalid when refresh token is expired",
+			cmd:   RefreshCommand{RefreshToken: plainToken},
+			admin: &refreshFakeAdminRepo{user: owner},
+			refresh: func() *refreshFakeTokenRepo {
+				rt := validRT()
+				rt.ExpiresAt = now.Add(-time.Hour)
+				return &refreshFakeTokenRepo{findToken: rt}
+			}(),
 			txm:       &stubTxManager{},
 			wantErrIs: domain.ErrRefreshTokenInvalid,
 			check: func(t *testing.T, admin *refreshFakeAdminRepo, refresh *refreshFakeTokenRepo, txm *stubTxManager, _ *RefreshResult) {

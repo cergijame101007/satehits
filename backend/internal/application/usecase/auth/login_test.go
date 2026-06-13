@@ -235,7 +235,7 @@ func TestLoginUseCase_Execute(t *testing.T) {
 					t.Fatalf("RefreshToken length = %d, want 64 hex chars", len(result.RefreshToken))
 				}
 				for _, c := range result.RefreshToken {
-					if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+					if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 						t.Fatalf("RefreshToken %q contains non-hex char %q", result.RefreshToken, c)
 					}
 				}
