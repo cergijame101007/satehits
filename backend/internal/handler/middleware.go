@@ -48,12 +48,6 @@ func RequireAuth(jwtSvc *jwt.JWTService) func(http.Handler) http.Handler {
 	}
 }
 
-// adminClaims は RequireAuth が載せた claims を context から取得（保護ハンドラ用）
-func adminClaims(ctx context.Context) (*jwt.Claims, bool) {
-	claims, ok := ctx.Value(claimsCtxKey).(*jwt.Claims)
-	return claims, ok
-}
-
 // CORS は credentials 付きリクエスト用ミドルウェア
 // fetch(..., { credentials: 'include' }) 向け、許可リスト一致 Origin をそのまま反映（* は不可）
 func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
