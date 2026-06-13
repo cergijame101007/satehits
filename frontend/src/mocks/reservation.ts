@@ -223,7 +223,7 @@ export const scheduleTypeLabels: Record<ScheduleType, string> = {
 export const scheduleTypeShort: Record<ScheduleType, string> = {
   normal: '通',
   morning: '朝',
-  event: 'ｲﾍﾞ',
+  event: 'イ',
   special: '特',
   closed: '休',
   temporary_closed: '臨',
