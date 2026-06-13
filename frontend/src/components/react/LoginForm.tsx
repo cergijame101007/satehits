@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { login } from '../../mocks/reservation';
+import { AuthError, login } from '@/lib/auth';
 
 export default function LoginForm() {
   const [email, setEmail] = useState('');
@@ -19,18 +19,20 @@ export default function LoginForm() {
     setIsSubmitting(true);
 
     try {
-      // TODO: POST /api/v1/admin/login に置き換え
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      const result = login(email, password);
-
-      if (result) {
-        localStorage.setItem('auth_token', result.token);
-        window.location.href = '/admin';
+      await login(email, password);
+      window.location.href = '/admin';
+    } catch (err) {
+      if (err instanceof AuthError) {
+        if (err.code === 'UNAUTHORIZED') {
+          setError('メールアドレスまたはパスワードが正しくありません');
+        } else if (err.code === 'VALIDATION_ERROR') {
+          setError(err.message);
+        } else {
+          setError('ログインに失敗しました。時間をおいて再度お試しください。');
+        }
       } else {
-        setError('メールアドレスまたはパスワードが正しくありません');
+        setError('ログインに失敗しました。時間をおいて再度お試しください。');
       }
-    } catch {
-      setError('ログインに失敗しました。時間をおいて再度お試しください。');
     } finally {
       setIsSubmitting(false);
     }
@@ -51,9 +53,9 @@ export default function LoginForm() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="owner@example.com"
               className={inputClass}
               autoComplete="email"
+              required
             />
           </div>
 
@@ -63,9 +65,9 @@ export default function LoginForm() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
               className={inputClass}
               autoComplete="current-password"
+              required
             />
           </div>
 
@@ -88,9 +90,6 @@ export default function LoginForm() {
           </button>
         </form>
 
-        <p className="text-xs text-gray-400 text-center mt-6">
-          見本用のログイン例: owner@example.com / password123
-        </p>
       </div>
     </div>
   );

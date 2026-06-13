@@ -45,16 +45,18 @@ const { title } = Astro.props;
     </main>
 
     <script>
-      // TODO: JWT認証チェック - トークンがなければログインページにリダイレクト
-      const token = localStorage.getItem('auth_token');
-      if (!token && !window.location.pathname.includes('/admin/login')) {
-        window.location.href = '/admin/login';
-      }
+      import { ensureAccessToken, logout } from '@/lib/auth';
 
-      document.getElementById('logout-btn')?.addEventListener('click', () => {
-        // TODO: POST /api/v1/admin/logout でトークン無効化
-        localStorage.removeItem('auth_token');
+      ensureAccessToken().catch(() => {
         window.location.href = '/admin/login';
+      });
+
+      document.getElementById('logout-btn')?.addEventListener('click', async () => {
+        try {
+          await logout();
+        } finally {
+          window.location.href = '/admin/login';
+        }
       });
     </script>
   </body>
