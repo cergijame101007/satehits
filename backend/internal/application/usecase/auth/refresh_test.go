@@ -277,8 +277,8 @@ func TestRefreshUseCase_Execute(t *testing.T) {
 			},
 		},
 		{
-			name: "returns invalid when RevokeIfActive finds token already revoked in tx",
-			cmd:  RefreshCommand{RefreshToken: plainToken},
+			name:  "returns invalid when RevokeIfActive finds token already revoked in tx",
+			cmd:   RefreshCommand{RefreshToken: plainToken},
 			admin: &refreshFakeAdminRepo{user: owner},
 			refresh: func() *refreshFakeTokenRepo {
 				notActive := false
