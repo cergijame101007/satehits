@@ -160,7 +160,7 @@ func (h *ScheduleHandler) handleSet(w http.ResponseWriter, r *http.Request, date
 	}
 
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-	if err != nil || mediaType != "application/json" {
+	if err != nil || mediaType != mediaTypeJSON {
 		respondWithError(w, http.StatusBadRequest, InvalidRequestCode, "リクエスト形式が不正です", nil)
 		return
 	}

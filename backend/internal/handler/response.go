@@ -6,6 +6,8 @@ import (
 	"net/http"
 )
 
+const mediaTypeJSON = "application/json"
+
 // エラーコード
 const (
 	InvalidRequestCode      = "INVALID_REQUEST"
@@ -49,7 +51,7 @@ func respondWithJSON[T any](w http.ResponseWriter, status int, payload T) {
 	res, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("Failed to marshal JSON: %v", err)
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", mediaTypeJSON)
 		w.WriteHeader(http.StatusInternalServerError)
 		if _, err := w.Write([]byte(`{"error":{"code":"INTERNAL_ERROR","message":"レスポンスの生成に失敗しました"}}`)); err != nil {
 			log.Printf("Failed to write error fallback response: %v", err)
@@ -57,7 +59,7 @@ func respondWithJSON[T any](w http.ResponseWriter, status int, payload T) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", mediaTypeJSON)
 	w.WriteHeader(status)
 	if _, err := w.Write(res); err != nil {
 		// ヘッダ送信後のため追加のレスポンスは不可

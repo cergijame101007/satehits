@@ -45,12 +45,21 @@ erDiagram
     }
 
     admin_users {
-        int id PK "ユーザーID"
+        bigint id PK "ユーザーID"
         string email "メールアドレス"
         string password_hash "パスワードハッシュ"
         string role "ロール"
         timestamp created_at "作成日時"
         timestamp updated_at "更新日時"
+    }
+
+    refresh_tokens {
+        bigint id PK "トークンID"
+        bigint admin_user_id FK "管理者ユーザーID"
+        string token_hash "リフレッシュトークンハッシュ"
+        timestamp expires_at "有効期限"
+        timestamp revoked_at "失効日時"
+        timestamp created_at "作成日時"
     }
 
     schema_migrations {
@@ -59,6 +68,7 @@ erDiagram
     }
 
     daily_schedules ||--o{ reservations : "date"
+    admin_users ||--o{ refresh_tokens : "has"
 ```
 
 ## 2. テーブル定義
@@ -163,7 +173,7 @@ ALTER TABLE reservations ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ;
 
 | カラム名 | データ型 | NULL | デフォルト | 説明 |
 |----------|----------|------|------------|------|
-| id | SERIAL | NO | auto | ユーザーID（主キー） |
+| id | BIGSERIAL | NO | auto | ユーザーID（主キー） |
 | email | TEXT | NO | - | メールアドレス（ユニーク） |
 | password_hash | TEXT | NO | - | パスワードハッシュ（bcrypt） |
 | role | TEXT | NO | - | ロール |
@@ -174,7 +184,38 @@ ALTER TABLE reservations ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ;
 - `email`: UNIQUE
 - `role`: CHECK (role IN ('owner', 'developer'))
 
-### 2.4 suppliers（お取り引き先）
+**備考:**
+- パスワードは bcrypt（cost 12）でハッシュ化して保存する（`api_design.md` 参照）
+- 開発用の初期データ投入は `backend/cmd/seed`（`make seed`）を使う
+
+### 2.4 refresh_tokens（リフレッシュトークン）
+
+管理者セッションのリフレッシュトークン（RT）を管理するテーブル。平文の RT は保存せず、**SHA-256 ハッシュのみ**を `token_hash` に格納する（`api_design.md` の認証方式参照）。
+
+| カラム名 | データ型 | NULL | デフォルト | 説明 |
+|----------|----------|------|------------|------|
+| id | BIGSERIAL | NO | auto | トークンID（主キー） |
+| admin_user_id | BIGINT | NO | - | 管理者ユーザーID（`admin_users.id` への外部キー） |
+| token_hash | TEXT | NO | - | RT の SHA-256 ハッシュ（ユニーク） |
+| expires_at | TIMESTAMPTZ | NO | - | 有効期限（ログイン・refresh 成功時に発行時刻から30日後。スライディング） |
+| revoked_at | TIMESTAMPTZ | YES | NULL | 失効日時（ログアウト・ローテーション・漏洩疑い時に設定） |
+| created_at | TIMESTAMPTZ | NO | NOW() | 作成日時 |
+
+**制約:**
+- `admin_user_id`: `REFERENCES admin_users(id) ON DELETE CASCADE`
+- `token_hash`: UNIQUE
+
+**インデックス:**
+- `idx_refresh_tokens_hash`: `token_hash`（`revoked_at IS NULL` の部分インデックス。有効トークン検索用）
+- `idx_refresh_tokens_user`: `admin_user_id`（ユーザー単位の revoke 用）
+
+**運用ルール（アプリケーション側）:**
+- **発行**: ログイン・`POST /admin/refresh` 成功時に新規 RT を INSERT
+- **ローテーション**: refresh 成功時に旧行の `revoked_at` を設定し、新行を INSERT
+- **ログアウト**: 該当 RT の `revoked_at` を設定
+- **再利用検知**: 既に `revoked_at` が設定された RT が再送された場合、当該 `admin_user_id` の全 RT を revoke（漏洩疑い）
+
+### 2.5 suppliers（お取り引き先）
 
 お取り引き先の情報を管理するテーブル。
 
@@ -194,7 +235,7 @@ ALTER TABLE reservations ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ;
 - `idx_suppliers_display_order`: display_order（表示順ソート用）
 - `idx_suppliers_is_active`: is_active（表示フィルタ用）
 
-### 2.5 schema_migrations（スキーママイグレーション履歴）
+### 2.6 schema_migrations（スキーママイグレーション履歴）
 
 `backend/cmd/migrate` が `migrations/*.sql` を適用した際に、適用済みのバージョン番号を記録するテーブル。`ensureSchemaMigrationsTable` で `CREATE TABLE IF NOT EXISTS` により初回接続時に自動作成される。業務テーブルとは外部キーで結ばない。
 
@@ -206,18 +247,19 @@ ALTER TABLE reservations ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ;
 **備考:**
 - 1ファイルの SQL をトランザクションで実行し、成功後に `INSERT INTO schema_migrations (version) VALUES (...)` で記録する（実装は `applyMigration`）。
 
-### 2.6 マイグレーションファイル（`backend/migrations/`）
+### 2.7 マイグレーションファイル（`backend/migrations/`）
 
-`backend/cmd/migrate` が番号昇順で適用する SQL の一覧。`schema_migrations` は migrate 実行時に自動作成（2.5 参照）。
+`backend/cmd/migrate` が番号昇順で適用する SQL の一覧。`schema_migrations` は migrate 実行時に自動作成（2.6 参照）。
 
 | ファイル | version | 内容 |
 |----------|---------|------|
 | `000001_init_reservations.sql` | 1 | `reservations`（UUID、CHECK、インデックス、部分ユニーク） |
 | `000002_daily_schedules.sql` | 2 | `daily_schedules`、`update_updated_at_column()`、`daily_schedules` トリガー |
 | `000003_reservations_updated_at_trigger.sql` | 3 | `reservations` の `updated_at` トリガー |
-| `000004_suppliers.sql` | 4 | `suppliers`、インデックス、トリガー（未作成） |
-| `000005_admin_users.sql` | 5 | `admin_users`、トリガー（未作成） |
-| `000006_reservations_email_sent_at.sql` | 6 | `reservations.email_sent_at` 追加（未作成） |
+| `000004_suppliers.sql` | 4 | `suppliers`、インデックス、トリガー（**未作成**。番号は予約） |
+| `000005_admin_users.sql` | 5 | `admin_users`、`updated_at` トリガー |
+| `000006_refresh_tokens.sql` | 6 | `refresh_tokens`、インデックス |
+| （将来）`reservations.email_sent_at` | - | メール送信実装時に別マイグレーションで追加（2.1 参照） |
 
 ## 3. DDL
 
@@ -288,13 +330,28 @@ CREATE INDEX IF NOT EXISTS idx_suppliers_is_active ON suppliers (is_active);
 
 -- 管理者ユーザーテーブル
 CREATE TABLE IF NOT EXISTS admin_users (
-    id             SERIAL PRIMARY KEY,
+    id             BIGSERIAL PRIMARY KEY,
     email          TEXT NOT NULL UNIQUE,
     password_hash  TEXT NOT NULL,
     role           TEXT NOT NULL CHECK (role IN ('owner', 'developer')),
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- リフレッシュトークンテーブル（平文 RT は保存しない）
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id             BIGSERIAL PRIMARY KEY,
+    admin_user_id  BIGINT NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+    token_hash     TEXT NOT NULL UNIQUE,
+    expires_at     TIMESTAMPTZ NOT NULL,
+    revoked_at     TIMESTAMPTZ,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash
+    ON refresh_tokens (token_hash) WHERE revoked_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user
+    ON refresh_tokens (admin_user_id);
 
 -- updated_at 自動更新用のトリガー関数
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -351,10 +408,9 @@ stateDiagram-v2
 ## 5. サンプルデータ
 
 ```sql
--- 管理者ユーザー（パスワードは別途ハッシュ化が必要）
-INSERT INTO admin_users (email, password_hash, role) VALUES
-('owner@example.com', '$2a$10$xxxxx', 'owner'),
-('dev@example.com', '$2a$10$xxxxx', 'developer');
+-- 管理者ユーザー（開発用）
+-- backend/.env に SEED_ADMIN_PASSWORD を設定し `make seed` を実行する（bcrypt でハッシュ化済み）
+-- owner@example.com (owner), dev@example.com (developer)
 
 -- 日別スケジュール
 INSERT INTO daily_schedules (date, schedule_type, capacity, event_name, event_description) VALUES

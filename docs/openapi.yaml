@@ -9,9 +9,10 @@ info:
     - 管理者向け: 予約管理、スケジュール管理、取引先管理
     
     ## 認証
-    管理者向けAPIはJWT認証が必要です。
-    `Authorization: Bearer {token}` ヘッダーを付与してください。
-  version: 1.1.0
+    - 保護された管理者 API: `Authorization: Bearer {access_token}`（JWT、有効期限 1 時間）
+    - ログイン時にアクセストークンを JSON で返し、リフレッシュトークンは **HttpOnly Cookie**（`refresh_token`）で返す。JSON にリフレッシュトークンは含めない
+    - ページ再読み込み時は `POST /admin/refresh`（`credentials: include`）でアクセストークンを再取得する
+  version: 1.2.0
   contact:
     name: satehits
     url: https://www.instagram.com/satehits/
@@ -26,7 +27,7 @@ tags:
   - name: 顧客向け
     description: 認証不要のAPI
   - name: 認証
-    description: ログイン・ログアウト
+    description: ログイン・トークン更新・ログアウト
   - name: 予約管理
     description: 管理者向け予約管理API
   - name: スケジュール管理
@@ -201,7 +202,13 @@ paths:
       tags:
         - 認証
       summary: ログイン
-      description: メールアドレスとパスワードで認証し、JWTトークンを取得します。
+      description: |
+        メールアドレスとパスワードで認証し、アクセストークン（JWT）を JSON で返します。
+        リフレッシュトークンはレスポンスボディに含めず、`Set-Cookie`（`refresh_token`）で返します。
+
+        ### リフレッシュトークン Cookie
+        - `HttpOnly; Secure; SameSite=None; Path=/api/v1/admin; Max-Age=2592000`（30日・ログイン時点から。refresh 成功時も同様に再設定）
+        - `Domain` はサーバの `COOKIE_DOMAIN` 環境変数（開発時は未設定可）
       operationId: login
       requestBody:
         required: true
@@ -211,7 +218,13 @@ paths:
               $ref: "#/components/schemas/LoginRequest"
       responses:
         "200":
-          description: ログイン成功
+          description: ログイン成功（アクセストークンは JSON、リフレッシュトークンは Cookie）
+          headers:
+            Set-Cookie:
+              description: リフレッシュトークン（`refresh_token`）。HttpOnly
+              schema:
+                type: string
+                example: refresh_token=abc123; HttpOnly; Secure; SameSite=None; Path=/api/v1/admin; Max-Age=2592000
           content:
             application/json:
               schema:
@@ -223,19 +236,96 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /admin/refresh:
+    post:
+      tags:
+        - 認証
+      summary: アクセストークンを更新
+      description: |
+        Cookie のリフレッシュトークンで新しいアクセストークンを発行します。
+        成功時はリフレッシュトークンをローテーションし、新しい値を `Set-Cookie` で返します。
+        新 RT の有効期限は **発行時刻から30日**（スライディング）。30日以内に再度 refresh されれば期限は延びる。
+
+        ### クライアント
+        - ボディは不要
+        - `credentials: include` で呼び出すこと（クロスオリジン時）
+        - フロントは取得したアクセストークンをメモリに保持する（`localStorage` 非推奨）
+
+        ### CSRF 緩和
+        `Origin` または `Referer` がサーバの許可オリジン（`CORS_ORIGINS`）と一致すること。
+      operationId: refreshToken
+      parameters:
+        - name: refresh_token
+          in: cookie
+          required: true
+          description: ログイン時に付与されたリフレッシュトークン
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 更新成功
+          headers:
+            Set-Cookie:
+              description: ローテーション後のリフレッシュトークン
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshResponse"
+        "401":
+          description: リフレッシュトークン無効・期限切れ・再利用検知
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalidToken:
+                  value:
+                    error:
+                      code: INVALID_TOKEN
+                      message: セッションが無効です。再度ログインしてください
+        "403":
+          description: Origin / Referer が許可リスト外
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /admin/logout:
     post:
       tags:
         - 認証
       summary: ログアウト
+      description: |
+        リフレッシュトークンをサーバ側で revoke し、Cookie を削除します。
+        `Authorization: Bearer` に有効なアクセストークンを付与してください。
+        `Origin` / `Referer` は `refresh` と同様に検証します。
       operationId: logout
       security:
         - BearerAuth: []
+      parameters:
+        - name: refresh_token
+          in: cookie
+          required: true
+          schema:
+            type: string
       responses:
         "204":
           description: ログアウト成功
+          headers:
+            Set-Cookie:
+              description: リフレッシュトークン削除（Max-Age=0）
+              schema:
+                type: string
         "401":
           description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Origin / Referer が許可リスト外
           content:
             application/json:
               schema:
@@ -1017,14 +1107,45 @@ components:
     LoginResponse:
       type: object
       required: [token, expires_at, user]
+      description: |
+        アクセストークン（JWT）とユーザー情報。
+        リフレッシュトークンは JSON に含めず、レスポンスの `Set-Cookie`（`refresh_token`）のみで渡す。
       properties:
         token:
           type: string
+          description: アクセストークン（JWT、HS256、有効期限 1 時間）
+        expires_at:
+          type: string
+          format: date-time
+          description: アクセストークンの有効期限（ISO 8601）
+        user:
+          type: object
+          required: [id, email, role]
+          properties:
+            id:
+              type: integer
+            email:
+              type: string
+            role:
+              type: string
+              enum: [owner, developer]
+
+    RefreshResponse:
+      type: object
+      required: [token, expires_at]
+      description: |
+        リフレッシュ成功時のアクセストークン。
+        新しいリフレッシュトークンは `Set-Cookie` で返す（JSON には含めない）。
+      properties:
+        token:
+          type: string
+          description: 新しいアクセストークン（JWT）
         expires_at:
           type: string
           format: date-time
         user:
           type: object
+          description: 省略可。含む場合は LoginResponse の user と同型
           properties:
             id:
               type: integer
