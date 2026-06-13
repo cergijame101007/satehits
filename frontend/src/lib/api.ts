@@ -1,4 +1,4 @@
-import { clearAccessToken, ensureAccessToken, refresh } from '@/lib/auth';
+import { invalidateAccessToken, ensureAccessToken, refresh, clearAccessToken } from '@/lib/auth';
 
 const API_BASE = import.meta.env.PUBLIC_API_URL ?? 'http://localhost:8080';
 
@@ -22,7 +22,7 @@ export async function authedFetch(path: string, init: RequestInit = {}): Promise
   });
 
   if (res.status === 401) {
-    clearAccessToken();
+    invalidateAccessToken();
     try {
       token = await refresh();
     } catch {

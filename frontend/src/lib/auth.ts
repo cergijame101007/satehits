@@ -105,6 +105,11 @@ export function clearAccessToken(): void {
   refreshPromise = null;
 }
 
+/** AT のみ無効化（進行中の refresh Promise は維持） */
+export function invalidateAccessToken(): void {
+  accessToken = null;
+}
+
 /** POST /admin/logout — サーバ側で RT 失効後、メモリの AT をクリア */
 export async function logout(): Promise<void> {
   const token = await ensureAccessToken().catch(() => null);

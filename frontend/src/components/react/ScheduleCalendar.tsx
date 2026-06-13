@@ -200,6 +200,8 @@ export default function ScheduleCalendar() {
 
           {isLoading ? (
             <div className="text-center py-16 text-gray-400 text-sm">読み込み中...</div>
+          ) : loadError ? (
+            <div className="text-center py-16 text-gray-400 text-sm">スケジュールを表示できません</div>
           ) : (
             <>
               <div className="grid grid-cols-7 mb-1">
