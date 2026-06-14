@@ -7,6 +7,13 @@ interface Props {
 }
 
 const { title } = Astro.props;
+
+const navItems = [
+  { href: '/admin/reservations', label: '予約一覧' },
+  { href: '/admin/reservations/new', label: '予約登録' },
+  { href: '/admin/schedules', label: 'スケジュール' },
+  { href: '/admin/suppliers', label: '取引先' },
+];
 ---
 
 <!doctype html>
@@ -21,41 +28,147 @@ const { title } = Astro.props;
   <body class="min-h-screen bg-bg-light">
     <MockBanner variant="static" />
     <header class="bg-primary text-white shadow-sm">
-      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
-        <a href="/admin" class="text-sm font-medium hover:opacity-80 transition-opacity">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14 gap-3">
+        <a
+          href="/admin"
+          class="text-sm font-medium hover:opacity-80 transition-opacity truncate min-w-0"
+        >
           さて、羊に戻るとしよう - 管理画面
         </a>
-        <nav class="flex items-center gap-4 text-sm">
-          <a href="/admin/reservations" class="hover:opacity-80 transition-opacity">予約一覧</a>
-          <a href="/admin/reservations/new" class="hover:opacity-80 transition-opacity">予約登録</a>
-          <a href="/admin/schedules" class="hover:opacity-80 transition-opacity">スケジュール</a>
-          <a href="/admin/suppliers" class="hover:opacity-80 transition-opacity">取引先</a>
+
+        <nav class="hidden md:flex items-center gap-4 text-sm shrink-0">
+          {navItems.map((item) => (
+            <a href={item.href} class="hover:opacity-80 transition-opacity whitespace-nowrap">
+              {item.label}
+            </a>
+          ))}
           <button
-            id="logout-btn"
-            class="px-3 py-1 border border-white/40 rounded text-xs hover:bg-white/10 transition-colors"
+            type="button"
+            class="admin-logout-btn px-3 py-1 border border-white/40 rounded text-xs hover:bg-white/10 transition-colors whitespace-nowrap"
           >
             ログアウト
           </button>
         </nav>
+
+        <button
+          id="admin-mobile-menu-btn"
+          type="button"
+          class="md:hidden flex items-center justify-center w-10 h-10 shrink-0 text-white"
+          aria-label="メニューを開く"
+        >
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 6h16M4 12h16M4 18h16"></path>
+          </svg>
+        </button>
       </div>
     </header>
+
+    <div
+      id="admin-mobile-menu"
+      class="admin-mobile-menu fixed inset-0 z-[100] md:hidden flex flex-col items-center justify-center"
+    >
+      <button
+        id="admin-mobile-menu-close"
+        type="button"
+        class="absolute top-4 right-4 w-10 h-10 flex items-center justify-center text-white"
+        aria-label="メニューを閉じる"
+      >
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"
+          ></path>
+        </svg>
+      </button>
+
+      <nav class="flex flex-col items-center gap-6 text-center">
+        {navItems.map((item) => (
+          <a
+            href={item.href}
+            class="text-xl font-medium text-white/90 hover:text-white transition-colors admin-mobile-nav-link"
+          >
+            {item.label}
+          </a>
+        ))}
+        <div class="w-10 h-px my-1 bg-white/30"></div>
+        <button
+          type="button"
+          class="admin-logout-btn px-8 py-3 border border-white/60 rounded-full text-sm text-white hover:bg-white/10 transition-colors"
+        >
+          ログアウト
+        </button>
+      </nav>
+    </div>
 
     <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <slot />
     </main>
 
     <script>
-      // TODO: JWT認証チェック - トークンがなければログインページにリダイレクト
-      const token = localStorage.getItem('auth_token');
-      if (!token && !window.location.pathname.includes('/admin/login')) {
+      import { ensureAccessToken, logout } from '@/lib/auth';
+
+      ensureAccessToken().catch(() => {
         window.location.href = '/admin/login';
+      });
+
+      document.querySelectorAll('.admin-logout-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          try {
+            await logout();
+          } finally {
+            window.location.href = '/admin/login';
+          }
+        });
+      });
+
+      const mobileMenuBtn = document.getElementById('admin-mobile-menu-btn');
+      const mobileMenuClose = document.getElementById('admin-mobile-menu-close');
+      const mobileMenu = document.getElementById('admin-mobile-menu');
+
+      function openMenu() {
+        mobileMenu?.classList.add('is-open');
+        document.documentElement.style.overflow = 'hidden';
       }
 
-      document.getElementById('logout-btn')?.addEventListener('click', () => {
-        // TODO: POST /api/v1/admin/logout でトークン無効化
-        localStorage.removeItem('auth_token');
-        window.location.href = '/admin/login';
+      function closeMenu() {
+        mobileMenu?.classList.remove('is-open');
+        document.documentElement.style.overflow = '';
+      }
+
+      mobileMenuBtn?.addEventListener('click', openMenu);
+      mobileMenuClose?.addEventListener('click', closeMenu);
+
+      document.querySelectorAll('.admin-mobile-nav-link').forEach((link) => {
+        link.addEventListener('click', closeMenu);
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && mobileMenu?.classList.contains('is-open')) {
+          closeMenu();
+        }
       });
     </script>
   </body>
 </html>
+
+<style>
+  .admin-mobile-menu {
+    background-color: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity 0.35s ease,
+      visibility 0.35s ease;
+    overscroll-behavior: contain;
+    touch-action: none;
+  }
+
+  .admin-mobile-menu.is-open {
+    opacity: 1;
+    visibility: visible;
+  }
+</style>

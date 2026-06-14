@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
-import type { DailySchedule, ScheduleType } from '../../types/reservation';
-import { getMonthlySchedules, scheduleTypeLabels, scheduleTypeShort } from '../../mocks/reservation';
+import type { DailySchedule, ScheduleType } from '@/types/reservation';
+import { scheduleTypeLabels, scheduleTypeShort } from '@/mocks/reservation';
+import {
+  editableScheduleTypes,
+  listSchedules,
+  ScheduleApiError,
+  setSchedule,
+} from '@/lib/schedule';
 
 /** スケジュールタイプの背景色 */
 const typeColors: Record<ScheduleType, string> = {
@@ -27,21 +33,50 @@ export default function ScheduleCalendar() {
   const [viewMonth, setViewMonth] = useState(now.getMonth() + 1);
   const [selectedSchedule, setSelectedSchedule] = useState<DailySchedule | null>(null);
 
-  // 編集フォーム用ステート
   const [editType, setEditType] = useState<ScheduleType>('normal');
   const [editCapacity, setEditCapacity] = useState(10);
   const [editEventName, setEditEventName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [saveError, setSaveError] = useState('');
 
-  // TODO: GET /api/v1/admin/schedules?month=YYYY-MM に置き換え
-  const [schedules, setSchedules] = useState<DailySchedule[]>(() =>
-    getMonthlySchedules(viewYear, viewMonth),
-  );
+  const [schedules, setSchedules] = useState<DailySchedule[]>([]);
 
   useEffect(() => {
-    setSchedules(getMonthlySchedules(viewYear, viewMonth));
-    setSelectedSchedule(null);
+    let cancelled = false;
+
+    const load = async () => {
+      setIsLoading(true);
+      setLoadError('');
+      setSelectedSchedule(null);
+
+      try {
+        const data = await listSchedules(viewYear, viewMonth);
+        if (!cancelled) {
+          setSchedules(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setSchedules([]);
+          setLoadError(
+            err instanceof ScheduleApiError
+              ? err.message
+              : 'スケジュールの取得に失敗しました。時間をおいて再度お試しください。',
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, [viewYear, viewMonth]);
 
   const prevMonth = () => {
@@ -79,42 +114,48 @@ export default function ScheduleCalendar() {
     setEditCapacity(schedule.capacity);
     setEditEventName(schedule.event_name ?? '');
     setEditDescription(schedule.description ?? '');
+    setSaveError('');
   };
 
   const handleSave = async () => {
     if (!selectedSchedule) return;
+    setSaveError('');
+
+    if (editType === 'event' && (!editEventName.trim() || !editDescription.trim())) {
+      setSaveError('イベント名と説明は必須です');
+      return;
+    }
+
     setIsSaving(true);
 
-    // TODO: PUT /api/v1/admin/schedules/{date} に置き換え
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    try {
+      const saved = await setSchedule(
+        selectedSchedule.date,
+        editType,
+        editCapacity,
+        editEventName,
+        editDescription,
+      );
 
-    setSchedules((prev) =>
-      prev.map((s) =>
-        s.date === selectedSchedule.date
-          ? {
-              ...s,
-              type: editType,
-              capacity: editCapacity,
-              event_name: editType === 'event' ? editEventName : undefined,
-              description: editType === 'event' || editType === 'special' ? editDescription : undefined,
-            }
-          : s,
-      ),
-    );
-
-    setSelectedSchedule((prev) =>
-      prev
-        ? {
-            ...prev,
-            type: editType,
-            capacity: editCapacity,
-            event_name: editType === 'event' ? editEventName : undefined,
-            description: editType === 'event' || editType === 'special' ? editDescription : undefined,
-          }
-        : null,
-    );
-
-    setIsSaving(false);
+      setSchedules((prev) => prev.map((s) => (s.date === saved.date ? saved : s)));
+      setSelectedSchedule(saved);
+      setEditType(saved.type);
+      setEditCapacity(saved.capacity);
+      setEditEventName(saved.event_name ?? '');
+      setEditDescription(saved.description ?? '');
+    } catch (err) {
+      if (err instanceof ScheduleApiError && err.code === 'VALIDATION_ERROR' && err.details?.length) {
+        setSaveError(err.details.map((d) => d.message).join(' '));
+      } else {
+        setSaveError(
+          err instanceof ScheduleApiError
+            ? err.message
+            : '保存に失敗しました。時間をおいて再度お試しください。',
+        );
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
@@ -126,15 +167,21 @@ export default function ScheduleCalendar() {
     <div className="space-y-6">
       <h1 className="text-2xl font-medium">スケジュール設定</h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {loadError && (
+        <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-red-700 text-sm">
+          {loadError}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* カレンダー */}
         <div className="lg:col-span-2 rounded-xl border border-gray-200 bg-white p-5">
-          {/* ヘッダー */}
           <div className="flex items-center justify-between mb-4">
             <button
               type="button"
               onClick={prevMonth}
-              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+              disabled={isLoading}
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors disabled:opacity-40"
             >
               ‹
             </button>
@@ -144,76 +191,84 @@ export default function ScheduleCalendar() {
             <button
               type="button"
               onClick={nextMonth}
-              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+              disabled={isLoading}
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors disabled:opacity-40"
             >
               ›
             </button>
           </div>
 
-          {/* 曜日ヘッダー */}
-          <div className="grid grid-cols-7 mb-1">
-            {weekdays.map((w, i) => (
-              <div
-                key={w}
-                className={`text-center text-xs font-medium py-1 ${
-                  i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-500'
-                }`}
-              >
-                {w}
-              </div>
-            ))}
-          </div>
-
-          {/* カレンダーグリッド */}
-          <div className="grid grid-cols-7 gap-1">
-            {calendarCells.map((schedule, i) => {
-              if (!schedule) return <div key={`pad-${i}`} />;
-
-              const day = parseInt(schedule.date.split('-')[2]);
-              const isSelected = selectedSchedule?.date === schedule.date;
-
-              return (
-                <button
-                  key={schedule.date}
-                  type="button"
-                  onClick={() => handleSelectDay(schedule)}
-                  className={`flex flex-col items-center py-2 rounded-lg text-sm transition-colors cursor-pointer ${
-                    isSelected ? 'ring-2 ring-primary ring-offset-1' : 'hover:bg-gray-50'
-                  }`}
-                  style={{ backgroundColor: isSelected ? typeColors[schedule.type] + '80' : undefined }}
-                >
-                  <span className="text-xs text-gray-600">{day}</span>
-                  <span
-                    className="text-[11px] font-medium mt-0.5 px-1 rounded"
-                    style={{
-                      backgroundColor: typeColors[schedule.type],
-                      color: typeTextColors[schedule.type],
-                    }}
+          {isLoading ? (
+            <div className="text-center py-16 text-gray-400 text-sm">読み込み中...</div>
+          ) : loadError ? (
+            <div className="text-center py-16 text-gray-400 text-sm">スケジュールを表示できません</div>
+          ) : (
+            <>
+              <div className="grid grid-cols-7 mb-1">
+                {weekdays.map((w, i) => (
+                  <div
+                    key={w}
+                    className={`text-center text-xs font-medium py-1 ${
+                      i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-500'
+                    }`}
                   >
-                    {scheduleTypeShort[schedule.type]}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                    {w}
+                  </div>
+                ))}
+              </div>
 
-          {/* 凡例 */}
-          <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-gray-100 text-xs">
-            {Object.entries(scheduleTypeLabels).map(([key, label]) => (
-              <span key={key} className="flex items-center gap-1">
-                <span
-                  className="w-4 h-4 rounded text-center text-[10px] leading-4 font-medium"
-                  style={{
-                    backgroundColor: typeColors[key as ScheduleType],
-                    color: typeTextColors[key as ScheduleType],
-                  }}
-                >
-                  {scheduleTypeShort[key as ScheduleType]}
-                </span>
-                {label}
-              </span>
-            ))}
-          </div>
+              <div className="grid grid-cols-7 gap-1">
+                {calendarCells.map((schedule, i) => {
+                  if (!schedule) return <div key={`pad-${i}`} />;
+
+                  const day = parseInt(schedule.date.split('-')[2]);
+                  const isSelected = selectedSchedule?.date === schedule.date;
+
+                  return (
+                    <button
+                      key={schedule.date}
+                      type="button"
+                      onClick={() => handleSelectDay(schedule)}
+                      className={`flex flex-col items-center py-2 rounded-lg text-sm transition-colors cursor-pointer ${
+                        isSelected ? 'ring-2 ring-primary ring-offset-1' : 'hover:bg-gray-50'
+                      }`}
+                      style={{
+                        backgroundColor: isSelected ? typeColors[schedule.type] + '80' : undefined,
+                      }}
+                    >
+                      <span className="text-xs text-gray-600">{day}</span>
+                      <span
+                        className="inline-flex items-center justify-center min-w-4 h-4 px-0.5 text-[10px] leading-none font-medium mt-0.5 rounded"
+                        style={{
+                          backgroundColor: typeColors[schedule.type],
+                          color: typeTextColors[schedule.type],
+                        }}
+                      >
+                        {scheduleTypeShort[schedule.type]}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-4 pt-4 border-t border-gray-100 text-xs">
+                {editableScheduleTypes.map((key) => (
+                  <span key={key} className="inline-flex items-center gap-1">
+                    <span
+                      className="inline-flex items-center justify-center w-4 h-4 shrink-0 rounded text-[10px] leading-none font-medium"
+                      style={{
+                        backgroundColor: typeColors[key],
+                        color: typeTextColors[key],
+                      }}
+                    >
+                      {scheduleTypeShort[key]}
+                    </span>
+                    {scheduleTypeLabels[key]}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         {/* 設定フォーム */}
@@ -231,23 +286,23 @@ export default function ScheduleCalendar() {
                   onChange={(e) => setEditType(e.target.value as ScheduleType)}
                   className={inputClass}
                 >
-                  {Object.entries(scheduleTypeLabels).map(([key, label]) => (
+                  {editableScheduleTypes.map((key) => (
                     <option key={key} value={key}>
-                      {label}
+                      {scheduleTypeLabels[key]}
                     </option>
                   ))}
                 </select>
               </div>
 
-              {(editType === 'event') && (
+              {editType === 'event' && (
                 <div>
                   <label className="block text-sm font-medium mb-2">イベント名</label>
                   <input
                     type="text"
                     value={editEventName}
                     onChange={(e) => setEditEventName(e.target.value)}
-                    placeholder="和紅茶をしばく会"
                     className={inputClass}
+                    required
                   />
                 </div>
               )}
@@ -262,6 +317,7 @@ export default function ScheduleCalendar() {
                     onChange={(e) => setEditDescription(e.target.value)}
                     rows={3}
                     className={inputClass}
+                    required={editType === 'event'}
                   />
                 </div>
               )}
@@ -281,11 +337,18 @@ export default function ScheduleCalendar() {
                 </select>
               </div>
 
+              {saveError && (
+                <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-red-700 text-sm">
+                  {saveError}
+                </div>
+              )}
+
               <button
+                type="button"
                 onClick={handleSave}
-                disabled={isSaving}
+                disabled={isSaving || isLoading}
                 className={`w-full py-3 rounded-xl text-white font-medium transition-all ${
-                  isSaving
+                  isSaving || isLoading
                     ? 'bg-gray-400 cursor-not-allowed'
                     : 'bg-primary hover:bg-primary-dark active:scale-[0.98] shadow-lg'
                 }`}
