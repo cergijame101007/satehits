@@ -10,7 +10,12 @@ function redirectToLogin(): never {
 
 /** 保護 API 用 fetch — Bearer 付与、401 時は refresh 1 回リトライ */
 export async function authedFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  let token = await ensureAccessToken();
+  let token: string;
+  try {
+    token = await ensureAccessToken();
+  } catch {
+    redirectToLogin();
+  }
 
   const headers = new Headers(init.headers);
   headers.set('Authorization', `Bearer ${token}`);
