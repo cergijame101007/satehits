@@ -252,18 +252,18 @@ export default function ScheduleCalendar() {
               </div>
 
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-4 pt-4 border-t border-gray-100 text-xs">
-                {Object.entries(scheduleTypeLabels).map(([key, label]) => (
+                {editableScheduleTypes.map((key) => (
                   <span key={key} className="inline-flex items-center gap-1">
                     <span
                       className="inline-flex items-center justify-center w-4 h-4 shrink-0 rounded text-[10px] leading-none font-medium"
                       style={{
-                        backgroundColor: typeColors[key as ScheduleType],
-                        color: typeTextColors[key as ScheduleType],
+                        backgroundColor: typeColors[key],
+                        color: typeTextColors[key],
                       }}
                     >
-                      {scheduleTypeShort[key as ScheduleType]}
+                      {scheduleTypeShort[key]}
                     </span>
-                    {label}
+                    {scheduleTypeLabels[key]}
                   </span>
                 ))}
               </div>
