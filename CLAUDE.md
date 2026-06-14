@@ -309,9 +309,9 @@ JWT_SECRET=your-jwt-secret
 RECAPTCHA_SECRET_KEY=your-recaptcha-secret-key
 ENVIRONMENT=development
 
-# フロントエンド
-NEXT_PUBLIC_API_URL=http://localhost:8080
-NEXT_PUBLIC_RECAPTCHA_SITE_KEY=your-recaptcha-site-key
+# フロントエンド（Astro: PUBLIC_ プレフィックスでクライアントに公開）
+PUBLIC_API_URL=http://localhost:8080
+PUBLIC_RECAPTCHA_SITE_KEY=your-recaptcha-site-key
 ```
 
 ---

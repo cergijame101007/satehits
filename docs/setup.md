@@ -33,7 +33,7 @@ cp backend/.env.example backend/.env
 | `ENVIRONMENT` | `development` または `production` |
 | `MIGRATIONS_DIR` | （任意）マイグレーション SQL のディレクトリで未設定時は `migrations`（実行時のカレントディレクトリ基準） |
 
-フロントエンド用の `NEXT_PUBLIC_*` などは、リポジトリ直下の [`.env.example`](../.env.example) に記載があります。`frontend/` で `bun run dev` する場合は、必要な変数を `frontend/.env` などに置いてください。
+フロントエンド用の `PUBLIC_*`（Astro のクライアント公開用プレフィックス）などは、リポジトリ直下の [`.env.example`](../.env.example) に記載があります。`frontend/` で `bun run dev` する場合は、必要な変数を `frontend/.env` などに置いてください。
 
 ### 3. 開発サーバーの起動
 
