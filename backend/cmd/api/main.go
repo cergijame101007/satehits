@@ -53,6 +53,17 @@ func main() {
 	createReservation := reservationusecase.NewCreateReservationUseCase(reservationRepo)
 	reservationHandler := handler.NewReservationHandler(reservationRepo, createReservation, reservationsPath)
 
+	listReservations := reservationusecase.NewListReservationsUseCase(reservationRepo)
+	createAdminReservation := reservationusecase.NewCreateAdminReservationUseCase(reservationRepo)
+	updateReservationStatus := reservationusecase.NewUpdateReservationStatusUseCase(reservationRepo)
+	adminReservationsPath := adminBase + "/reservations"
+	adminReservationHandler := handler.NewAdminReservationHandler(
+		listReservations,
+		createAdminReservation,
+		updateReservationStatus,
+		adminReservationsPath,
+	)
+
 	scheduleRepo := repository.NewPostgresScheduleRepository(db)
 	scheduleResolver := service.NewScheduleResolver(scheduleRepo)
 	setSchedule := scheduleusecase.NewSetScheduleUseCase(scheduleRepo)
@@ -84,6 +95,9 @@ func main() {
 	scheduleAuth := handler.RequireAuth(jwtService)
 	http.Handle(schedulesPath, scheduleAuth(http.HandlerFunc(scheduleHandler.HandleSchedules)))
 	http.Handle(schedulesPath+"/", scheduleAuth(http.HandlerFunc(scheduleHandler.HandleSchedules)))
+
+	http.Handle(adminReservationsPath, scheduleAuth(http.HandlerFunc(adminReservationHandler.HandleAdminReservations)))
+	http.Handle(adminReservationsPath+"/", scheduleAuth(http.HandlerFunc(adminReservationHandler.HandleAdminReservations)))
 
 	// サーバー起動
 	port := ":8080"
