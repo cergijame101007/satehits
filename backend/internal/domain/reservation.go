@@ -13,6 +13,44 @@ import (
 // ErrReservationConflict は同一来店日時・電話番号のアクティブ予約が既にある
 var ErrReservationConflict = errors.New("reservation conflict")
 
+// ErrReservationNotFound は指定 ID の予約が存在しない
+var ErrReservationNotFound = errors.New("reservation not found")
+
+// ValidReservationStatuses は reservations.status の許容値
+var ValidReservationStatuses = []string{"pending", "approved", "rejected", "cancelled", "no_show"}
+
+// ValidReservationSources は reservations.source の許容値
+var ValidReservationSources = []string{"web", "instagram", "phone", "walk_in", "other"}
+
+// UpdateStatusTargets は PATCH /admin/reservations/{id}/status で指定可能な遷移先
+var UpdateStatusTargets = []string{"approved", "rejected", "cancelled", "no_show"}
+
+var statusTransitions = map[string][]string{
+	"pending":  {"approved", "rejected", "cancelled"},
+	"approved": {"no_show", "cancelled"},
+}
+
+// CanTransition は docs/api_design.md のステータス遷移表に従い from→to が許可されるか判定する
+func CanTransition(from, to string) bool {
+	targets, ok := statusTransitions[from]
+	if !ok {
+		return false
+	}
+	for _, t := range targets {
+		if t == to {
+			return true
+		}
+	}
+	return false
+}
+
+// ListReservationsFilter は管理者予約一覧の絞り込み条件
+type ListReservationsFilter struct {
+	Date   *datetime.Date
+	Status string
+	Source string
+}
+
 // Reservation はドメインエンティティ
 type Reservation struct {
 	ID        uuid.UUID     `json:"id"`
@@ -45,4 +83,7 @@ type CreateReservationInput struct {
 type ReservationRepository interface {
 	Create(ctx context.Context, r CreateReservationInput) (Reservation, error)
 	GetAll(ctx context.Context) ([]Reservation, error)
+	List(ctx context.Context, f ListReservationsFilter) ([]Reservation, error)
+	GetByID(ctx context.Context, id uuid.UUID) (Reservation, error)
+	UpdateStatus(ctx context.Context, id uuid.UUID, status string) (Reservation, error)
 }

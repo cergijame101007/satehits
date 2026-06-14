@@ -4,7 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/cergijame101007/satehits/internal/domain"
@@ -95,4 +98,112 @@ FROM reservations`
 		return nil, err
 	}
 	return reservations, nil
+}
+
+const reservationSelectColumns = `
+SELECT id, name, people, visit_date, visit_time, phone, email,
+       COALESCE(note, ''), status, source, created_at, updated_at
+FROM reservations`
+
+func scanReservation(row interface {
+	Scan(dest ...any) error
+}) (domain.Reservation, error) {
+	var reservation domain.Reservation
+	err := row.Scan(
+		&reservation.ID,
+		&reservation.Name,
+		&reservation.People,
+		&reservation.VisitDate,
+		&reservation.VisitTime,
+		&reservation.Phone,
+		&reservation.Email,
+		&reservation.Note,
+		&reservation.Status,
+		&reservation.Source,
+		&reservation.CreatedAt,
+		&reservation.UpdatedAt,
+	)
+	return reservation, err
+}
+
+// List は管理者向け予約一覧を取得する（絞り込み条件は usecase で検証済み）
+func (r *PostgresReservationRepository) List(ctx context.Context, f domain.ListReservationsFilter) ([]domain.Reservation, error) {
+	var (
+		conditions []string
+		args       []any
+		argNum     = 1
+	)
+
+	if f.Date != nil {
+		conditions = append(conditions, fmt.Sprintf("visit_date = $%d", argNum))
+		args = append(args, *f.Date)
+		argNum++
+	}
+	if f.Status != "" {
+		conditions = append(conditions, fmt.Sprintf("status = $%d", argNum))
+		args = append(args, f.Status)
+		argNum++
+	}
+	if f.Source != "" {
+		conditions = append(conditions, fmt.Sprintf("source = $%d", argNum))
+		args = append(args, f.Source)
+		argNum++
+	}
+
+	query := reservationSelectColumns
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	query += " ORDER BY visit_date, visit_time"
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var reservations []domain.Reservation
+	for rows.Next() {
+		reservation, err := scanReservation(rows)
+		if err != nil {
+			return nil, err
+		}
+		reservations = append(reservations, reservation)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return reservations, nil
+}
+
+// GetByID は ID で予約を1件取得する
+func (r *PostgresReservationRepository) GetByID(ctx context.Context, id uuid.UUID) (domain.Reservation, error) {
+	query := reservationSelectColumns + " WHERE id = $1"
+	reservation, err := scanReservation(r.db.QueryRowContext(ctx, query, id))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Reservation{}, domain.ErrReservationNotFound
+		}
+		return domain.Reservation{}, err
+	}
+	return reservation, nil
+}
+
+// UpdateStatus は予約ステータスを更新する
+func (r *PostgresReservationRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status string) (domain.Reservation, error) {
+	query := `
+UPDATE reservations SET status = $1 WHERE id = $2
+RETURNING id, name, people, visit_date, visit_time, phone, email,
+          COALESCE(note, ''), status, source, created_at, updated_at`
+	reservation, err := scanReservation(r.db.QueryRowContext(ctx, query, status, id))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Reservation{}, domain.ErrReservationNotFound
+		}
+		if isUniqueViolation(err) {
+			return domain.Reservation{}, domain.ErrReservationConflict
+		}
+		return domain.Reservation{}, err
+	}
+	return reservation, nil
 }
