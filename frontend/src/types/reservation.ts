@@ -38,7 +38,17 @@ export interface AvailabilityResponse {
   capacity: number;
   reserved: number;
   available: number;
+  schedule_type?: string | null;
+  event_name?: string;
+  event_description?: string;
   is_holiday: boolean;
+}
+
+/** 月間空き状況レスポンス */
+export interface AvailabilityListResponse {
+  year: number;
+  month: number;
+  availabilities: AvailabilityResponse[];
 }
 
 /** ログインリクエスト */
