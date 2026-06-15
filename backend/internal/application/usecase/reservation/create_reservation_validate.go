@@ -135,12 +135,6 @@ func validateVisitDate(visit datetime.Date, now time.Time) []FieldViolation {
 		violations = append(violations, FieldViolation{Field: "visit_date", Message: "来店日は翌日から14日以内で指定してください"})
 	}
 
-	// ドメイン既定の定休（木・金）。daily_schedules で上書きされる前提の暫定ルール
-	wd := civilWeekday(visit)
-	if wd == time.Thursday || wd == time.Friday {
-		violations = append(violations, FieldViolation{Field: "visit_date", Message: "この日は予約できません"})
-	}
-
 	return violations
 }
 

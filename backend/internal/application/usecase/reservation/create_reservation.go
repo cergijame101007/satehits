@@ -7,6 +7,7 @@ import (
 
 	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
+	"github.com/cergijame101007/satehits/internal/domain/service"
 )
 
 // FieldViolation はフィールド単位のバリデーションエラー
@@ -38,12 +39,13 @@ type CreateReservationCommand struct {
 
 // CreateReservationUseCase は顧客向け予約作成
 type CreateReservationUseCase struct {
-	repo domain.ReservationRepository
+	repo         domain.ReservationRepository
+	availability *service.AvailabilityService
 }
 
 // NewCreateReservationUseCase は CreateReservationUseCase の生成
-func NewCreateReservationUseCase(repo domain.ReservationRepository) *CreateReservationUseCase {
-	return &CreateReservationUseCase{repo: repo}
+func NewCreateReservationUseCase(repo domain.ReservationRepository, availability *service.AvailabilityService) *CreateReservationUseCase {
+	return &CreateReservationUseCase{repo: repo, availability: availability}
 }
 
 // Execute は入力検証および Repository への永続化
@@ -53,8 +55,18 @@ func (u *CreateReservationUseCase) Execute(ctx context.Context, cmd CreateReserv
 		return nil, &ValidationError{Violations: violations}
 	}
 
-	// TODO: daily_schedules と AvailabilityService 実装後にここで残席・営業可否を検証する
-	// 設計どおり提供数超過は 409 CAPACITY_EXCEEDED、不可日時はバリデーションで弾く（現状は未チェック）
+	avail, err := u.availability.ResolveForDate(ctx, cmd.VisitDate)
+	if err != nil {
+		return nil, mapAvailabilityServiceError(err)
+	}
+	if avail.IsHoliday {
+		return nil, &ValidationError{Violations: []FieldViolation{
+			{Field: "visit_date", Message: "この日は予約できません"},
+		}}
+	}
+	if cmd.People > avail.Available {
+		return nil, domain.ErrCapacityExceeded
+	}
 
 	// ドメイン入力への変換
 	// Status/Source はサーバー側管理（クライアント非公開）

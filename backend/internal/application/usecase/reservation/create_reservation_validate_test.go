@@ -180,35 +180,15 @@ func TestValidateCreateReservation_visitDateRange(t *testing.T) {
 	})
 }
 
-func TestValidateCreateReservation_regularClosedWeekdays(t *testing.T) {
-	// 暫定: 木・金は定休（daily_schedules 未連携）
-	now := time.Date(2026, 5, 13, 12, 0, 0, 0, storeLocation) // 水
-
-	tests := []struct {
-		name string
-		date string
-	}{
-		{name: "rejects Thursday", date: "2026-05-14"},
-		{name: "rejects Friday", date: "2026-05-15"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cmd := validCreateReservationCommand()
-			cmd.VisitDate = datetime.MustParseDate(tt.date)
-			assertHasViolationField(t, validateCreateReservation(cmd, now), "visit_date")
-		})
-	}
-}
-
 func TestValidateCreateReservation_visitTimeWindow(t *testing.T) {
 	now := time.Date(2026, 5, 13, 12, 0, 0, 0, storeLocation) // 水
 
-	t.Run("skips visit_time when visit_date is closed weekday", func(t *testing.T) {
-		// 木は visit_date で弾かれるため visit_time の営業時間チェックには入らない
+	t.Run("rejects Thursday visit outside weekday window", func(t *testing.T) {
+		// 定休判定は AvailabilityService 側。validate では曜日別営業時間のみ
 		cmd := validCreateReservationCommand()
 		cmd.VisitDate = datetime.MustParseDate("2026-05-14")
 		cmd.VisitTime = datetime.MustParseTime("08:30")
-		assertHasViolationField(t, validateCreateReservation(cmd, now), "visit_date")
+		assertHasViolationField(t, validateCreateReservation(cmd, now), "visit_time")
 	})
 
 	t.Run("rejects Saturday visit before 08:30", func(t *testing.T) {
