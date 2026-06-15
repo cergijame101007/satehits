@@ -119,17 +119,17 @@ func validCreateCommandForDate(date datetime.Date) CreateReservationCommand {
 
 func TestCreateReservationUseCase_Execute_availability(t *testing.T) {
 	now := time.Now().In(storeLocation)
-	saturday := firstBookableWeekday(t, now, time.Saturday)
+	sunday := firstBookableWeekday(t, now, time.Sunday)
 
 	t.Run("creates reservation when people equals available", func(t *testing.T) {
-		repo := &createTestReservationRepo{approvedByDate: map[string]int{saturday.String(): 8}}
+		repo := &createTestReservationRepo{approvedByDate: map[string]int{sunday.String(): 8}}
 		uc := newCreateReservationUseCaseForTest(createTestScheduleRepo{
 			byDate: map[string]domain.Schedule{
-				saturday.String(): {Date: saturday, ScheduleType: domain.ScheduleTypeMorning, Capacity: 10},
+				sunday.String(): {Date: sunday, ScheduleType: domain.ScheduleTypeMorning, Capacity: 10},
 			},
 		}, repo)
 
-		cmd := validCreateCommandForDate(saturday)
+		cmd := validCreateCommandForDate(sunday)
 		cmd.People = 2
 
 		result, err := uc.Execute(context.Background(), cmd)
@@ -148,14 +148,14 @@ func TestCreateReservationUseCase_Execute_availability(t *testing.T) {
 	})
 
 	t.Run("creates reservation when people is below available", func(t *testing.T) {
-		repo := &createTestReservationRepo{approvedByDate: map[string]int{saturday.String(): 3}}
+		repo := &createTestReservationRepo{approvedByDate: map[string]int{sunday.String(): 3}}
 		uc := newCreateReservationUseCaseForTest(createTestScheduleRepo{
 			byDate: map[string]domain.Schedule{
-				saturday.String(): {Date: saturday, ScheduleType: domain.ScheduleTypeMorning, Capacity: 10},
+				sunday.String(): {Date: sunday, ScheduleType: domain.ScheduleTypeMorning, Capacity: 10},
 			},
 		}, repo)
 
-		cmd := validCreateCommandForDate(saturday)
+		cmd := validCreateCommandForDate(sunday)
 		cmd.People = 1
 
 		_, err := uc.Execute(context.Background(), cmd)
@@ -165,14 +165,14 @@ func TestCreateReservationUseCase_Execute_availability(t *testing.T) {
 	})
 
 	t.Run("returns capacity exceeded when people exceeds available by one", func(t *testing.T) {
-		repo := &createTestReservationRepo{approvedByDate: map[string]int{saturday.String(): 8}}
+		repo := &createTestReservationRepo{approvedByDate: map[string]int{sunday.String(): 8}}
 		uc := newCreateReservationUseCaseForTest(createTestScheduleRepo{
 			byDate: map[string]domain.Schedule{
-				saturday.String(): {Date: saturday, ScheduleType: domain.ScheduleTypeMorning, Capacity: 10},
+				sunday.String(): {Date: sunday, ScheduleType: domain.ScheduleTypeMorning, Capacity: 10},
 			},
 		}, repo)
 
-		cmd := validCreateCommandForDate(saturday)
+		cmd := validCreateCommandForDate(sunday)
 		cmd.People = 3
 
 		_, err := uc.Execute(context.Background(), cmd)
@@ -188,14 +188,14 @@ func TestCreateReservationUseCase_Execute_availability(t *testing.T) {
 	})
 
 	t.Run("returns capacity exceeded when available is zero", func(t *testing.T) {
-		repo := &createTestReservationRepo{approvedByDate: map[string]int{saturday.String(): 10}}
+		repo := &createTestReservationRepo{approvedByDate: map[string]int{sunday.String(): 10}}
 		uc := newCreateReservationUseCaseForTest(createTestScheduleRepo{
 			byDate: map[string]domain.Schedule{
-				saturday.String(): {Date: saturday, ScheduleType: domain.ScheduleTypeMorning, Capacity: 10},
+				sunday.String(): {Date: sunday, ScheduleType: domain.ScheduleTypeMorning, Capacity: 10},
 			},
 		}, repo)
 
-		cmd := validCreateCommandForDate(saturday)
+		cmd := validCreateCommandForDate(sunday)
 		cmd.People = 1
 
 		_, err := uc.Execute(context.Background(), cmd)
@@ -205,14 +205,14 @@ func TestCreateReservationUseCase_Execute_availability(t *testing.T) {
 	})
 
 	t.Run("accepts max people when exactly enough seats remain", func(t *testing.T) {
-		repo := &createTestReservationRepo{approvedByDate: map[string]int{saturday.String(): 3}}
+		repo := &createTestReservationRepo{approvedByDate: map[string]int{sunday.String(): 3}}
 		uc := newCreateReservationUseCaseForTest(createTestScheduleRepo{
 			byDate: map[string]domain.Schedule{
-				saturday.String(): {Date: saturday, ScheduleType: domain.ScheduleTypeMorning, Capacity: 10},
+				sunday.String(): {Date: sunday, ScheduleType: domain.ScheduleTypeMorning, Capacity: 10},
 			},
 		}, repo)
 
-		cmd := validCreateCommandForDate(saturday)
+		cmd := validCreateCommandForDate(sunday)
 		cmd.People = 7
 
 		_, err := uc.Execute(context.Background(), cmd)
@@ -225,11 +225,11 @@ func TestCreateReservationUseCase_Execute_availability(t *testing.T) {
 		repo := &createTestReservationRepo{}
 		uc := newCreateReservationUseCaseForTest(createTestScheduleRepo{
 			byDate: map[string]domain.Schedule{
-				saturday.String(): {Date: saturday, ScheduleType: domain.ScheduleTypeClosed, Capacity: 0},
+				sunday.String(): {Date: sunday, ScheduleType: domain.ScheduleTypeClosed, Capacity: 0},
 			},
 		}, repo)
 
-		cmd := validCreateCommandForDate(saturday)
+		cmd := validCreateCommandForDate(sunday)
 
 		_, err := uc.Execute(context.Background(), cmd)
 		if err == nil {
@@ -249,8 +249,8 @@ func TestCreateReservationUseCase_Execute_availability(t *testing.T) {
 		repo := &createTestReservationRepo{}
 		uc := newCreateReservationUseCaseForTest(createTestScheduleRepo{
 			byDate: map[string]domain.Schedule{
-				saturday.String(): {
-					Date:         saturday,
+				sunday.String(): {
+					Date:         sunday,
 					ScheduleType: domain.ScheduleTypeEvent,
 					Capacity:     0,
 					EventName:    "evt",
@@ -258,7 +258,7 @@ func TestCreateReservationUseCase_Execute_availability(t *testing.T) {
 			},
 		}, repo)
 
-		cmd := validCreateCommandForDate(saturday)
+		cmd := validCreateCommandForDate(sunday)
 		cmd.People = 1
 
 		_, err := uc.Execute(context.Background(), cmd)
@@ -305,5 +305,30 @@ func TestCreateReservationUseCase_Execute_availability(t *testing.T) {
 			t.Fatalf("Execute() err = %v, want ValidationError", err)
 		}
 		assertHasViolationField(t, vErr.Violations, "visit_date")
+	})
+
+	t.Run("rejects Sunday morning coffee time before lunch open", func(t *testing.T) {
+		repo := &createTestReservationRepo{}
+		uc := newCreateReservationUseCaseForTest(createTestScheduleRepo{
+			byDate: map[string]domain.Schedule{
+				sunday.String(): {Date: sunday, ScheduleType: domain.ScheduleTypeMorning, Capacity: 10},
+			},
+		}, repo)
+
+		cmd := validCreateCommandForDate(sunday)
+		cmd.VisitTime = datetime.MustParseTime("09:00")
+
+		_, err := uc.Execute(context.Background(), cmd)
+		if err == nil {
+			t.Fatal("Execute() err = nil, want ValidationError")
+		}
+		var vErr *ValidationError
+		if !errors.As(err, &vErr) {
+			t.Fatalf("Execute() err = %v, want ValidationError", err)
+		}
+		assertHasViolationField(t, vErr.Violations, "visit_time")
+		if len(repo.created) != 0 {
+			t.Fatalf("created count = %d, want 0", len(repo.created))
+		}
 	})
 }
