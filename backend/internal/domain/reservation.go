@@ -91,4 +91,6 @@ type ReservationRepository interface {
 	UpdateStatus(ctx context.Context, id uuid.UUID, status string) (Reservation, error)
 	// SumApprovedPeopleByDate は指定日の承認済み予約人数合計を返す
 	SumApprovedPeopleByDate(ctx context.Context, date datetime.Date) (int, error)
+	// SumApprovedPeopleByDateRange は期間内の日付別・承認済み予約人数合計を返す（キー: YYYY-MM-DD）
+	SumApprovedPeopleByDateRange(ctx context.Context, from, to datetime.Date) (map[string]int, error)
 }

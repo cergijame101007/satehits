@@ -44,27 +44,49 @@ paths:
       tags:
         - 顧客向け
       summary: 残り食数を取得
-      description: 指定日の予約可能な残り食数を取得します。
+      description: |
+        指定日または指定月の予約可能な残り食数を取得します。
+        - 単日: `date` クエリ（YYYY-MM-DD）
+        - 月次: `year` + `month` クエリ（当該月の各暦日を返す）
+        - `date` と `year`/`month` の同時指定は 400
       operationId: getAvailability
       parameters:
         - name: date
           in: query
-          required: true
-          description: 日付（YYYY-MM-DD形式）
+          required: false
+          description: 日付（YYYY-MM-DD形式）。単日モードで指定。
           schema:
             type: string
             format: date
             example: "2026-02-10"
+        - name: year
+          in: query
+          required: false
+          description: 年（2000〜2100）。月次モードで `month` とセットで指定。
+          schema:
+            type: integer
+            example: 2026
+        - name: month
+          in: query
+          required: false
+          description: 月（1〜12）。月次モードで `year` とセットで指定。
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+            example: 2
       responses:
         "200":
-          description: 成功
+          description: 成功（単日指定時は AvailabilityResponse、年月指定時は AvailabilityListResponse）
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AvailabilityResponse"
+                oneOf:
+                  - $ref: "#/components/schemas/AvailabilityResponse"
+                  - $ref: "#/components/schemas/AvailabilityListResponse"
               examples:
                 available:
-                  summary: 予約可能な日
+                  summary: 予約可能な日（単日）
                   value:
                     date: "2026-02-10"
                     capacity: 10
@@ -73,7 +95,7 @@ paths:
                     schedule_type: "normal"
                     is_holiday: false
                 event:
-                  summary: イベント日
+                  summary: イベント日（単日）
                   value:
                     date: "2026-02-11"
                     capacity: 0
@@ -84,7 +106,7 @@ paths:
                     event_description: "和紅茶をしばく会 入門編@WINE LAB. 通常のランチ営業はおやすみです。"
                     is_holiday: false
                 holiday:
-                  summary: 休業日（例）
+                  summary: 休業日（単日）
                   value:
                     date: "2026-02-13"
                     capacity: 0
@@ -92,6 +114,18 @@ paths:
                     available: 0
                     schedule_type: null
                     is_holiday: true
+                monthly:
+                  summary: 月次一覧
+                  value:
+                    year: 2026
+                    month: 2
+                    availabilities:
+                      - date: "2026-02-10"
+                        capacity: 10
+                        reserved: 6
+                        available: 4
+                        schedule_type: "normal"
+                        is_holiday: false
         "400":
           description: リクエスト不正
           content:
@@ -965,6 +999,21 @@ components:
           nullable: true
         is_holiday:
           type: boolean
+
+    AvailabilityListResponse:
+      type: object
+      required: [year, month, availabilities]
+      properties:
+        year:
+          type: integer
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        availabilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/AvailabilityResponse"
 
     CreateReservationRequest:
       type: object

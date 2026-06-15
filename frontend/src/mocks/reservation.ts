@@ -1,6 +1,5 @@
 import type {
   Reservation,
-  AvailabilityResponse,
   LoginResponse,
   DailySchedule,
   ScheduleType,
@@ -79,38 +78,6 @@ export const mockReservations: Reservation[] = [
     updated_at: '2026-03-11T09:00:00+09:00',
   },
 ];
-
-/**
- * 定休日判定（木・金）
- */
-function isHoliday(date: Date): boolean {
-  const day = date.getDay();
-  return day === 4 || day === 5; // 木=4, 金=5
-}
-
-/**
- * 指定日の空き状況を取得（モック）
- * TODO: GET /api/v1/reservations/availability?date=YYYY-MM-DD に置き換え
- */
-export function getAvailability(dateStr: string): AvailabilityResponse {
-  const date = new Date(dateStr);
-  if (isHoliday(date)) {
-    return { date: dateStr, capacity: 0, reserved: 0, available: 0, is_holiday: true };
-  }
-
-  const reservedForDate = mockReservations
-    .filter((r) => r.visit_date === dateStr && r.status === 'approved')
-    .reduce((sum, r) => sum + r.people, 0);
-
-  const capacity = 10;
-  return {
-    date: dateStr,
-    capacity,
-    reserved: reservedForDate,
-    available: Math.max(0, capacity - reservedForDate),
-    is_holiday: false,
-  };
-}
 
 /**
  * 予約一覧を取得（モック）

@@ -1,6 +1,9 @@
-import { useMemo } from 'react';
-import { getReservations, getAvailability, statusLabels, statusBadgeBg, statusBadgeText } from '../../mocks/reservation';
+import { useEffect, useMemo, useState } from 'react';
+import { statusLabels, statusBadgeBg, statusBadgeText } from '../../mocks/reservation';
+import { getAvailability, toAvailabilityErrorMessage } from '@/lib/availability';
+import { listReservations, toReservationErrorMessage } from '@/lib/adminReservation';
 import { formatDate, formatDateJa } from '@/lib/calendarUtils';
+import type { AvailabilityResponse, Reservation } from '@/types/reservation';
 
 interface DaySummaryProps {
   title: string;
@@ -9,10 +12,49 @@ interface DaySummaryProps {
 
 function DaySummary({ title, date }: DaySummaryProps) {
   const dateStr = formatDate(date);
-  // TODO: GET /api/v1/admin/reservations?date=YYYY-MM-DD に置き換え
-  const reservations = getReservations(dateStr);
-  // TODO: GET /api/v1/reservations/availability?date=YYYY-MM-DD に置き換え
-  const availability = getAvailability(dateStr);
+  const [availability, setAvailability] = useState<AvailabilityResponse | null>(null);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  const [reservationError, setReservationError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setIsLoading(true);
+      setAvailabilityError(null);
+      setReservationError(null);
+
+      const [availResult, resResult] = await Promise.allSettled([
+        getAvailability(dateStr),
+        listReservations(dateStr),
+      ]);
+
+      if (cancelled) return;
+
+      if (availResult.status === 'fulfilled') {
+        setAvailability(availResult.value);
+      } else {
+        setAvailability(null);
+        setAvailabilityError(toAvailabilityErrorMessage(availResult.reason));
+      }
+
+      if (resResult.status === 'fulfilled') {
+        setReservations(resResult.value);
+      } else {
+        setReservations([]);
+        setReservationError(toReservationErrorMessage(resResult.reason));
+      }
+
+      setIsLoading(false);
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [dateStr]);
 
   const pending = reservations.filter((r) => r.status === 'pending');
   const approved = reservations.filter((r) => r.status === 'approved');
@@ -21,11 +63,24 @@ function DaySummary({ title, date }: DaySummaryProps) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5">
       <h3 className="text-sm text-gray-500 mb-1">{title}</h3>
-      <p className="text-lg font-medium mb-4">{formatDateJa(formatDate(date))}</p>
+      <p className="text-lg font-medium mb-4">{formatDateJa(dateStr)}</p>
 
-      {availability.is_holiday ? (
+      {availabilityError && (
+        <p className="text-red-600 text-sm text-center py-2">{availabilityError}</p>
+      )}
+      {reservationError && (
+        <p className="text-red-600 text-sm text-center py-2">{reservationError}</p>
+      )}
+
+      {isLoading && (
+        <p className="text-gray-400 text-center py-6">読み込み中...</p>
+      )}
+
+      {!isLoading && !availabilityError && availability?.is_holiday && (
         <p className="text-gray-400 text-center py-6">定休日</p>
-      ) : (
+      )}
+
+      {!isLoading && !availabilityError && availability && !availability.is_holiday && (
         <>
           <div className="text-center mb-4">
             <p className="text-xs text-gray-500 mb-1">残り提供数</p>
@@ -38,20 +93,28 @@ function DaySummary({ title, date }: DaySummaryProps) {
           <div className="grid grid-cols-2 gap-3 text-sm text-center">
             <div>
               <p className="text-gray-500 text-xs mb-0.5">承認待ち</p>
-              <p className="text-xl font-medium tabular-nums">{pending.length}件</p>
+              <p className="text-xl font-medium tabular-nums">
+                {reservationError ? '—' : `${pending.length}件`}
+              </p>
             </div>
             <div>
               <p className="text-gray-500 text-xs mb-0.5">承認済み</p>
               <p className="text-xl font-medium tabular-nums">
-                {approved.length}件
-                <span className="text-sm text-gray-500 font-normal">（{approvedPeople}名）</span>
+                {reservationError ? (
+                  '—'
+                ) : (
+                  <>
+                    {approved.length}件
+                    <span className="text-sm text-gray-500 font-normal">（{approvedPeople}名）</span>
+                  </>
+                )}
               </p>
             </div>
           </div>
         </>
       )}
 
-      {reservations.length > 0 && (
+      {!reservationError && reservations.length > 0 && (
         <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
           {reservations.slice(0, 3).map((r) => (
             <div key={r.id} className="flex items-center justify-between text-sm">

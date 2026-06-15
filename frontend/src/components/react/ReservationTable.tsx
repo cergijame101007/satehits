@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import type { Reservation, ReservationStatus } from '../../types/reservation';
-import { getAvailability, statusLabels, statusColors, statusBadgeBg, statusBadgeText } from '../../mocks/reservation';
-import { listReservations, updateReservationStatus } from '@/lib/adminReservation';
+import type { Reservation, ReservationStatus, AvailabilityResponse } from '../../types/reservation';
+import { statusLabels, statusColors, statusBadgeBg, statusBadgeText } from '../../mocks/reservation';
+import { getAvailability, toAvailabilityErrorMessage } from '@/lib/availability';
+import { listReservations, updateReservationStatus, toReservationErrorMessage } from '@/lib/adminReservation';
 import { useMonthCalendarData } from '@/lib/useMonthCalendar';
 import MonthCalendar from '@/components/react/MonthCalendar';
 import { formatDate, formatDateJa } from '@/lib/calendarUtils';
@@ -52,6 +53,9 @@ export default function ReservationTable() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<AvailabilityResponse | null>(null);
+  const [isAvailabilityLoading, setIsAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
 
   const {
     days: calendarDays,
@@ -74,7 +78,7 @@ export default function ReservationTable() {
         }
       } catch (err) {
         if (!cancelled) {
-          setLoadError(err instanceof Error ? err.message : '予約一覧の取得に失敗しました');
+          setLoadError(toReservationErrorMessage(err));
           setReservationList([]);
           setIsLoaded(true);
         }
@@ -91,6 +95,35 @@ export default function ReservationTable() {
     };
   }, [selectedDate, statusFilter]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAvailability() {
+      setIsAvailabilityLoading(true);
+      setAvailabilityError(null);
+      try {
+        const data = await getAvailability(selectedDate);
+        if (!cancelled) {
+          setAvailability(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setAvailabilityError(toAvailabilityErrorMessage(err));
+          setAvailability(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsAvailabilityLoading(false);
+        }
+      }
+    }
+
+    loadAvailability();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDate]);
+
   const handleDateSelect = (dateStr: string) => {
     setSelectedDate(dateStr);
     const [y, m] = dateStr.split('-').map(Number);
@@ -103,8 +136,6 @@ export default function ReservationTable() {
     setViewMonth(month);
   };
 
-  // TODO: GET /api/v1/reservations/availability?date=YYYY-MM-DD に置き換え
-  const availability = getAvailability(selectedDate);
   const selectedDaySchedule = calendarDays.find((d) => d.date === selectedDate)?.schedule;
 
   const handleStatusChange = async (id: string, newStatus: ReservationStatus) => {
@@ -128,10 +159,14 @@ export default function ReservationTable() {
     setActionError(null);
     try {
       await updateReservationStatus(id, newStatus);
-      const data = await listReservations(selectedDate, statusFilter || undefined);
+      const [data, avail] = await Promise.all([
+        listReservations(selectedDate, statusFilter || undefined),
+        getAvailability(selectedDate),
+      ]);
       setReservationList(data);
+      setAvailability(avail);
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'ステータスの更新に失敗しました');
+      setActionError(toReservationErrorMessage(err));
     }
   };
 
@@ -208,9 +243,16 @@ export default function ReservationTable() {
 
           {isLoaded && !isLoading && (
             <div className="flex items-center gap-4 text-sm rounded-lg bg-primary/5 border border-primary/10 px-4 py-3">
-              {isHoliday || availability.is_holiday ? (
+              {availabilityError && (
+                <span className="text-red-600">{availabilityError}</span>
+              )}
+              {!availabilityError && isAvailabilityLoading && (
+                <span className="text-gray-500">空き状況を読み込み中...</span>
+              )}
+              {!availabilityError && !isAvailabilityLoading && (isHoliday || availability?.is_holiday) && (
                 <span className="text-gray-500">定休日</span>
-              ) : (
+              )}
+              {!availabilityError && !isAvailabilityLoading && availability && !availability.is_holiday && (
                 <>
                   <span>
                     残り:{' '}
@@ -233,7 +275,7 @@ export default function ReservationTable() {
             <div className="text-center py-12 text-gray-400">
               {loadError
                 ? '予約を取得できませんでした'
-                : isHoliday || availability.is_holiday
+                : isHoliday || availability?.is_holiday
                   ? 'この日は定休日です'
                   : '予約がありません'}
             </div>

@@ -59,6 +59,21 @@ func (r availabilityReservationRepo) SumApprovedPeopleByDate(_ context.Context, 
 	return r.approvedByDate[date.String()], nil
 }
 
+func (r availabilityReservationRepo) SumApprovedPeopleByDateRange(_ context.Context, from, to datetime.Date) (map[string]int, error) {
+	if r.approvedByDate == nil {
+		return map[string]int{}, nil
+	}
+	result := make(map[string]int)
+	fromStr := from.String()
+	toStr := to.String()
+	for dateStr, count := range r.approvedByDate {
+		if dateStr >= fromStr && dateStr <= toStr {
+			result[dateStr] = count
+		}
+	}
+	return result, nil
+}
+
 func newAvailabilityService(sched availabilityScheduleRepo, res availabilityReservationRepo) *AvailabilityService {
 	return NewAvailabilityService(NewScheduleResolver(sched), res)
 }
@@ -351,5 +366,56 @@ func TestAvailabilityService_ResolveForDate_defaultSundayMorning(t *testing.T) {
 	}
 	if got.Available != 6 {
 		t.Fatalf("Available = %d, want 6", got.Available)
+	}
+}
+
+func TestAvailabilityService_ResolveMonth(t *testing.T) {
+	svc := newAvailabilityService(availabilityScheduleRepo{}, availabilityReservationRepo{
+		approvedByDate: map[string]int{
+			"2026-05-18": 6,
+			"2026-05-21": 3,
+		},
+	})
+
+	got, err := svc.ResolveMonth(context.Background(), 2026, 5)
+	if err != nil {
+		t.Fatalf("ResolveMonth() err = %v", err)
+	}
+	if len(got) != 31 {
+		t.Fatalf("len = %d, want 31", len(got))
+	}
+
+	byDate := make(map[string]Availability, len(got))
+	for _, a := range got {
+		byDate[a.Date.String()] = a
+	}
+
+	monday := byDate["2026-05-18"]
+	if monday.Available != 4 {
+		t.Fatalf("2026-05-18 Available = %d, want 4", monday.Available)
+	}
+	if monday.IsHoliday {
+		t.Fatal("2026-05-18 IsHoliday = true, want false")
+	}
+
+	thursday := byDate["2026-05-21"]
+	if !thursday.IsHoliday {
+		t.Fatal("2026-05-21 IsHoliday = false, want true")
+	}
+	if thursday.Reserved != 0 {
+		t.Fatalf("2026-05-21 Reserved = %d, want 0 on holiday", thursday.Reserved)
+	}
+}
+
+func TestAvailabilityService_ResolveMonth_invalidYearMonth(t *testing.T) {
+	svc := newAvailabilityService(availabilityScheduleRepo{}, availabilityReservationRepo{})
+
+	_, err := svc.ResolveMonth(context.Background(), 1999, 5)
+	if err == nil {
+		t.Fatal("ResolveMonth() err = nil, want YearMonthValidationError")
+	}
+	var ymErr *YearMonthValidationError
+	if !errors.As(err, &ymErr) {
+		t.Fatalf("ResolveMonth() err = %v, want YearMonthValidationError", err)
 	}
 }

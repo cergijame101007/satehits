@@ -28,6 +28,12 @@ export class ReservationApiError extends Error {
   }
 }
 
+export function toReservationErrorMessage(err: unknown): string {
+  if (err instanceof ReservationApiError) return err.message;
+  if (err instanceof Error) return err.message;
+  return '予約一覧の取得に失敗しました';
+}
+
 async function parseError(res: Response): Promise<ReservationApiError> {
   try {
     const body = (await res.json()) as ErrorResponse;

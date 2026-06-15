@@ -42,7 +42,32 @@ func (s *AvailabilityService) ResolveForDate(ctx context.Context, date datetime.
 		return Availability{}, err
 	}
 
-	sch := eff.Schedule
+	return buildAvailability(date, eff.Schedule, reserved), nil
+}
+
+// ResolveMonth は指定年月の各暦日の残り食数・予約可否を返す（日付昇順）
+func (s *AvailabilityService) ResolveMonth(ctx context.Context, year, month int) ([]Availability, error) {
+	effective, err := s.resolver.ResolveMonth(ctx, year, month)
+	if err != nil {
+		return nil, err
+	}
+
+	from, to := MonthDateRange(year, month)
+	reservedByDate, err := s.repo.SumApprovedPeopleByDateRange(ctx, from, to)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]Availability, 0, len(effective))
+	for _, eff := range effective {
+		date := eff.Schedule.Date
+		reserved := reservedByDate[date.String()]
+		items = append(items, buildAvailability(date, eff.Schedule, reserved))
+	}
+	return items, nil
+}
+
+func buildAvailability(date datetime.Date, sch domain.Schedule, reserved int) Availability {
 	if sch.ScheduleType == domain.ScheduleTypeClosed {
 		return Availability{
 			Date:      date,
@@ -50,7 +75,7 @@ func (s *AvailabilityService) ResolveForDate(ctx context.Context, date datetime.
 			Reserved:  0,
 			Available: 0,
 			IsHoliday: true,
-		}, nil
+		}
 	}
 
 	capacity := sch.Capacity
@@ -68,5 +93,5 @@ func (s *AvailabilityService) ResolveForDate(ctx context.Context, date datetime.
 		EventName:        sch.EventName,
 		EventDescription: sch.EventDescription,
 		IsHoliday:        false,
-	}, nil
+	}
 }

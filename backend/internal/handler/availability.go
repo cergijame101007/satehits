@@ -23,6 +23,13 @@ type AvailabilityResponse struct {
 	IsHoliday        bool          `json:"is_holiday"`
 }
 
+// AvailabilityListResponse は月間空き状況一覧の DTO
+type AvailabilityListResponse struct {
+	Year           int                    `json:"year"`
+	Month          int                    `json:"month"`
+	Availabilities []AvailabilityResponse `json:"availabilities"`
+}
+
 // AvailabilityHandler は残り食数取得の HTTP ハンドラ
 type AvailabilityHandler struct {
 	getAvailability *usecase.GetAvailabilityUseCase
@@ -45,14 +52,33 @@ func (h *AvailabilityHandler) HandleAvailability(w http.ResponseWriter, r *http.
 		return
 	}
 
+	yearStr := strings.TrimSpace(r.URL.Query().Get("year"))
+	monthStr := strings.TrimSpace(r.URL.Query().Get("month"))
 	dateStr := strings.TrimSpace(r.URL.Query().Get("date"))
-	if dateStr == "" {
+
+	hasYearMonth := yearStr != "" || monthStr != ""
+	hasDate := dateStr != ""
+
+	if hasYearMonth && hasDate {
 		respondWithError(w, http.StatusBadRequest, ValidationErrorCode, "入力内容に誤りがあります", []ErrorDetail{
-			{Field: "date", Message: "日付は必須です"},
+			{Field: "date", Message: "date と year/month は同時に指定できません"},
 		})
 		return
 	}
 
+	switch {
+	case hasYearMonth:
+		h.handleAvailabilityMonth(w, r)
+	case hasDate:
+		h.handleAvailabilityDate(w, r, dateStr)
+	default:
+		respondWithError(w, http.StatusBadRequest, ValidationErrorCode, "入力内容に誤りがあります", []ErrorDetail{
+			{Field: "date", Message: "日付または年月を指定してください"},
+		})
+	}
+}
+
+func (h *AvailabilityHandler) handleAvailabilityDate(w http.ResponseWriter, r *http.Request, dateStr string) {
 	date, err := datetime.ParseDate(dateStr)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, ValidationErrorCode, "入力内容に誤りがあります", []ErrorDetail{
@@ -67,6 +93,29 @@ func (h *AvailabilityHandler) HandleAvailability(w http.ResponseWriter, r *http.
 	}
 
 	respondWithJSON(w, http.StatusOK, toAvailabilityResponse(*avail))
+}
+
+func (h *AvailabilityHandler) handleAvailabilityMonth(w http.ResponseWriter, r *http.Request) {
+	year, month, details := parseYearMonthQuery(r)
+	if len(details) > 0 {
+		respondWithError(w, http.StatusBadRequest, ValidationErrorCode, "入力内容に誤りがあります", details)
+		return
+	}
+
+	result, err := h.getAvailability.ExecuteMonth(r.Context(), year, month)
+	if writeAvailabilityUsecaseError(w, err, "Failed to list availability") {
+		return
+	}
+
+	resp := AvailabilityListResponse{
+		Year:           result.Year,
+		Month:          result.Month,
+		Availabilities: make([]AvailabilityResponse, len(result.Availabilities)),
+	}
+	for i, a := range result.Availabilities {
+		resp.Availabilities[i] = toAvailabilityResponse(a)
+	}
+	respondWithJSON(w, http.StatusOK, resp)
 }
 
 func toAvailabilityResponse(a service.Availability) AvailabilityResponse {

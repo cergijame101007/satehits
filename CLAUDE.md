@@ -248,7 +248,7 @@ Presentation  →  Application  →  Domain  ←  Infrastructure
 | `GET` | `/` | ヘルスチェック | 実装済み |
 | `GET` | `/reservations` | 予約一覧取得 | 実装済み（最小限） |
 | `POST` | `/reservations` | 予約作成 | 実装済み（最小限） |
-| `GET` | `/api/v1/reservations/availability` | 日付別空き確認 | 未実装 |
+| `GET` | `/api/v1/reservations/availability` | 日付別・月次空き確認 | 実装済み（単日 + 月次） |
 | `GET` | `/api/v1/admin/reservations` | 管理者：予約一覧 | 未実装 |
 | `POST` | `/api/v1/admin/reservations` | 管理者：予約手動登録 | 未実装 |
 | `PATCH` | `/api/v1/admin/reservations/:id/status` | 予約ステータス更新 | 未実装 |
