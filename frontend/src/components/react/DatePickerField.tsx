@@ -28,7 +28,7 @@ export default function DatePickerField({
   );
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { days, isLoading, error: loadError } = useMonthCalendarData(viewYear, viewMonth, {
+  const { days, isLoading, error: loadError, summaryError } = useMonthCalendarData(viewYear, viewMonth, {
     includeReservationSummary: true,
   });
 
@@ -82,6 +82,11 @@ export default function DatePickerField({
           {loadError && (
             <div className="rounded-lg bg-red-50 border border-red-200 p-2 text-red-700 text-xs mb-3">
               {loadError}
+            </div>
+          )}
+          {summaryError && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-2 text-amber-800 text-xs mb-3">
+              {summaryError}
             </div>
           )}
           <MonthCalendar

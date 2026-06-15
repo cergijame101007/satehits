@@ -53,11 +53,12 @@ export default function ReservationTable() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const { days: calendarDays, isLoading: calendarLoading, error: calendarError } = useMonthCalendarData(
-    viewYear,
-    viewMonth,
-    { includeReservationSummary: true },
-  );
+  const {
+    days: calendarDays,
+    isLoading: calendarLoading,
+    error: calendarError,
+    summaryError: calendarSummaryError,
+  } = useMonthCalendarData(viewYear, viewMonth, { includeReservationSummary: true });
 
   useEffect(() => {
     let cancelled = false;
@@ -155,6 +156,11 @@ export default function ReservationTable() {
           {calendarError && (
             <div className="rounded-lg bg-red-50 border border-red-200 p-2 text-red-700 text-xs mb-3">
               {calendarError}
+            </div>
+          )}
+          {calendarSummaryError && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-2 text-amber-800 text-xs mb-3">
+              {calendarSummaryError}
             </div>
           )}
           <MonthCalendar
