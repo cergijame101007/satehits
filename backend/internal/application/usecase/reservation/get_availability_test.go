@@ -75,8 +75,8 @@ func (r getAvailReservationRepo) SumApprovedPeopleByDateRange(_ context.Context,
 	return result, nil
 }
 
-func newGetAvailabilityUseCaseForTest(sched getAvailScheduleRepo, res getAvailReservationRepo) *GetAvailabilityUseCase {
-	resolver := service.NewScheduleResolver(sched)
+func newGetAvailabilityUseCaseForTest(res getAvailReservationRepo) *GetAvailabilityUseCase {
+	resolver := service.NewScheduleResolver(getAvailScheduleRepo{})
 	avail := service.NewAvailabilityService(resolver, res)
 	return NewGetAvailabilityUseCase(avail)
 }
@@ -85,7 +85,7 @@ func TestGetAvailabilityUseCase_Execute(t *testing.T) {
 	date := datetime.MustParseDate("2026-05-18")
 
 	t.Run("returns availability for bookable day", func(t *testing.T) {
-		uc := newGetAvailabilityUseCaseForTest(getAvailScheduleRepo{}, getAvailReservationRepo{
+		uc := newGetAvailabilityUseCaseForTest(getAvailReservationRepo{
 			approvedByDate: map[string]int{date.String(): 4},
 		})
 
@@ -102,7 +102,7 @@ func TestGetAvailabilityUseCase_Execute(t *testing.T) {
 	})
 
 	t.Run("returns validation error for zero date", func(t *testing.T) {
-		uc := newGetAvailabilityUseCaseForTest(getAvailScheduleRepo{}, getAvailReservationRepo{})
+		uc := newGetAvailabilityUseCaseForTest(getAvailReservationRepo{})
 
 		_, err := uc.Execute(context.Background(), datetime.Date{})
 		if err == nil {
@@ -117,7 +117,7 @@ func TestGetAvailabilityUseCase_Execute(t *testing.T) {
 
 	t.Run("returns holiday availability with zero counts", func(t *testing.T) {
 		closed := datetime.MustParseDate("2026-05-21")
-		uc := newGetAvailabilityUseCaseForTest(getAvailScheduleRepo{}, getAvailReservationRepo{
+		uc := newGetAvailabilityUseCaseForTest(getAvailReservationRepo{
 			approvedByDate: map[string]int{closed.String(): 5},
 		})
 
@@ -136,7 +136,7 @@ func TestGetAvailabilityUseCase_Execute(t *testing.T) {
 
 func TestGetAvailabilityUseCase_ExecuteMonth(t *testing.T) {
 	t.Run("returns month availability list", func(t *testing.T) {
-		uc := newGetAvailabilityUseCaseForTest(getAvailScheduleRepo{}, getAvailReservationRepo{
+		uc := newGetAvailabilityUseCaseForTest(getAvailReservationRepo{
 			approvedByDate: map[string]int{"2026-05-18": 4},
 		})
 
@@ -153,7 +153,7 @@ func TestGetAvailabilityUseCase_ExecuteMonth(t *testing.T) {
 	})
 
 	t.Run("returns validation error for invalid year", func(t *testing.T) {
-		uc := newGetAvailabilityUseCaseForTest(getAvailScheduleRepo{}, getAvailReservationRepo{})
+		uc := newGetAvailabilityUseCaseForTest(getAvailReservationRepo{})
 
 		_, err := uc.ExecuteMonth(context.Background(), 1999, 5)
 		if err == nil {
