@@ -191,7 +191,7 @@ func (r *PostgresReservationRepository) GetByID(ctx context.Context, id uuid.UUI
 // UpdateStatus は予約ステータスを更新する
 func (r *PostgresReservationRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status string) (domain.Reservation, error) {
 	query := `
-UPDATE reservations SET status = $1 WHERE id = $2
+UPDATE reservations SET status = $1, updated_at = NOW() WHERE id = $2
 RETURNING id, name, people, visit_date, visit_time, phone, email,
           COALESCE(note, ''), status, source, created_at, updated_at`
 	reservation, err := scanReservation(r.db.QueryRowContext(ctx, query, status, id))
