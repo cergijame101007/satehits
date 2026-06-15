@@ -12,11 +12,11 @@ import (
 // event は未指定時に暦日の曜日で通常/朝を選んで補完。closed は休業のためデフォルトなし
 var (
 	defaultNormalOpenTime      = datetime.MustParseTime("11:30")
-	defaultNormalLastOrderTime = datetime.MustParseTime("14:00")
+	defaultNormalLastOrderTime = datetime.MustParseTime("13:30")
 	defaultNormalCloseTime     = datetime.MustParseTime("15:00")
 
 	defaultMorningOpenTime      = datetime.MustParseTime("08:30")
-	defaultMorningLastOrderTime = datetime.MustParseTime("14:00")
+	defaultMorningLastOrderTime = datetime.MustParseTime("13:30")
 	defaultMorningCloseTime     = datetime.MustParseTime("15:00")
 )
 
@@ -40,18 +40,16 @@ func ApplyDefaultBusinessHours(scheduleType string, openTime, lastOrder, closeTi
 }
 
 // ApplyEventDefaultBusinessHours は event で未指定の時刻に、その日の曜日に応じた店舗デフォルトを当てる
-// 土日は朝営業、それ以外は通常営業（店内イベント想定。定例の木金休業は event 行で上書き）
+// 日曜のみ朝営業、それ以外は通常営業（店内イベント想定。定例の木金休業は event 行で上書き）
 func ApplyEventDefaultBusinessHours(date datetime.Date, openTime, lastOrder, closeTime datetime.Time) (datetime.Time, datetime.Time, datetime.Time) {
 	return ApplyDefaultBusinessHours(defaultBusinessHoursTypeForEventDate(date), openTime, lastOrder, closeTime)
 }
 
 func defaultBusinessHoursTypeForEventDate(date datetime.Date) string {
-	switch date.Weekday() {
-	case time.Saturday, time.Sunday:
+	if date.Weekday() == time.Sunday {
 		return domain.ScheduleTypeMorning
-	default:
-		return domain.ScheduleTypeNormal
 	}
+	return domain.ScheduleTypeNormal
 }
 
 func defaultBusinessHoursForType(scheduleType string) (openTime, lastOrder, closeTime datetime.Time, ok bool) {
@@ -67,23 +65,47 @@ func defaultBusinessHoursForType(scheduleType string) (openTime, lastOrder, clos
 }
 
 // BookingWindowMinutes は有効スケジュールに基づく予約受付の開始・最終時刻（分）を返す。
+// 店舗の開店時刻（ApplyDefaultBusinessHours）とは別。日曜朝営業は 8:30 開店だが予約は 11:30 から（domain_knowledge §4）。
 // closed や時刻未定の種別では ok=false。
 func BookingWindowMinutes(sch domain.Schedule) (openMinutes, lastOrderMinutes int, ok bool) {
 	if sch.ScheduleType == domain.ScheduleTypeClosed {
 		return 0, 0, false
 	}
 
-	var openTime, lastOrder datetime.Time
+	var storeOpen, lastOrder datetime.Time
 	switch sch.ScheduleType {
 	case domain.ScheduleTypeEvent:
-		openTime, lastOrder, _ = ApplyEventDefaultBusinessHours(sch.Date, sch.OpenTime, sch.LastOrderTime, sch.CloseTime)
+		storeOpen, lastOrder, _ = ApplyEventDefaultBusinessHours(sch.Date, sch.OpenTime, sch.LastOrderTime, sch.CloseTime)
 	default:
-		openTime, lastOrder, _ = ApplyDefaultBusinessHours(sch.ScheduleType, sch.OpenTime, sch.LastOrderTime, sch.CloseTime)
+		storeOpen, lastOrder, _ = ApplyDefaultBusinessHours(sch.ScheduleType, sch.OpenTime, sch.LastOrderTime, sch.CloseTime)
 	}
-	if openTime.IsZero() || lastOrder.IsZero() {
+	if storeOpen.IsZero() || lastOrder.IsZero() {
 		return 0, 0, false
 	}
-	return timeToMinutes(openTime), timeToMinutes(lastOrder), true
+	bookingOpen := bookingOpenTime(sch, storeOpen)
+	return timeToMinutes(bookingOpen), timeToMinutes(lastOrder), true
+}
+
+// bookingOpenTime は予約受付開始時刻を返す（店舗開店時刻と異なる場合がある）。
+func bookingOpenTime(sch domain.Schedule, storeOpen datetime.Time) datetime.Time {
+	switch sch.ScheduleType {
+	case domain.ScheduleTypeMorning:
+		return defaultNormalOpenTime
+	case domain.ScheduleTypeEvent:
+		if isSundayDate(sch.Date) && timeToMinutes(storeOpen) < timeToMinutes(defaultNormalOpenTime) {
+			return defaultNormalOpenTime
+		}
+		return storeOpen
+	default:
+		return storeOpen
+	}
+}
+
+func isSundayDate(d datetime.Date) bool {
+	if d.IsZero() {
+		return false
+	}
+	return d.Weekday() == time.Sunday
 }
 
 func timeToMinutes(t datetime.Time) int {
