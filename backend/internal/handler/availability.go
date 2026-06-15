@@ -59,6 +59,13 @@ func (h *AvailabilityHandler) HandleAvailability(w http.ResponseWriter, r *http.
 	hasYearMonth := yearStr != "" || monthStr != ""
 	hasDate := dateStr != ""
 
+	if hasYearMonth && hasDate {
+		respondWithError(w, http.StatusBadRequest, ValidationErrorCode, "入力内容に誤りがあります", []ErrorDetail{
+			{Field: "date", Message: "date と year/month は同時に指定できません"},
+		})
+		return
+	}
+
 	switch {
 	case hasYearMonth:
 		h.handleAvailabilityMonth(w, r)

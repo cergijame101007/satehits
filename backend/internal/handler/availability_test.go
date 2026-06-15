@@ -187,6 +187,18 @@ func TestAvailabilityHandler_HandleAvailability(t *testing.T) {
 		}
 	})
 
+	t.Run("returns 400 when date and year/month are both specified", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, testAvailabilityPath+"?date=2026-05-18&year=2026&month=5", nil)
+		rec := httptest.NewRecorder()
+
+		h.HandleAvailability(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400", rec.Code)
+		}
+		assertAvailabilityErrorCode(t, rec, ValidationErrorCode)
+	})
+
 	t.Run("returns 400 when date format is invalid", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, testAvailabilityPath+"?date=not-a-date", nil)
 		rec := httptest.NewRecorder()
