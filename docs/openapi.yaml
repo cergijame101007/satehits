@@ -48,6 +48,7 @@ paths:
         指定日または指定月の予約可能な残り食数を取得します。
         - 単日: `date` クエリ（YYYY-MM-DD）
         - 月次: `year` + `month` クエリ（当該月の各暦日を返す）
+        - `date` と `year`/`month` の同時指定は 400
       operationId: getAvailability
       parameters:
         - name: date
