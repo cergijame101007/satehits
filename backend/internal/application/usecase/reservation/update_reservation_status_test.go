@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
 )
 
@@ -47,6 +48,10 @@ func (f *fakeReservationRepo) UpdateStatus(_ context.Context, id uuid.UUID, stat
 	updated := f.reservation
 	updated.Status = status
 	return updated, nil
+}
+
+func (f *fakeReservationRepo) SumApprovedPeopleByDate(context.Context, datetime.Date) (int, error) {
+	return 0, nil
 }
 
 func TestUpdateReservationStatusUseCase(t *testing.T) {

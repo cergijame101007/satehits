@@ -16,6 +16,9 @@ var ErrReservationConflict = errors.New("reservation conflict")
 // ErrReservationNotFound は指定 ID の予約が存在しない
 var ErrReservationNotFound = errors.New("reservation not found")
 
+// ErrCapacityExceeded はその日の予約可能数を超過した
+var ErrCapacityExceeded = errors.New("capacity exceeded")
+
 // ValidReservationStatuses は reservations.status の許容値
 var ValidReservationStatuses = []string{"pending", "approved", "rejected", "cancelled", "no_show"}
 
@@ -86,4 +89,6 @@ type ReservationRepository interface {
 	List(ctx context.Context, f ListReservationsFilter) ([]Reservation, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Reservation, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status string) (Reservation, error)
+	// SumApprovedPeopleByDate は指定日の承認済み予約人数合計を返す
+	SumApprovedPeopleByDate(ctx context.Context, date datetime.Date) (int, error)
 }

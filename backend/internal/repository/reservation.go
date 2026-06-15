@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
 )
 
@@ -205,4 +206,17 @@ RETURNING id, name, people, visit_date, visit_time, phone, email,
 		return domain.Reservation{}, err
 	}
 	return reservation, nil
+}
+
+// SumApprovedPeopleByDate は指定日の承認済み予約人数合計を返す
+func (r *PostgresReservationRepository) SumApprovedPeopleByDate(ctx context.Context, date datetime.Date) (int, error) {
+	query := `
+SELECT COALESCE(SUM(people), 0)
+FROM reservations
+WHERE visit_date = $1 AND status = 'approved'`
+	var total int
+	if err := r.db.QueryRowContext(ctx, query, date).Scan(&total); err != nil {
+		return 0, err
+	}
+	return total, nil
 }
