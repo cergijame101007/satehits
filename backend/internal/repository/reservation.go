@@ -147,7 +147,6 @@ func (r *PostgresReservationRepository) List(ctx context.Context, f domain.ListR
 	if f.Source != "" {
 		conditions = append(conditions, fmt.Sprintf("source = $%d", argNum))
 		args = append(args, f.Source)
-		argNum++
 	}
 
 	query := reservationSelectColumns
