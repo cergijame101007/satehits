@@ -1,6 +1,9 @@
 /** 予約ステータス */
 export type ReservationStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'no_show';
 
+/** 予約経路 */
+export type ReservationSource = 'web' | 'instagram' | 'phone' | 'walk_in' | 'other';
+
 /** 予約データ */
 export interface Reservation {
   id: string;
@@ -12,6 +15,7 @@ export interface Reservation {
   email: string;
   note: string;
   status: ReservationStatus;
+  source: ReservationSource;
   created_at: string;
   updated_at: string;
 }
@@ -68,7 +72,7 @@ export interface DailySchedule {
 
 /** 管理者用予約登録リクエスト */
 export interface AdminReservationRequest {
-  source: 'instagram' | 'phone' | 'walk_in' | 'other';
+  source: Exclude<ReservationSource, 'web'>;
   name: string;
   people: number;
   visit_date: string;
@@ -76,6 +80,19 @@ export interface AdminReservationRequest {
   phone: string;
   email: string;
   note: string;
+  status?: ReservationStatus;
+}
+
+/** 予約一覧レスポンス */
+export interface ReservationListResponse {
+  reservations: Reservation[];
+  total: number;
+}
+
+/** ステータス更新レスポンス */
+export interface UpdateStatusResponse {
+  id: string;
   status: ReservationStatus;
+  updated_at: string;
 }
 

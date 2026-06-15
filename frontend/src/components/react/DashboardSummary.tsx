@@ -1,17 +1,6 @@
 import { useMemo } from 'react';
 import { getReservations, getAvailability, statusLabels, statusBadgeBg, statusBadgeText } from '../../mocks/reservation';
-
-function formatDate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-function formatDateJa(date: Date): string {
-  const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日（${weekdays[date.getDay()]}）`;
-}
+import { formatDate, formatDateJa } from '@/lib/calendarUtils';
 
 interface DaySummaryProps {
   title: string;
@@ -32,30 +21,36 @@ function DaySummary({ title, date }: DaySummaryProps) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5">
       <h3 className="text-sm text-gray-500 mb-1">{title}</h3>
-      <p className="text-lg font-medium mb-3">{formatDateJa(date)}</p>
+      <p className="text-lg font-medium mb-4">{formatDateJa(formatDate(date))}</p>
 
       {availability.is_holiday ? (
-        <p className="text-gray-400">定休日</p>
+        <p className="text-gray-400 text-center py-6">定休日</p>
       ) : (
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-500">承認待ち</span>
-            <span className="font-medium">{pending.length}件</span>
+        <>
+          <div className="text-center mb-4">
+            <p className="text-xs text-gray-500 mb-1">残り提供数</p>
+            <p className="text-3xl font-medium text-primary tabular-nums">
+              {availability.available}
+              <span className="text-lg text-gray-400 font-normal"> / {availability.capacity}食</span>
+            </p>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">承認済み</span>
-            <span className="font-medium">
-              {approved.length}件（{approvedPeople}名）
-            </span>
+
+          <div className="grid grid-cols-2 gap-3 text-sm text-center">
+            <div>
+              <p className="text-gray-500 text-xs mb-0.5">承認待ち</p>
+              <p className="text-xl font-medium tabular-nums">{pending.length}件</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-xs mb-0.5">承認済み</p>
+              <p className="text-xl font-medium tabular-nums">
+                {approved.length}件
+                <span className="text-sm text-gray-500 font-normal">（{approvedPeople}名）</span>
+              </p>
+            </div>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">残り</span>
-            <span className="font-medium text-primary">{availability.available}食</span>
-          </div>
-        </div>
+        </>
       )}
 
-      {/* 直近の予約リスト */}
       {reservations.length > 0 && (
         <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
           {reservations.slice(0, 3).map((r) => (

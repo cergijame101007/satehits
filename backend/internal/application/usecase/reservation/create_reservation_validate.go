@@ -50,7 +50,11 @@ const (
 // ここでは許容文字のみを判定し、\s（タブ・改行等）は含めない。
 var phonePattern = regexp.MustCompile(`^[0-9+()\- 　]+$`)
 
-func validateCreateReservation(cmd CreateReservationCommand, now time.Time) []FieldViolation {
+// validateReservationFields は公開・管理者で共通のフォーマット/範囲検証（必須・文字数・形式）を行う。
+// 予約可能期間・定休日・営業時間といった公開予約ポリシーは含めない（呼び出し側で合成する）。
+// visit_date / visit_time の「形式」は handler の JSON デコード（datetime.Date/Time のパース）で
+// 担保されるため、ここでは必須（ゼロ値でない）かどうかのみを見る。
+func validateReservationFields(cmd CreateReservationCommand) []FieldViolation {
 	var violations []FieldViolation
 
 	name := strings.TrimSpace(cmd.Name)
@@ -65,18 +69,12 @@ func validateCreateReservation(cmd CreateReservationCommand, now time.Time) []Fi
 		violations = append(violations, FieldViolation{Field: "people", Message: fmt.Sprintf("人数は%d〜%d名で指定してください", minReservationPeople, maxReservationPeople)})
 	}
 
-	var visitDateViolations []FieldViolation
 	if cmd.VisitDate.IsZero() {
 		violations = append(violations, FieldViolation{Field: "visit_date", Message: "来店日は必須です"})
-	} else {
-		visitDateViolations = validateVisitDate(cmd.VisitDate, now)
-		violations = append(violations, visitDateViolations...)
 	}
 
 	if cmd.VisitTime.IsZero() {
 		violations = append(violations, FieldViolation{Field: "visit_time", Message: "来店時間は必須です"})
-	} else if !cmd.VisitDate.IsZero() && len(visitDateViolations) == 0 {
-		violations = append(violations, validateVisitTime(cmd.VisitDate, cmd.VisitTime)...)
 	}
 
 	phone := strings.TrimSpace(cmd.Phone)
@@ -97,6 +95,30 @@ func validateCreateReservation(cmd CreateReservationCommand, now time.Time) []Fi
 		violations = append(violations, FieldViolation{Field: "note", Message: fmt.Sprintf("備考は%d文字以内で入力してください", maxNoteRunes)})
 	}
 
+	return violations
+}
+
+// validateReservationDateTimePolicy は公開予約だけに課す予約可能期間（翌日〜14日）・定休日（木金）・
+// 営業時間の検証を行う。visit_date / visit_time が未入力（ゼロ値）なら validateReservationFields 側で
+// 必須エラーになるため、ここでは何もしない（二重報告を避ける）。
+func validateReservationDateTimePolicy(cmd CreateReservationCommand, now time.Time) []FieldViolation {
+	if cmd.VisitDate.IsZero() {
+		return nil
+	}
+
+	violations := validateVisitDate(cmd.VisitDate, now)
+
+	// visit_date 自体が不可（範囲外・定休日）なら visit_time の営業時間判定はスキップする
+	if !cmd.VisitTime.IsZero() && len(violations) == 0 {
+		violations = append(violations, validateVisitTime(cmd.VisitDate, cmd.VisitTime)...)
+	}
+
+	return violations
+}
+
+func validateCreateReservation(cmd CreateReservationCommand, now time.Time) []FieldViolation {
+	violations := validateReservationFields(cmd)
+	violations = append(violations, validateReservationDateTimePolicy(cmd, now)...)
 	return violations
 }
 

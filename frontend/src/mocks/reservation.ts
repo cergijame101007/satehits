@@ -18,6 +18,7 @@ export const mockReservations: Reservation[] = [
     email: 'yamada@example.com',
     note: '',
     status: 'pending',
+    source: 'web',
     created_at: '2026-03-10T10:00:00+09:00',
     updated_at: '2026-03-10T10:00:00+09:00',
   },
@@ -31,6 +32,7 @@ export const mockReservations: Reservation[] = [
     email: 'sato@example.com',
     note: '魚の火入れ希望',
     status: 'approved',
+    source: 'web',
     created_at: '2026-03-09T15:30:00+09:00',
     updated_at: '2026-03-10T09:00:00+09:00',
   },
@@ -44,6 +46,7 @@ export const mockReservations: Reservation[] = [
     email: 'suzuki@example.com',
     note: 'テーブル席希望',
     status: 'approved',
+    source: 'phone',
     created_at: '2026-03-08T12:00:00+09:00',
     updated_at: '2026-03-09T10:00:00+09:00',
   },
@@ -57,6 +60,7 @@ export const mockReservations: Reservation[] = [
     email: 'tanaka@example.com',
     note: '',
     status: 'pending',
+    source: 'instagram',
     created_at: '2026-03-11T08:00:00+09:00',
     updated_at: '2026-03-11T08:00:00+09:00',
   },
@@ -70,6 +74,7 @@ export const mockReservations: Reservation[] = [
     email: 'takahashi@example.com',
     note: '',
     status: 'cancelled',
+    source: 'web',
     created_at: '2026-03-10T20:00:00+09:00',
     updated_at: '2026-03-11T09:00:00+09:00',
   },
@@ -188,7 +193,7 @@ export const statusColors: Record<string, string> = {
   approved: '#22C55E',
   rejected: '#EF4444',
   cancelled: '#9CA3AF',
-  no_show: '#6B7280',
+  no_show: '#EA580C',
 };
 
 /** ステータスバッジの背景色 */
@@ -197,7 +202,7 @@ export const statusBadgeBg: Record<string, string> = {
   approved: '#DCFCE7',
   rejected: '#FEE2E2',
   cancelled: '#F3F4F6',
-  no_show: '#F3F4F6',
+  no_show: '#FED7AA',
 };
 
 /** ステータスバッジの文字色 */
@@ -206,7 +211,7 @@ export const statusBadgeText: Record<string, string> = {
   approved: '#166534',
   rejected: '#991B1B',
   cancelled: '#4B5563',
-  no_show: '#374151',
+  no_show: '#C2410C',
 };
 
 /** スケジュールタイプの表示ラベル */

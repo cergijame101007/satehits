@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import type { AdminReservationRequest } from '../../types/reservation';
+import { createAdminReservation, ReservationApiError } from '@/lib/adminReservation';
+import DatePickerField from '@/components/react/DatePickerField';
 
 export default function ReservationCreateForm() {
   const [form, setForm] = useState<AdminReservationRequest>({
@@ -26,6 +28,7 @@ export default function ReservationCreateForm() {
     setErrors((prev) => {
       const next = { ...prev };
       delete next[name];
+      delete next.submit;
       return next;
     });
   };
@@ -47,14 +50,25 @@ export default function ReservationCreateForm() {
     if (!validate()) return;
 
     setIsSubmitting(true);
+    setErrors({});
 
     try {
-      // TODO: POST /api/v1/admin/reservations に置き換え
-      console.log('管理者予約登録:', form);
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await createAdminReservation(form);
       setSuccess(true);
-    } catch {
-      setErrors({ submit: '登録に失敗しました' });
+    } catch (err) {
+      if (err instanceof ReservationApiError) {
+        if (err.details?.length) {
+          const fieldErrors: Record<string, string> = {};
+          for (const detail of err.details) {
+            fieldErrors[detail.field] = detail.message;
+          }
+          setErrors(fieldErrors);
+        } else {
+          setErrors({ submit: err.message });
+        }
+      } else {
+        setErrors({ submit: '登録に失敗しました' });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -121,16 +135,24 @@ export default function ReservationCreateForm() {
             <option value="walk_in">ウォークイン</option>
             <option value="other">その他</option>
           </select>
+          {errors.source && <p className="text-red-500 text-sm mt-1">{errors.source}</p>}
         </div>
 
         {/* 来店日 */}
-        <div>
-          <label className="block text-sm font-medium mb-2">
-            来店日 <span className="text-red-500">*</span>
-          </label>
-          <input type="date" name="visit_date" value={form.visit_date} onChange={handleChange} className={inputClass('visit_date')} />
-          {errors.visit_date && <p className="text-red-500 text-sm mt-1">{errors.visit_date}</p>}
-        </div>
+        <DatePickerField
+          value={form.visit_date}
+          onChange={(date) => {
+            setForm((prev) => ({ ...prev, visit_date: date }));
+            setErrors((prev) => {
+              const next = { ...prev };
+              delete next.visit_date;
+              delete next.submit;
+              return next;
+            });
+          }}
+          error={errors.visit_date}
+          required
+        />
 
         {/* 来店時間 */}
         <div>
@@ -151,10 +173,11 @@ export default function ReservationCreateForm() {
             人数 <span className="text-red-500">*</span>
           </label>
           <select name="people" value={form.people} onChange={handleChange} className={inputClass('people')}>
-            {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+            {Array.from({ length: 7 }, (_, i) => i + 1).map((n) => (
               <option key={n} value={n}>{n}名</option>
             ))}
           </select>
+          {errors.people && <p className="text-red-500 text-sm mt-1">{errors.people}</p>}
         </div>
 
         {/* お名前 */}
@@ -193,7 +216,7 @@ export default function ReservationCreateForm() {
         {/* ステータス */}
         <div>
           <label className="block text-sm font-medium mb-2">ステータス</label>
-          <select name="status" value={form.status} onChange={handleChange} className={inputClass('status')}>
+          <select name="status" value={form.status ?? 'approved'} onChange={handleChange} className={inputClass('status')}>
             <option value="approved">承認済み</option>
             <option value="pending">申請中</option>
           </select>
