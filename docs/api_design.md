@@ -486,6 +486,8 @@ GET /api/v1/admin/reservations?date=2025-02-10&status=pending
 
 Instagram・電話・知人経由など、オーナーが手動で予約を登録する。Web 申請（`POST /reservations`）とは異なり、**`source` を必ず指定**し、**`status` を省略可能**（省略時は `approved`）。
 
+公開申請（`POST /reservations`）と異なり、**リードタイム（翌日〜14日）・定休日（木金）・営業時間のチェックは課さない**（飛び込み＝当日来店やイベント日の手動登録を許可するため）。`name` / `people`（1〜7）/ `phone` / `email` / `note` の形式・文字数検証は公開申請と同じく適用する。
+
 #### 列挙値（OpenAPI と同一）
 
 - **status（任意）**: `pending`, `approved`, `rejected`, `cancelled`, `no_show`

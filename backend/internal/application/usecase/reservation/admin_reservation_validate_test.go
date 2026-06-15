@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"testing"
-	"time"
 
 	"github.com/cergijame101007/satehits/internal/datetime"
 )
@@ -20,8 +19,6 @@ func validCreateAdminReservationCommand() CreateAdminReservationCommand {
 }
 
 func TestValidateCreateAdminReservation(t *testing.T) {
-	now := time.Date(2026, 5, 15, 10, 0, 0, 0, storeLocation)
-
 	tests := []struct {
 		name      string
 		mutate    func(*CreateAdminReservationCommand)
@@ -32,13 +29,28 @@ func TestValidateCreateAdminReservation(t *testing.T) {
 		{name: "rejects invalid source", mutate: func(cmd *CreateAdminReservationCommand) { cmd.Source = "invalid" }, wantField: "source"},
 		{name: "rejects invalid status", mutate: func(cmd *CreateAdminReservationCommand) { cmd.Status = "invalid" }, wantField: "status"},
 		{name: "accepts explicit approved status", mutate: func(cmd *CreateAdminReservationCommand) { cmd.Status = "approved" }},
+		// 公開予約ポリシーを課さないことの回帰テスト（リードタイム・定休日・営業時間）
+		{name: "accepts closed weekday (Thursday)", mutate: func(cmd *CreateAdminReservationCommand) {
+			cmd.VisitDate = datetime.MustParseDate("2026-05-14")
+		}},
+		{name: "accepts date beyond 14-day window", mutate: func(cmd *CreateAdminReservationCommand) {
+			cmd.VisitDate = datetime.MustParseDate("2026-12-31")
+		}},
+		{name: "accepts out-of-business-hours visit time", mutate: func(cmd *CreateAdminReservationCommand) {
+			cmd.VisitTime = datetime.MustParseTime("23:00")
+		}},
+		// フォーマット/範囲検証は維持されること
+		{name: "rejects empty name", mutate: func(cmd *CreateAdminReservationCommand) { cmd.Name = "  " }, wantField: "name"},
+		{name: "rejects people above maximum", mutate: func(cmd *CreateAdminReservationCommand) { cmd.People = 8 }, wantField: "people"},
+		{name: "rejects zero visit_date", mutate: func(cmd *CreateAdminReservationCommand) { cmd.VisitDate = datetime.Date{} }, wantField: "visit_date"},
+		{name: "rejects invalid email format", mutate: func(cmd *CreateAdminReservationCommand) { cmd.Email = "not-an-email" }, wantField: "email"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := validCreateAdminReservationCommand()
 			tt.mutate(&cmd)
-			violations := validateCreateAdminReservation(cmd, now)
+			violations := validateCreateAdminReservation(cmd)
 			if tt.wantField == "" {
 				assertNoViolations(t, violations)
 				return
