@@ -50,8 +50,16 @@ func main() {
 	schedulesPath := adminBase + "/schedules"
 
 	reservationRepo := repository.NewPostgresReservationRepository(db)
-	createReservation := reservationusecase.NewCreateReservationUseCase(reservationRepo)
+	scheduleRepo := repository.NewPostgresScheduleRepository(db)
+	scheduleResolver := service.NewScheduleResolver(scheduleRepo)
+	availabilityService := service.NewAvailabilityService(scheduleResolver, reservationRepo)
+
+	createReservation := reservationusecase.NewCreateReservationUseCase(reservationRepo, availabilityService)
 	reservationHandler := handler.NewReservationHandler(reservationRepo, createReservation, reservationsPath)
+
+	getAvailability := reservationusecase.NewGetAvailabilityUseCase(availabilityService)
+	availabilityPath := reservationsPath + "/availability"
+	availabilityHandler := handler.NewAvailabilityHandler(getAvailability, availabilityPath)
 
 	listReservations := reservationusecase.NewListReservationsUseCase(reservationRepo)
 	createAdminReservation := reservationusecase.NewCreateAdminReservationUseCase(reservationRepo)
@@ -64,8 +72,6 @@ func main() {
 		adminReservationsPath,
 	)
 
-	scheduleRepo := repository.NewPostgresScheduleRepository(db)
-	scheduleResolver := service.NewScheduleResolver(scheduleRepo)
 	setSchedule := scheduleusecase.NewSetScheduleUseCase(scheduleRepo)
 	listSchedules := scheduleusecase.NewListSchedulesUseCase(scheduleResolver)
 	getSchedule := scheduleusecase.NewGetScheduleUseCase(scheduleResolver)
@@ -84,6 +90,7 @@ func main() {
 
 	// ルーティング（公開 API は /api/v1/...）
 	http.HandleFunc("/", handleRoot)
+	http.HandleFunc(availabilityPath, availabilityHandler.HandleAvailability)
 	http.HandleFunc(reservationsPath, reservationHandler.HandleReservations)
 
 	// 認証エンドポイント、login / refresh は AT 不要
