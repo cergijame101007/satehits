@@ -80,6 +80,21 @@ func (r *createTestReservationRepo) SumApprovedPeopleByDate(_ context.Context, d
 	return r.approvedByDate[date.String()], nil
 }
 
+func (r *createTestReservationRepo) SumApprovedPeopleByDateRange(_ context.Context, from, to datetime.Date) (map[string]int, error) {
+	if r.approvedByDate == nil {
+		return map[string]int{}, nil
+	}
+	result := make(map[string]int)
+	fromStr := from.String()
+	toStr := to.String()
+	for dateStr, count := range r.approvedByDate {
+		if dateStr >= fromStr && dateStr <= toStr {
+			result[dateStr] = count
+		}
+	}
+	return result, nil
+}
+
 func newCreateReservationUseCaseForTest(sched createTestScheduleRepo, repo *createTestReservationRepo) *CreateReservationUseCase {
 	resolver := service.NewScheduleResolver(sched)
 	avail := service.NewAvailabilityService(resolver, repo)

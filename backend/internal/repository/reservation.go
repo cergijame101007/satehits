@@ -220,3 +220,31 @@ WHERE visit_date = $1 AND status = 'approved'`
 	}
 	return total, nil
 }
+
+// SumApprovedPeopleByDateRange は期間内の日付別・承認済み予約人数合計を返す
+func (r *PostgresReservationRepository) SumApprovedPeopleByDateRange(ctx context.Context, from, to datetime.Date) (map[string]int, error) {
+	query := `
+SELECT visit_date, COALESCE(SUM(people), 0)
+FROM reservations
+WHERE visit_date >= $1 AND visit_date <= $2 AND status = 'approved'
+GROUP BY visit_date`
+	rows, err := r.getDB(ctx).QueryContext(ctx, query, from, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]int)
+	for rows.Next() {
+		var date datetime.Date
+		var total int
+		if err := rows.Scan(&date, &total); err != nil {
+			return nil, err
+		}
+		result[date.String()] = total
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}

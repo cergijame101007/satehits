@@ -54,6 +54,10 @@ func (f *fakeReservationRepo) SumApprovedPeopleByDate(context.Context, datetime.
 	return 0, nil
 }
 
+func (f *fakeReservationRepo) SumApprovedPeopleByDateRange(context.Context, datetime.Date, datetime.Date) (map[string]int, error) {
+	return map[string]int{}, nil
+}
+
 func TestUpdateReservationStatusUseCase(t *testing.T) {
 	reservationID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
 
