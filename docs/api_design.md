@@ -14,7 +14,7 @@
 
 | メソッド | エンドポイント | 説明 |
 |----------|----------------|------|
-| GET | `/reservations/availability` | 指定日の残り食数を取得 |
+| GET | `/reservations/availability` | 指定日または指定月の残り食数を取得 |
 | POST | `/reservations` | 予約を申請 |
 | GET | `/schedules` | 月間スケジュールを取得（カレンダー用） |
 | GET | `/suppliers` | お取り引き先一覧を取得 |
@@ -81,9 +81,9 @@
 
 ### GET /reservations/availability
 
-指定日の残り食数を取得する。
+指定日または指定月の残り食数を取得する。クエリは **単日モード**（`date`）と **月次モード**（`year` + `month`）のいずれか一方を指定する。
 
-#### リクエスト
+#### リクエスト（単日モード）
 
 | パラメータ | 位置 | 型 | 必須 | 説明 |
 |------------|------|-----|------|------|
@@ -93,7 +93,7 @@
 GET /api/v1/reservations/availability?date=2025-02-10
 ```
 
-#### レスポンス
+#### レスポンス（単日モード）
 
 **成功時（200 OK）** — 必須フィールドは `date`, `capacity`, `reserved`, `available`, `is_holiday`。イベント日などでは `schedule_type`, `event_name`, `event_description` 等が付く（OpenAPI `AvailabilityResponse`）。
 
@@ -118,6 +118,38 @@ GET /api/v1/reservations/availability?date=2025-02-10
   "available": 0,
   "schedule_type": null,
   "is_holiday": true
+}
+```
+
+#### リクエスト（月次モード）
+
+| パラメータ | 位置 | 型 | 必須 | 説明 |
+|------------|------|-----|------|------|
+| year | query | integer | Yes | 年（2000〜2100） |
+| month | query | integer | Yes | 月（1〜12） |
+
+```
+GET /api/v1/reservations/availability?year=2026&month=2
+```
+
+#### レスポンス（月次モード）
+
+**成功時（200 OK）** — OpenAPI `AvailabilityListResponse`。`availabilities` は当該月の各暦日（日付昇順）。
+
+```json
+{
+  "year": 2026,
+  "month": 2,
+  "availabilities": [
+    {
+      "date": "2026-02-01",
+      "capacity": 10,
+      "reserved": 4,
+      "available": 6,
+      "schedule_type": "normal",
+      "is_holiday": false
+    }
+  ]
 }
 ```
 
