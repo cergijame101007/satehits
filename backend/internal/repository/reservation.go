@@ -16,12 +16,12 @@ import (
 
 // PostgresReservationRepository はPostgreSQLを使った予約リポジトリの実装
 type PostgresReservationRepository struct {
-	db *sql.DB
+	baseRepository
 }
 
 // NewPostgresReservationRepository はPostgresReservationRepositoryのインスタンスを作成する
 func NewPostgresReservationRepository(db *sql.DB) *PostgresReservationRepository {
-	return &PostgresReservationRepository{db: db}
+	return &PostgresReservationRepository{baseRepository{db: db}}
 }
 
 // Create は予約データを永続化し挿入結果を返す
@@ -32,7 +32,7 @@ INSERT INTO reservations (
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING id, name, people, visit_date, visit_time, phone, email, COALESCE(note, ''), status, source, created_at, updated_at`
 	var out domain.Reservation
-	err := r.db.QueryRowContext(ctx, query,
+	err := r.getDB(ctx).QueryRowContext(ctx, query,
 		in.Name, in.People, in.VisitDate, in.VisitTime, in.Phone, in.Email, in.Note, in.Status, in.Source,
 	).Scan(
 		&out.ID,
@@ -215,7 +215,7 @@ SELECT COALESCE(SUM(people), 0)
 FROM reservations
 WHERE visit_date = $1 AND status = 'approved'`
 	var total int
-	if err := r.db.QueryRowContext(ctx, query, date).Scan(&total); err != nil {
+	if err := r.getDB(ctx).QueryRowContext(ctx, query, date).Scan(&total); err != nil {
 		return 0, err
 	}
 	return total, nil

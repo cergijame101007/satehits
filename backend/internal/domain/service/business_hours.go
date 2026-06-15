@@ -65,3 +65,28 @@ func defaultBusinessHoursForType(scheduleType string) (openTime, lastOrder, clos
 		return datetime.Time{}, datetime.Time{}, datetime.Time{}, false
 	}
 }
+
+// BookingWindowMinutes は有効スケジュールに基づく予約受付の開始・最終時刻（分）を返す。
+// closed や時刻未定の種別では ok=false。
+func BookingWindowMinutes(sch domain.Schedule) (openMinutes, lastOrderMinutes int, ok bool) {
+	if sch.ScheduleType == domain.ScheduleTypeClosed {
+		return 0, 0, false
+	}
+
+	var openTime, lastOrder datetime.Time
+	switch sch.ScheduleType {
+	case domain.ScheduleTypeEvent:
+		openTime, lastOrder, _ = ApplyEventDefaultBusinessHours(sch.Date, sch.OpenTime, sch.LastOrderTime, sch.CloseTime)
+	default:
+		openTime, lastOrder, _ = ApplyDefaultBusinessHours(sch.ScheduleType, sch.OpenTime, sch.LastOrderTime, sch.CloseTime)
+	}
+	if openTime.IsZero() || lastOrder.IsZero() {
+		return 0, 0, false
+	}
+	return timeToMinutes(openTime), timeToMinutes(lastOrder), true
+}
+
+func timeToMinutes(t datetime.Time) int {
+	u := t.UTC()
+	return u.Hour()*60 + u.Minute()
+}

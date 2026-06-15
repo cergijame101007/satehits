@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/cergijame101007/satehits/internal/datetime"
+	"github.com/cergijame101007/satehits/internal/domain"
 )
 
 func TestApplyDefaultBusinessHours(t *testing.T) {
@@ -105,6 +106,60 @@ func TestApplyEventDefaultBusinessHours(t *testing.T) {
 			assertTimeString(t, "open", gotOpen, tt.wantOpen)
 			assertTimeString(t, "last_order", gotLast, tt.wantLast)
 			assertTimeString(t, "close", gotClose, tt.wantClose)
+		})
+	}
+}
+
+func TestBookingWindowMinutes(t *testing.T) {
+	tests := []struct {
+		name      string
+		schedule  domain.Schedule
+		wantOpen  int
+		wantLast  int
+		wantOK    bool
+	}{
+		{
+			name:     "normal weekday",
+			schedule: domain.Schedule{ScheduleType: domain.ScheduleTypeNormal},
+			wantOpen: 11*60 + 30,
+			wantLast: 14 * 60,
+			wantOK:   true,
+		},
+		{
+			name:     "morning saturday",
+			schedule: domain.Schedule{ScheduleType: domain.ScheduleTypeMorning},
+			wantOpen: 8*60 + 30,
+			wantLast: 14 * 60,
+			wantOK:   true,
+		},
+		{
+			name:     "event on weekday",
+			schedule: domain.Schedule{Date: datetime.MustParseDate("2026-05-20"), ScheduleType: domain.ScheduleTypeEvent},
+			wantOpen: 11*60 + 30,
+			wantLast: 14 * 60,
+			wantOK:   true,
+		},
+		{
+			name:     "closed",
+			schedule: domain.Schedule{ScheduleType: domain.ScheduleTypeClosed},
+			wantOK:   false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			open, last, ok := BookingWindowMinutes(tt.schedule)
+			if ok != tt.wantOK {
+				t.Fatalf("ok = %v, want %v", ok, tt.wantOK)
+			}
+			if !tt.wantOK {
+				return
+			}
+			if open != tt.wantOpen {
+				t.Fatalf("open = %d, want %d", open, tt.wantOpen)
+			}
+			if last != tt.wantLast {
+				t.Fatalf("last = %d, want %d", last, tt.wantLast)
+			}
 		})
 	}
 }

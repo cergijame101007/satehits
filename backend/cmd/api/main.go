@@ -54,9 +54,6 @@ func main() {
 	scheduleResolver := service.NewScheduleResolver(scheduleRepo)
 	availabilityService := service.NewAvailabilityService(scheduleResolver, reservationRepo)
 
-	createReservation := reservationusecase.NewCreateReservationUseCase(reservationRepo, availabilityService)
-	reservationHandler := handler.NewReservationHandler(reservationRepo, createReservation, reservationsPath)
-
 	getAvailability := reservationusecase.NewGetAvailabilityUseCase(availabilityService)
 	availabilityPath := reservationsPath + "/availability"
 	availabilityHandler := handler.NewAvailabilityHandler(getAvailability, availabilityPath)
@@ -82,6 +79,9 @@ func main() {
 	adminUserRepo := repository.NewPostgresAdminUserRepository(db)
 	refreshTokenRepo := repository.NewPostgresRefreshTokenRepository(db)
 	txManager := repository.NewTxManager(db)
+
+	createReservation := reservationusecase.NewCreateReservationUseCase(reservationRepo, scheduleResolver, availabilityService, txManager)
+	reservationHandler := handler.NewReservationHandler(reservationRepo, createReservation, reservationsPath)
 
 	loginUC := authusecase.NewLoginUseCase(adminUserRepo, refreshTokenRepo, jwtService)
 	refreshUC := authusecase.NewRefreshUseCase(adminUserRepo, refreshTokenRepo, jwtService, txManager)

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/cergijame101007/satehits/internal/datetime"
+	"github.com/cergijame101007/satehits/internal/domain"
 )
 
 // validCreateReservationCommand は公開予約 API の正常系ベース（2026-05-16 土・JST 基準）
@@ -182,42 +183,48 @@ func TestValidateCreateReservation_visitDateRange(t *testing.T) {
 
 func TestValidateCreateReservation_visitTimeWindow(t *testing.T) {
 	now := time.Date(2026, 5, 13, 12, 0, 0, 0, storeLocation) // 水
+	monday := datetime.MustParseDate("2026-05-18")
+	saturday := datetime.MustParseDate("2026-05-16")
+	thursdayOverride := datetime.MustParseDate("2026-05-14")
 
-	t.Run("rejects Thursday visit outside weekday window", func(t *testing.T) {
-		// 定休判定は AvailabilityService 側。validate では曜日別営業時間のみ
-		cmd := validCreateReservationCommand()
-		cmd.VisitDate = datetime.MustParseDate("2026-05-14")
-		cmd.VisitTime = datetime.MustParseTime("08:30")
-		assertHasViolationField(t, validateCreateReservation(cmd, now), "visit_time")
-	})
+	normalMonday := domain.Schedule{Date: monday, ScheduleType: domain.ScheduleTypeNormal}
+	morningSaturday := domain.Schedule{Date: saturday, ScheduleType: domain.ScheduleTypeMorning}
+	normalThursday := domain.Schedule{Date: thursdayOverride, ScheduleType: domain.ScheduleTypeNormal}
 
-	t.Run("rejects Saturday visit before 08:30", func(t *testing.T) {
-		cmd := validCreateReservationCommand()
-		cmd.VisitDate = datetime.MustParseDate("2026-05-16")
-		cmd.VisitTime = datetime.MustParseTime("08:00")
-		assertHasViolationField(t, validateCreateReservation(cmd, now), "visit_time")
-	})
-
-	t.Run("rejects weekday visit before 11:30", func(t *testing.T) {
-		// 2026-05-18 は月曜・予約可能日
-		cmd := validCreateReservationCommand()
-		cmd.VisitDate = datetime.MustParseDate("2026-05-18")
-		cmd.VisitTime = datetime.MustParseTime("11:00")
-		v := validateCreateReservation(cmd, now)
+	t.Run("rejects weekday schedule before open time", func(t *testing.T) {
+		v := validateVisitTimeForSchedule(normalMonday, datetime.MustParseTime("11:00"))
 		assertHasViolationField(t, v, "visit_time")
 	})
 
-	t.Run("rejects weekday visit after 14:00", func(t *testing.T) {
-		cmd := validCreateReservationCommand()
-		cmd.VisitDate = datetime.MustParseDate("2026-05-18")
-		cmd.VisitTime = datetime.MustParseTime("14:30")
-		assertHasViolationField(t, validateCreateReservation(cmd, now), "visit_time")
+	t.Run("accepts Thursday override within weekday hours", func(t *testing.T) {
+		v := validateVisitTimeForSchedule(normalThursday, datetime.MustParseTime("12:00"))
+		assertNoViolations(t, v)
 	})
 
-	t.Run("accepts weekday visit at opening time", func(t *testing.T) {
+	t.Run("rejects Thursday override before weekday open", func(t *testing.T) {
+		v := validateVisitTimeForSchedule(normalThursday, datetime.MustParseTime("08:30"))
+		assertHasViolationField(t, v, "visit_time")
+	})
+
+	t.Run("rejects Saturday morning schedule before 08:30", func(t *testing.T) {
+		v := validateVisitTimeForSchedule(morningSaturday, datetime.MustParseTime("08:00"))
+		assertHasViolationField(t, v, "visit_time")
+	})
+
+	t.Run("rejects weekday schedule after last order", func(t *testing.T) {
+		v := validateVisitTimeForSchedule(normalMonday, datetime.MustParseTime("14:30"))
+		assertHasViolationField(t, v, "visit_time")
+	})
+
+	t.Run("accepts weekday schedule at opening time", func(t *testing.T) {
+		v := validateVisitTimeForSchedule(normalMonday, datetime.MustParseTime("11:30"))
+		assertNoViolations(t, v)
+	})
+
+	t.Run("date range validation unchanged for bookable Saturday", func(t *testing.T) {
 		cmd := validCreateReservationCommand()
-		cmd.VisitDate = datetime.MustParseDate("2026-05-18")
-		cmd.VisitTime = datetime.MustParseTime("11:30")
+		cmd.VisitDate = saturday
+		cmd.VisitTime = datetime.MustParseTime("12:00")
 		assertNoViolations(t, validateCreateReservation(cmd, now))
 	})
 }

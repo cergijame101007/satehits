@@ -8,10 +8,19 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/cergijame101007/satehits/internal/application"
 	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
 	"github.com/cergijame101007/satehits/internal/domain/service"
 )
+
+type passThroughTxManager struct{}
+
+func (passThroughTxManager) DoInTx(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
+}
+
+var _ application.TxManager = passThroughTxManager{}
 
 type createTestScheduleRepo struct {
 	byDate map[string]domain.Schedule
@@ -74,7 +83,7 @@ func (r *createTestReservationRepo) SumApprovedPeopleByDate(_ context.Context, d
 func newCreateReservationUseCaseForTest(sched createTestScheduleRepo, repo *createTestReservationRepo) *CreateReservationUseCase {
 	resolver := service.NewScheduleResolver(sched)
 	avail := service.NewAvailabilityService(resolver, repo)
-	return NewCreateReservationUseCase(repo, avail)
+	return NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{})
 }
 
 // firstBookableWeekday は JST 基準で翌日〜14日先の範囲内で最初の指定曜日を返す
@@ -256,5 +265,45 @@ func TestCreateReservationUseCase_Execute_availability(t *testing.T) {
 		if !errors.Is(err, domain.ErrCapacityExceeded) {
 			t.Fatalf("Execute() err = %v, want ErrCapacityExceeded", err)
 		}
+	})
+
+	t.Run("accepts Thursday when daily_schedules overrides to normal", func(t *testing.T) {
+		thursday := firstBookableWeekday(t, now, time.Thursday)
+		repo := &createTestReservationRepo{}
+		uc := newCreateReservationUseCaseForTest(createTestScheduleRepo{
+			byDate: map[string]domain.Schedule{
+				thursday.String(): {Date: thursday, ScheduleType: domain.ScheduleTypeNormal, Capacity: 10},
+			},
+		}, repo)
+
+		cmd := validCreateCommandForDate(thursday)
+		cmd.VisitTime = datetime.MustParseTime("12:00")
+
+		_, err := uc.Execute(context.Background(), cmd)
+		if err != nil {
+			t.Fatalf("Execute() err = %v, want nil", err)
+		}
+		if len(repo.created) != 1 {
+			t.Fatalf("created count = %d, want 1", len(repo.created))
+		}
+	})
+
+	t.Run("rejects default closed Thursday with visit_date", func(t *testing.T) {
+		thursday := firstBookableWeekday(t, now, time.Thursday)
+		repo := &createTestReservationRepo{}
+		uc := newCreateReservationUseCaseForTest(createTestScheduleRepo{}, repo)
+
+		cmd := validCreateCommandForDate(thursday)
+		cmd.VisitTime = datetime.MustParseTime("12:00")
+
+		_, err := uc.Execute(context.Background(), cmd)
+		if err == nil {
+			t.Fatal("Execute() err = nil, want ValidationError")
+		}
+		var vErr *ValidationError
+		if !errors.As(err, &vErr) {
+			t.Fatalf("Execute() err = %v, want ValidationError", err)
+		}
+		assertHasViolationField(t, vErr.Violations, "visit_date")
 	})
 }
