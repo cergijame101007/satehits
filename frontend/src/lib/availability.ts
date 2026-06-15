@@ -22,6 +22,12 @@ export class AvailabilityApiError extends Error {
   }
 }
 
+export function toAvailabilityErrorMessage(err: unknown): string {
+  if (err instanceof AvailabilityApiError) return err.message;
+  if (err instanceof Error) return err.message;
+  return '空き状況の取得に失敗しました';
+}
+
 async function parseError(res: Response): Promise<AvailabilityApiError> {
   try {
     const body = (await res.json()) as ErrorResponse;
