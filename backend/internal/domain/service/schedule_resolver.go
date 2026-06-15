@@ -140,7 +140,7 @@ func daysInMonth(year int, month time.Month) int {
 }
 
 // synthesizeFromStoreCalendar — daily_schedules 行なし日の店舗定例合成
-// 木金 closed、土日 morning、月〜水 normal（祝日未考慮・TODO）
+// 木金 closed、日曜 morning、月〜水土 normal（祝日未考慮・TODO。祝日は daily_schedules で上書き）
 func synthesizeFromStoreCalendar(d datetime.Date) domain.Schedule {
 	scheduleType, capacity := defaultScheduleTypeAndCapacity(d.Weekday())
 	openTime, lastOrder, closeTime := ApplyDefaultBusinessHours(scheduleType, datetime.Time{}, datetime.Time{}, datetime.Time{})
@@ -158,7 +158,7 @@ func defaultScheduleTypeAndCapacity(wd time.Weekday) (scheduleType string, capac
 	switch wd {
 	case time.Thursday, time.Friday:
 		return "closed", 0
-	case time.Saturday, time.Sunday:
+	case time.Sunday:
 		return "morning", defaultScheduleCapacity
 	default:
 		return "normal", defaultScheduleCapacity

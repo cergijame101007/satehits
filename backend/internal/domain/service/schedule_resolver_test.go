@@ -93,7 +93,8 @@ func TestSynthesizeFromStoreCalendar_weekdayDefaults(t *testing.T) {
 	}{
 		{name: "monday is normal", date: "2026-05-18", wantType: "normal", wantCapacity: 10},
 		{name: "thursday is closed", date: "2026-05-21", wantType: "closed", wantCapacity: 0},
-		{name: "saturday is morning", date: "2026-05-16", wantType: "morning", wantCapacity: 10},
+		{name: "saturday is normal", date: "2026-05-16", wantType: "normal", wantCapacity: 10},
+		{name: "sunday is morning", date: "2026-05-17", wantType: "morning", wantCapacity: 10},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

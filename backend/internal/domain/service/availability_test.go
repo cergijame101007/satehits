@@ -318,8 +318,26 @@ func TestAvailabilityService_ResolveForDate_boundaries(t *testing.T) {
 	}
 }
 
-func TestAvailabilityService_ResolveForDate_defaultSaturdayMorning(t *testing.T) {
+func TestAvailabilityService_ResolveForDate_defaultSaturdayNormal(t *testing.T) {
 	date := datetime.MustParseDate("2026-05-16") // 土曜
+	svc := newAvailabilityService(availabilityScheduleRepo{}, availabilityReservationRepo{
+		approvedByDate: map[string]int{date.String(): 4},
+	})
+
+	got, err := svc.ResolveForDate(context.Background(), date)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if got.ScheduleType != domain.ScheduleTypeNormal {
+		t.Fatalf("ScheduleType = %q, want normal", got.ScheduleType)
+	}
+	if got.Available != 6 {
+		t.Fatalf("Available = %d, want 6", got.Available)
+	}
+}
+
+func TestAvailabilityService_ResolveForDate_defaultSundayMorning(t *testing.T) {
+	date := datetime.MustParseDate("2026-05-17") // 日曜
 	svc := newAvailabilityService(availabilityScheduleRepo{}, availabilityReservationRepo{
 		approvedByDate: map[string]int{date.String(): 4},
 	})
