@@ -1,6 +1,8 @@
-import { useMemo } from 'react';
-import { getReservations, getAvailability, statusLabels, statusBadgeBg, statusBadgeText } from '../../mocks/reservation';
+import { useEffect, useMemo, useState } from 'react';
+import { getReservations, statusLabels, statusBadgeBg, statusBadgeText } from '../../mocks/reservation';
+import { getAvailability } from '@/lib/availability';
 import { formatDate, formatDateJa } from '@/lib/calendarUtils';
+import type { AvailabilityResponse } from '@/types/reservation';
 
 interface DaySummaryProps {
   title: string;
@@ -11,8 +13,38 @@ function DaySummary({ title, date }: DaySummaryProps) {
   const dateStr = formatDate(date);
   // TODO: GET /api/v1/admin/reservations?date=YYYY-MM-DD に置き換え
   const reservations = getReservations(dateStr);
-  // TODO: GET /api/v1/reservations/availability?date=YYYY-MM-DD に置き換え
-  const availability = getAvailability(dateStr);
+  const [availability, setAvailability] = useState<AvailabilityResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAvailability() {
+      setIsLoading(true);
+      setLoadError(null);
+      try {
+        const data = await getAvailability(dateStr);
+        if (!cancelled) {
+          setAvailability(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setLoadError(err instanceof Error ? err.message : '空き状況の取得に失敗しました');
+          setAvailability(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadAvailability();
+    return () => {
+      cancelled = true;
+    };
+  }, [dateStr]);
 
   const pending = reservations.filter((r) => r.status === 'pending');
   const approved = reservations.filter((r) => r.status === 'approved');
@@ -23,9 +55,19 @@ function DaySummary({ title, date }: DaySummaryProps) {
       <h3 className="text-sm text-gray-500 mb-1">{title}</h3>
       <p className="text-lg font-medium mb-4">{formatDateJa(formatDate(date))}</p>
 
-      {availability.is_holiday ? (
+      {loadError && (
+        <p className="text-red-600 text-sm text-center py-4">{loadError}</p>
+      )}
+
+      {!loadError && isLoading && (
+        <p className="text-gray-400 text-center py-6">読み込み中...</p>
+      )}
+
+      {!loadError && !isLoading && availability?.is_holiday && (
         <p className="text-gray-400 text-center py-6">定休日</p>
-      ) : (
+      )}
+
+      {!loadError && !isLoading && availability && !availability.is_holiday && (
         <>
           <div className="text-center mb-4">
             <p className="text-xs text-gray-500 mb-1">残り提供数</p>
