@@ -3,8 +3,6 @@ import type { DailySchedule } from '@/types/reservation';
 import { listSchedules, ScheduleApiError } from '@/lib/schedule';
 import { listReservations } from '@/lib/adminReservation';
 import type { DayReservationSummary, MonthCalendarDay } from '@/components/react/MonthCalendar';
-import { isClosedScheduleType } from '@/lib/calendarTheme';
-
 interface UseMonthCalendarDataResult {
   days: MonthCalendarDay[];
   isLoading: boolean;
@@ -63,14 +61,11 @@ export function useMonthCalendarData(
             capacity: 10,
           };
           const reservation = reservationByDate.get(dateStr);
-          const isClosed = isClosedScheduleType(schedule.type);
-          const isFull = !isClosed && reservation && reservation.reservedMeals >= schedule.capacity;
 
           built.push({
             date: dateStr,
             schedule,
             reservation,
-            disabled: isClosed || !!isFull,
           });
         }
 

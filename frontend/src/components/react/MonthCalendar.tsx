@@ -13,7 +13,6 @@ export interface MonthCalendarDay {
   date: string;
   schedule: DailySchedule;
   reservation?: DayReservationSummary;
-  disabled?: boolean;
 }
 
 interface MonthCalendarProps {
@@ -24,6 +23,8 @@ interface MonthCalendarProps {
   selectedDate?: string;
   onSelectDate?: (date: string) => void;
   variant: 'schedule' | 'reservation' | 'picker';
+  /** picker のみ有効。true なら休業・満席日を選択不可（顧客向け）。管理者フォームは false */
+  restrictSelection?: boolean;
   isLoading?: boolean;
   compact?: boolean;
   showLegend?: boolean;
@@ -54,6 +55,7 @@ export default function MonthCalendar({
   selectedDate,
   onSelectDate,
   variant,
+  restrictSelection = true,
   isLoading = false,
   compact = false,
   showLegend = true,
@@ -126,8 +128,12 @@ export default function MonthCalendar({
               const dayData = dayMap.get(dateStr);
               const schedule = dayData?.schedule ?? { date: dateStr, type: 'normal' as ScheduleType, capacity: 10 };
               const isSelected = selectedDate === dateStr;
-              const isDisabled = dayData?.disabled ?? isClosedScheduleType(schedule.type);
               const isClosed = isClosedScheduleType(schedule.type);
+              const isFull =
+                !isClosed &&
+                !!dayData?.reservation &&
+                dayData.reservation.reservedMeals >= schedule.capacity;
+              const isDisabled = variant === 'picker' && restrictSelection && (isClosed || isFull);
 
               const cellClass = [
                 'flex flex-col items-center rounded-lg transition-colors',

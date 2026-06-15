@@ -95,11 +95,11 @@ export default function DatePickerField({
             selectedDate={value || undefined}
             onSelectDate={handleSelect}
             variant="picker"
+            restrictSelection={false}
             isLoading={isLoading}
             compact
             showLegend
           />
-          <p className="text-[10px] text-gray-400 mt-2">定休日・満席の日は選択できません</p>
         </div>
       )}
 
