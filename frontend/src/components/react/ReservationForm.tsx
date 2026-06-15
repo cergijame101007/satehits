@@ -1,6 +1,6 @@
-import { useState, useMemo, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, type FormEvent } from 'react';
 import type { ReservationRequest, AvailabilityResponse } from '../../types/reservation';
-import { getAvailability } from '../../mocks/reservation';
+import { fetchAvailabilityMapForRange } from '@/lib/availability';
 
 /** 日付を YYYY-MM-DD 形式にフォーマット */
 function formatDate(date: Date): string {
@@ -195,21 +195,38 @@ export default function ReservationForm() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [availabilityMap, setAvailabilityMap] = useState<Map<string, AvailabilityResponse>>(new Map());
+  const [isAvailabilityLoading, setIsAvailabilityLoading] = useState(true);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
 
-  // 予約可能日の空き状況をまとめて取得
-  const availabilityMap = useMemo(() => {
-    const map = new Map<string, AvailabilityResponse>();
+  useEffect(() => {
+    let cancelled = false;
     const { min, max } = getBookableRange();
-    const current = new Date(min);
 
-    while (current <= max) {
-      const dateStr = formatDate(current);
-      // TODO: GET /api/v1/reservations/availability?date=YYYY-MM-DD に置き換え
-      map.set(dateStr, getAvailability(dateStr));
-      current.setDate(current.getDate() + 1);
+    async function loadAvailability() {
+      setIsAvailabilityLoading(true);
+      setAvailabilityError(null);
+      try {
+        const map = await fetchAvailabilityMapForRange(min, max);
+        if (!cancelled) {
+          setAvailabilityMap(map);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setAvailabilityError(err instanceof Error ? err.message : '空き状況の取得に失敗しました');
+          setAvailabilityMap(new Map());
+        }
+      } finally {
+        if (!cancelled) {
+          setIsAvailabilityLoading(false);
+        }
+      }
     }
 
-    return map;
+    loadAvailability();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const timeSlots = selectedDate ? getTimeSlots() : [];
@@ -304,11 +321,22 @@ export default function ReservationForm() {
       {/* 来店日 */}
       <section>
         <h2 className="text-lg font-medium mb-3">来店日を選択</h2>
-        <Calendar
-          selectedDate={selectedDate}
-          onSelect={handleDateSelect}
-          availabilityMap={availabilityMap}
-        />
+        {availabilityError && (
+          <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-red-700 text-sm mb-3">
+            {availabilityError}
+          </div>
+        )}
+        {isAvailabilityLoading ? (
+          <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-400">
+            空き状況を読み込み中...
+          </div>
+        ) : (
+          <Calendar
+            selectedDate={selectedDate}
+            onSelect={handleDateSelect}
+            availabilityMap={availabilityMap}
+          />
+        )}
         {errors.visit_date && <p className="text-red-500 text-sm mt-2">{errors.visit_date}</p>}
         {selectedDate && (
           <p className="text-sm text-primary mt-2 font-medium">
