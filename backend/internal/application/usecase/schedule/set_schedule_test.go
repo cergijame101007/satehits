@@ -51,8 +51,8 @@ func TestSetScheduleUseCase_Execute_appliesDefaultBusinessHours(t *testing.T) {
 	if repo.lastIn.OpenTime.String() != "11:30" {
 		t.Fatalf("OpenTime = %s, want 11:30", repo.lastIn.OpenTime.String())
 	}
-	if repo.lastIn.LastOrderTime.String() != "14:00" {
-		t.Fatalf("LastOrderTime = %s, want 14:00", repo.lastIn.LastOrderTime.String())
+	if repo.lastIn.LastOrderTime.String() != "13:30" {
+		t.Fatalf("LastOrderTime = %s, want 13:30", repo.lastIn.LastOrderTime.String())
 	}
 	if repo.lastIn.CloseTime.String() != "15:00" {
 		t.Fatalf("CloseTime = %s, want 15:00", repo.lastIn.CloseTime.String())
@@ -76,8 +76,8 @@ func TestSetScheduleUseCase_Execute_appliesWeekdayDefaultsForEvent(t *testing.T)
 	if repo.lastIn.OpenTime.String() != "11:30" {
 		t.Fatalf("OpenTime = %s, want 11:30", repo.lastIn.OpenTime.String())
 	}
-	if repo.lastIn.LastOrderTime.String() != "14:00" {
-		t.Fatalf("LastOrderTime = %s, want 14:00", repo.lastIn.LastOrderTime.String())
+	if repo.lastIn.LastOrderTime.String() != "13:30" {
+		t.Fatalf("LastOrderTime = %s, want 13:30", repo.lastIn.LastOrderTime.String())
 	}
 	if repo.lastIn.CloseTime.String() != "15:00" {
 		t.Fatalf("CloseTime = %s, want 15:00", repo.lastIn.CloseTime.String())
@@ -93,7 +93,7 @@ func TestSetScheduleUseCase_Execute_clearsTimesForClosed(t *testing.T) {
 		ScheduleType:  "closed",
 		Capacity:      0,
 		OpenTime:      datetime.MustParseTime("11:30"),
-		LastOrderTime: datetime.MustParseTime("14:00"),
+		LastOrderTime: datetime.MustParseTime("13:30"),
 		CloseTime:     datetime.MustParseTime("15:00"),
 	})
 	if err != nil {

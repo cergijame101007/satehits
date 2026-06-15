@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"fmt"
-	"log"
 	"net/mail"
 	"regexp"
 	"strings"
@@ -10,6 +9,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/cergijame101007/satehits/internal/datetime"
+	"github.com/cergijame101007/satehits/internal/domain"
+	"github.com/cergijame101007/satehits/internal/domain/service"
 )
 
 // datetime.Date は暦日を UTC 午前0時で保持するだけでタイムゾーン付きの「来店日」ではない
@@ -36,13 +37,6 @@ const (
 	phoneFieldMaxRunes  = 30
 	phoneDigitsMinCount = 10
 	phoneDigitsMaxCount = 15
-
-	// 来店受付の境界（店舗ローカルタイム基準・分単位）
-	// "BookingCutoff" は予約として受け付ける最終時刻
-	weekdayBookingCutoffMinutes = 14 * 60    // 14:00
-	weekendBookingCutoffMinutes = 14 * 60    // 14:00
-	weekdayBookingOpenMinutes   = 11*60 + 30 // 11:30
-	weekendBookingOpenMinutes   = 8*60 + 30  // 08:30
 )
 
 // 電話番号フィールドに許す文字: 数字・+ () - 半角スペース・およびフォームでよく使われる全角スペース（U+3000 IDEOGRAPHIC SPACE）
@@ -98,22 +92,14 @@ func validateReservationFields(cmd CreateReservationCommand) []FieldViolation {
 	return violations
 }
 
-// validateReservationDateTimePolicy は公開予約だけに課す予約可能期間（翌日〜14日）・定休日（木金）・
-// 営業時間の検証を行う。visit_date / visit_time が未入力（ゼロ値）なら validateReservationFields 側で
-// 必須エラーになるため、ここでは何もしない（二重報告を避ける）。
+// validateReservationDateTimePolicy は公開予約だけに課す予約可能期間（翌日〜14日）の検証を行う。
+// 定休・営業時間は AvailabilityService / 有効スケジュール側で判定する（daily_schedules 優先）。
+// visit_date が未入力（ゼロ値）なら validateReservationFields 側で必須エラーになるため、ここでは何もしない。
 func validateReservationDateTimePolicy(cmd CreateReservationCommand, now time.Time) []FieldViolation {
 	if cmd.VisitDate.IsZero() {
 		return nil
 	}
-
-	violations := validateVisitDate(cmd.VisitDate, now)
-
-	// visit_date 自体が不可（範囲外・定休日）なら visit_time の営業時間判定はスキップする
-	if !cmd.VisitTime.IsZero() && len(violations) == 0 {
-		violations = append(violations, validateVisitTime(cmd.VisitDate, cmd.VisitTime)...)
-	}
-
-	return violations
+	return validateVisitDate(cmd.VisitDate, now)
 }
 
 func validateCreateReservation(cmd CreateReservationCommand, now time.Time) []FieldViolation {
@@ -133,12 +119,6 @@ func validateVisitDate(visit datetime.Date, now time.Time) []FieldViolation {
 
 	if visitStart.Before(minBookable) || visitStart.After(maxBookable) {
 		violations = append(violations, FieldViolation{Field: "visit_date", Message: "来店日は翌日から14日以内で指定してください"})
-	}
-
-	// ドメイン既定の定休（木・金）。daily_schedules で上書きされる前提の暫定ルール
-	wd := civilWeekday(visit)
-	if wd == time.Thursday || wd == time.Friday {
-		violations = append(violations, FieldViolation{Field: "visit_date", Message: "この日は予約できません"})
 	}
 
 	return violations
@@ -162,33 +142,19 @@ func civilWeekday(d datetime.Date) time.Weekday {
 	return time.Date(u.Year(), u.Month(), u.Day(), 0, 0, 0, 0, time.UTC).Weekday()
 }
 
-// validateVisitTime は api_design の曜日別営業時間内かどうか（祝日・朝枠・daily_schedules は未考慮）
-// visit_date 側で弾かれた日（木金等）は呼び出さないこと
-// 想定外の曜日が来た場合はログを残しつつユーザーには「予約できない」と返して安全側に倒す
-func validateVisitTime(visit datetime.Date, visitTime datetime.Time) []FieldViolation {
-	if visitTime.IsZero() || visit.IsZero() {
+// validateVisitTimeForSchedule は有効スケジュールの営業時間内かどうかを検証する。
+// 休業日（closed）は呼び出し側で visit_date エラーにしている前提。
+func validateVisitTimeForSchedule(sch domain.Schedule, visitTime datetime.Time) []FieldViolation {
+	if visitTime.IsZero() {
 		return nil
 	}
-	wd := civilWeekday(visit)
+	openMins, lastOrderMins, ok := service.BookingWindowMinutes(sch)
+	if !ok {
+		return nil
+	}
 	mins := visitMinutes(visitTime)
-
-	// TODO: 日本の祝日は土日祝と同じ来店時間帯で検証する（現状は曜日のみ）
-	// TODO: domain_knowledge の「朝営業は予約不可」と api_design の土日 8:30 開始の整合を daily_schedules 側で扱う
-
-	switch wd {
-	case time.Monday, time.Tuesday, time.Wednesday:
-		if mins < weekdayBookingOpenMinutes || mins > weekdayBookingCutoffMinutes {
-			return []FieldViolation{{Field: "visit_time", Message: "来店時間が営業時間外です"}}
-		}
-	case time.Saturday, time.Sunday:
-		if mins < weekendBookingOpenMinutes || mins > weekendBookingCutoffMinutes {
-			return []FieldViolation{{Field: "visit_time", Message: "来店時間が営業時間外です"}}
-		}
-	default:
-		// 本来 visit_date 側で弾かれているため到達しない。バグの兆候としてログを残し、
-		// ユーザーには「予約できない」と返して処理を続行する（panic させず安全側に倒す）
-		log.Printf("reservation: validateVisitTime invariant broken weekday=%v visit=%s", wd, visit.String())
-		return []FieldViolation{{Field: "visit_time", Message: "この日は予約できません"}}
+	if mins < openMins || mins > lastOrderMins {
+		return []FieldViolation{{Field: "visit_time", Message: "来店時間が営業時間外です"}}
 	}
 	return nil
 }

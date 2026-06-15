@@ -157,8 +157,8 @@ ALTER TABLE reservations ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ;
 **schedule_typeの値:**
 | 値 | 説明 | 予約 | デフォルト営業時間 |
 |----|------|------|-------------------|
-| normal | 通常営業（月火水） | 可 | 11:30-15:00 (LO 14:00) |
-| morning | 朝営業（土日祝） | 可 | 8:30-15:00 (LO 14:00) |
+| normal | 通常営業（月火水土祝） | 可 | 11:30-15:00 (LO 13:30) |
+| morning | 朝営業（日曜） | 可 | 8:30-15:00 (LO 13:30) |
 | event | 店内イベント等（和紅茶をしばく会等）。名称・説明必須 | 可（注意書き表示） | 省略時は曜日別デフォルト |
 | special_menu | 特別メニュー（リゾットランチ等） | 可（注意書き表示） | 通常と同じ |
 | closed | 臨時休業 | 不可 | - |
@@ -416,7 +416,7 @@ stateDiagram-v2
 INSERT INTO daily_schedules (date, schedule_type, capacity, event_name, event_description) VALUES
 ('2026-02-01', 'morning', 10, NULL, NULL),  -- 日曜・朝営業
 ('2026-02-02', 'normal', 10, NULL, NULL),   -- 月曜・通常
-('2026-02-07', 'morning', 10, NULL, NULL),  -- 土曜・朝営業
+('2026-02-07', 'normal', 10, NULL, NULL),  -- 土曜・通常営業
 ('2026-02-11', 'event', 0, '和紅茶をしばく会', '和紅茶をしばく会 入門編@WINE LAB. 通常のランチ営業はおやすみです。'),
 ('2026-02-23', 'special_menu', 10, 'リゾットランチ', '本日はリゾットランチの日です。');
 

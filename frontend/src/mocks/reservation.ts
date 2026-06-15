@@ -157,7 +157,7 @@ export function getMonthlySchedules(year: number, month: number): DailySchedule[
     if (dayOfWeek === 4 || dayOfWeek === 5) {
       type = 'closed';
       capacity = 0;
-    } else if (dayOfWeek === 0 || dayOfWeek === 6) {
+    } else if (dayOfWeek === 0) {
       type = 'morning';
     } else {
       type = 'normal';

@@ -160,7 +160,7 @@ export default function ReservationCreateForm() {
             来店時間 <span className="text-red-500">*</span>
           </label>
           <select name="visit_time" value={form.visit_time} onChange={handleChange} className={inputClass('visit_time')}>
-            {['8:30', '9:00', '9:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00'].map((t) => (
+            {['8:30', '9:00', '9:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30'].map((t) => (
               <option key={t} value={t}>{t}</option>
             ))}
           </select>

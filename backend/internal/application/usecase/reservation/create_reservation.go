@@ -5,8 +5,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cergijame101007/satehits/internal/application"
 	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
+	"github.com/cergijame101007/satehits/internal/domain/service"
 )
 
 // FieldViolation はフィールド単位のバリデーションエラー
@@ -38,12 +40,25 @@ type CreateReservationCommand struct {
 
 // CreateReservationUseCase は顧客向け予約作成
 type CreateReservationUseCase struct {
-	repo domain.ReservationRepository
+	repo         domain.ReservationRepository
+	resolver     *service.ScheduleResolver
+	availability *service.AvailabilityService
+	txManager    application.TxManager
 }
 
 // NewCreateReservationUseCase は CreateReservationUseCase の生成
-func NewCreateReservationUseCase(repo domain.ReservationRepository) *CreateReservationUseCase {
-	return &CreateReservationUseCase{repo: repo}
+func NewCreateReservationUseCase(
+	repo domain.ReservationRepository,
+	resolver *service.ScheduleResolver,
+	availability *service.AvailabilityService,
+	txManager application.TxManager,
+) *CreateReservationUseCase {
+	return &CreateReservationUseCase{
+		repo:         repo,
+		resolver:     resolver,
+		availability: availability,
+		txManager:    txManager,
+	}
 }
 
 // Execute は入力検証および Repository への永続化
@@ -53,12 +68,32 @@ func (u *CreateReservationUseCase) Execute(ctx context.Context, cmd CreateReserv
 		return nil, &ValidationError{Violations: violations}
 	}
 
-	// TODO: daily_schedules と AvailabilityService 実装後にここで残席・営業可否を検証する
-	// 設計どおり提供数超過は 409 CAPACITY_EXCEEDED、不可日時はバリデーションで弾く（現状は未チェック）
+	eff, err := u.resolver.ResolveForDate(ctx, cmd.VisitDate)
+	if err != nil {
+		return nil, mapAvailabilityServiceError(err)
+	}
+	if eff.Schedule.ScheduleType == domain.ScheduleTypeClosed {
+		return nil, &ValidationError{Violations: []FieldViolation{
+			{Field: "visit_date", Message: "この日は予約できません"},
+		}}
+	}
+	if v := validateVisitTimeForSchedule(eff.Schedule, cmd.VisitTime); len(v) > 0 {
+		return nil, &ValidationError{Violations: v}
+	}
 
-	// ドメイン入力への変換
-	// Status/Source はサーバー側管理（クライアント非公開）
-	// 名前・電話・メールはバリデーションで TrimSpace 相当の基準で見ているため、保存値も同じ正規化を適用する
+	avail, err := u.availability.ResolveForDate(ctx, cmd.VisitDate)
+	if err != nil {
+		return nil, mapAvailabilityServiceError(err)
+	}
+	if avail.IsHoliday {
+		return nil, &ValidationError{Violations: []FieldViolation{
+			{Field: "visit_date", Message: "この日は予約できません"},
+		}}
+	}
+	if cmd.People > avail.Available {
+		return nil, domain.ErrCapacityExceeded
+	}
+
 	in := domain.CreateReservationInput{
 		Name:      strings.TrimSpace(cmd.Name),
 		People:    cmd.People,
@@ -70,9 +105,30 @@ func (u *CreateReservationUseCase) Execute(ctx context.Context, cmd CreateReserv
 		Status:    "pending",
 		Source:    "web",
 	}
-	res, err := u.repo.Create(ctx, in)
+
+	var created domain.Reservation
+	err = u.txManager.DoInTx(ctx, func(txCtx context.Context) error {
+		fresh, err := u.availability.ResolveForDate(txCtx, cmd.VisitDate)
+		if err != nil {
+			return err
+		}
+		if fresh.IsHoliday {
+			return &ValidationError{Violations: []FieldViolation{
+				{Field: "visit_date", Message: "この日は予約できません"},
+			}}
+		}
+		if cmd.People > fresh.Available {
+			return domain.ErrCapacityExceeded
+		}
+		res, err := u.repo.Create(txCtx, in)
+		if err != nil {
+			return err
+		}
+		created = res
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	return &res, nil
+	return &created, nil
 }

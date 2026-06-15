@@ -127,6 +127,10 @@ func (h *ReservationHandler) handleCreate(w http.ResponseWriter, r *http.Request
 			respondWithError(w, http.StatusConflict, ReservationConflictCode, "同じ日時の予約が既に登録されています", nil)
 			return
 		}
+		if errors.Is(err, domain.ErrCapacityExceeded) {
+			respondWithError(w, http.StatusConflict, CapacityExceededCode, "この日の予約可能数を超えています", nil)
+			return
+		}
 		log.Printf("Failed to create reservation: %v", err)
 		respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
 		return

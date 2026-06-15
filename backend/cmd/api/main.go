@@ -50,8 +50,13 @@ func main() {
 	schedulesPath := adminBase + "/schedules"
 
 	reservationRepo := repository.NewPostgresReservationRepository(db)
-	createReservation := reservationusecase.NewCreateReservationUseCase(reservationRepo)
-	reservationHandler := handler.NewReservationHandler(reservationRepo, createReservation, reservationsPath)
+	scheduleRepo := repository.NewPostgresScheduleRepository(db)
+	scheduleResolver := service.NewScheduleResolver(scheduleRepo)
+	availabilityService := service.NewAvailabilityService(scheduleResolver, reservationRepo)
+
+	getAvailability := reservationusecase.NewGetAvailabilityUseCase(availabilityService)
+	availabilityPath := reservationsPath + "/availability"
+	availabilityHandler := handler.NewAvailabilityHandler(getAvailability, availabilityPath)
 
 	listReservations := reservationusecase.NewListReservationsUseCase(reservationRepo)
 	createAdminReservation := reservationusecase.NewCreateAdminReservationUseCase(reservationRepo)
@@ -64,8 +69,6 @@ func main() {
 		adminReservationsPath,
 	)
 
-	scheduleRepo := repository.NewPostgresScheduleRepository(db)
-	scheduleResolver := service.NewScheduleResolver(scheduleRepo)
 	setSchedule := scheduleusecase.NewSetScheduleUseCase(scheduleRepo)
 	listSchedules := scheduleusecase.NewListSchedulesUseCase(scheduleResolver)
 	getSchedule := scheduleusecase.NewGetScheduleUseCase(scheduleResolver)
@@ -77,6 +80,9 @@ func main() {
 	refreshTokenRepo := repository.NewPostgresRefreshTokenRepository(db)
 	txManager := repository.NewTxManager(db)
 
+	createReservation := reservationusecase.NewCreateReservationUseCase(reservationRepo, scheduleResolver, availabilityService, txManager)
+	reservationHandler := handler.NewReservationHandler(reservationRepo, createReservation, reservationsPath)
+
 	loginUC := authusecase.NewLoginUseCase(adminUserRepo, refreshTokenRepo, jwtService)
 	refreshUC := authusecase.NewRefreshUseCase(adminUserRepo, refreshTokenRepo, jwtService, txManager)
 	logoutUC := authusecase.NewLogoutUseCase(refreshTokenRepo)
@@ -84,6 +90,7 @@ func main() {
 
 	// ルーティング（公開 API は /api/v1/...）
 	http.HandleFunc("/", handleRoot)
+	http.HandleFunc(availabilityPath, availabilityHandler.HandleAvailability)
 	http.HandleFunc(reservationsPath, reservationHandler.HandleReservations)
 
 	// 認証エンドポイント、login / refresh は AT 不要

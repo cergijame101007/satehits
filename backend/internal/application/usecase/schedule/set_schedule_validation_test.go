@@ -54,7 +54,7 @@ func TestValidateSetSchedule(t *testing.T) {
 		cmd.EventName = testEventNameSample
 		cmd.EventDescription = "詳細はInstagramをご覧ください"
 		cmd.OpenTime = datetime.MustParseTime("11:30")
-		cmd.LastOrderTime = datetime.MustParseTime("14:00")
+		cmd.LastOrderTime = datetime.MustParseTime("13:30")
 		cmd.CloseTime = datetime.MustParseTime("15:00")
 		assertNoViolations(t, validateSetSchedule(cmd))
 	})
@@ -242,8 +242,8 @@ func TestValidateScheduleTimes(t *testing.T) {
 		want      []string
 	}{
 		{name: "accepts all times omitted"},
-		{name: "accepts open before last order before close", openTime: "11:30", lastOrder: "14:00", close: "15:00"},
-		{name: "rejects open after last order", openTime: "15:00", lastOrder: "14:00", close: "16:00", want: []string{"last_order_time"}},
+		{name: "accepts open before last order before close", openTime: "11:30", lastOrder: "13:30", close: "15:00"},
+		{name: "rejects open after last order", openTime: "15:00", lastOrder: "13:30", close: "16:00", want: []string{"last_order_time"}},
 		{name: "rejects last order after close", openTime: "11:30", lastOrder: "16:00", close: "15:00", want: []string{"close_time"}},
 		{name: "rejects open after close without last order", openTime: "16:00", close: "15:00", want: []string{"close_time"}},
 		{name: "accepts only open and close when open before close", openTime: "11:30", close: "15:00"},
