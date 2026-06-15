@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, type FormEvent } from 'react';
 import type { ReservationRequest, AvailabilityResponse } from '../../types/reservation';
-import { fetchAvailabilityMapForRange } from '@/lib/availability';
+import { fetchAvailabilityMapForRange, toAvailabilityErrorMessage } from '@/lib/availability';
 
 /** 日付を YYYY-MM-DD 形式にフォーマット */
 function formatDate(date: Date): string {
@@ -136,8 +136,9 @@ function Calendar({ selectedDate, onSelect, availabilityMap }: CalendarProps) {
           const dateStr = formatDate(date);
           const isInRange = date >= minDate && date <= maxDate;
           const availability = availabilityMap.get(dateStr);
-          const isHoliday = availability?.is_holiday ?? (date.getDay() === 4 || date.getDay() === 5);
-          const isSelectable = isInRange && !isHoliday && (availability ? availability.available > 0 : true);
+          const isHoliday = availability?.is_holiday === true;
+          const isSelectable =
+            isInRange && availability !== undefined && !isHoliday && availability.available > 0;
           const isSelected = selectedDate === dateStr;
 
           return (
@@ -213,8 +214,9 @@ export default function ReservationForm() {
         }
       } catch (err) {
         if (!cancelled) {
-          setAvailabilityError(err instanceof Error ? err.message : '空き状況の取得に失敗しました');
+          setAvailabilityError(toAvailabilityErrorMessage(err));
           setAvailabilityMap(new Map());
+          setSelectedDate(null);
         }
       } finally {
         if (!cancelled) {
@@ -329,6 +331,10 @@ export default function ReservationForm() {
         {isAvailabilityLoading ? (
           <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-400">
             空き状況を読み込み中...
+          </div>
+        ) : availabilityError ? (
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center text-gray-500 text-sm">
+            空き状況を取得できないため、来店日を選択できません
           </div>
         ) : (
           <Calendar
@@ -479,7 +485,7 @@ export default function ReservationForm() {
       {/* 送信ボタン */}
       <button
         type="submit"
-        disabled={isSubmitting}
+        disabled={isSubmitting || isAvailabilityLoading || !!availabilityError}
         className={`w-full py-4 rounded-xl text-white font-medium text-lg transition-all ${
           isSubmitting
             ? 'bg-gray-400 cursor-not-allowed'
