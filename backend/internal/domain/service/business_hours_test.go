@@ -119,11 +119,11 @@ func TestApplyEventDefaultBusinessHours(t *testing.T) {
 
 func TestBookingWindowMinutes(t *testing.T) {
 	tests := []struct {
-		name      string
-		schedule  domain.Schedule
-		wantOpen  int
-		wantLast  int
-		wantOK    bool
+		name     string
+		schedule domain.Schedule
+		wantOpen int
+		wantLast int
+		wantOK   bool
 	}{
 		{
 			name:     "normal weekday",

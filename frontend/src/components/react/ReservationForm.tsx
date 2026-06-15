@@ -29,7 +29,7 @@ function getBookableRange(): { min: Date; max: Date } {
 }
 
 /** 予約可能な来店時間の選択肢（11:30-13:30。日曜朝営業の朝 8:30〜は予約不可） */
-function getTimeSlots(_dateStr: string): string[] {
+function getTimeSlots(): string[] {
   const slots: string[] = [];
   let h = 11;
   let m = 30;
@@ -212,7 +212,7 @@ export default function ReservationForm() {
     return map;
   }, []);
 
-  const timeSlots = selectedDate ? getTimeSlots(selectedDate) : [];
+  const timeSlots = selectedDate ? getTimeSlots() : [];
 
   const handleDateSelect = (dateStr: string) => {
     setSelectedDate(dateStr);
