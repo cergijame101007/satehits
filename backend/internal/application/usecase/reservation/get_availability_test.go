@@ -60,6 +60,21 @@ func (r getAvailReservationRepo) SumApprovedPeopleByDate(_ context.Context, date
 	return r.approvedByDate[date.String()], nil
 }
 
+func (r getAvailReservationRepo) SumApprovedPeopleByDateRange(_ context.Context, from, to datetime.Date) (map[string]int, error) {
+	if r.approvedByDate == nil {
+		return map[string]int{}, nil
+	}
+	result := make(map[string]int)
+	fromStr := from.String()
+	toStr := to.String()
+	for dateStr, count := range r.approvedByDate {
+		if dateStr >= fromStr && dateStr <= toStr {
+			result[dateStr] = count
+		}
+	}
+	return result, nil
+}
+
 func newGetAvailabilityUseCaseForTest(sched getAvailScheduleRepo, res getAvailReservationRepo) *GetAvailabilityUseCase {
 	resolver := service.NewScheduleResolver(sched)
 	avail := service.NewAvailabilityService(resolver, res)
@@ -116,5 +131,38 @@ func TestGetAvailabilityUseCase_Execute(t *testing.T) {
 		if got.Reserved != 0 {
 			t.Fatalf("Reserved = %d, want 0 on holiday", got.Reserved)
 		}
+	})
+}
+
+func TestGetAvailabilityUseCase_ExecuteMonth(t *testing.T) {
+	t.Run("returns month availability list", func(t *testing.T) {
+		uc := newGetAvailabilityUseCaseForTest(getAvailScheduleRepo{}, getAvailReservationRepo{
+			approvedByDate: map[string]int{"2026-05-18": 4},
+		})
+
+		got, err := uc.ExecuteMonth(context.Background(), 2026, 5)
+		if err != nil {
+			t.Fatalf("ExecuteMonth() err = %v, want nil", err)
+		}
+		if got.Year != 2026 || got.Month != 5 {
+			t.Fatalf("Year/Month = %d/%d, want 2026/5", got.Year, got.Month)
+		}
+		if len(got.Availabilities) != 31 {
+			t.Fatalf("len(Availabilities) = %d, want 31", len(got.Availabilities))
+		}
+	})
+
+	t.Run("returns validation error for invalid year", func(t *testing.T) {
+		uc := newGetAvailabilityUseCaseForTest(getAvailScheduleRepo{}, getAvailReservationRepo{})
+
+		_, err := uc.ExecuteMonth(context.Background(), 1999, 5)
+		if err == nil {
+			t.Fatal("ExecuteMonth() err = nil, want ValidationError")
+		}
+		var vErr *ValidationError
+		if !errors.As(err, &vErr) {
+			t.Fatalf("ExecuteMonth() err = %v, want ValidationError", err)
+		}
+		assertHasViolationField(t, vErr.Violations, "year")
 	})
 }

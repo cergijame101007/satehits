@@ -65,6 +65,21 @@ func (r handlerTestReservationRepo) SumApprovedPeopleByDate(_ context.Context, d
 	return r.approvedByDate[date.String()], nil
 }
 
+func (r handlerTestReservationRepo) SumApprovedPeopleByDateRange(_ context.Context, from, to datetime.Date) (map[string]int, error) {
+	if r.approvedByDate == nil {
+		return map[string]int{}, nil
+	}
+	result := make(map[string]int)
+	fromStr := from.String()
+	toStr := to.String()
+	for dateStr, count := range r.approvedByDate {
+		if dateStr >= fromStr && dateStr <= toStr {
+			result[dateStr] = count
+		}
+	}
+	return result, nil
+}
+
 func newAvailabilityHandlerForTest(sched handlerTestScheduleRepo, res handlerTestReservationRepo) *AvailabilityHandler {
 	resolver := service.NewScheduleResolver(sched)
 	avail := service.NewAvailabilityService(resolver, res)
@@ -138,6 +153,38 @@ func TestAvailabilityHandler_HandleAvailability(t *testing.T) {
 			t.Fatalf("status = %d, want 400", rec.Code)
 		}
 		assertAvailabilityErrorCode(t, rec, ValidationErrorCode)
+	})
+
+	t.Run("returns 200 with monthly availability JSON", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, testAvailabilityPath+"?year=2026&month=5", nil)
+		rec := httptest.NewRecorder()
+
+		h.HandleAvailability(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+		}
+		var body AvailabilityListResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Fatalf("json.Unmarshal() err = %v", err)
+		}
+		if body.Year != 2026 || body.Month != 5 {
+			t.Fatalf("Year/Month = %d/%d, want 2026/5", body.Year, body.Month)
+		}
+		if len(body.Availabilities) != 31 {
+			t.Fatalf("len(Availabilities) = %d, want 31", len(body.Availabilities))
+		}
+	})
+
+	t.Run("returns 400 when month query is missing for monthly mode", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, testAvailabilityPath+"?year=2026", nil)
+		rec := httptest.NewRecorder()
+
+		h.HandleAvailability(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400", rec.Code)
+		}
 	})
 
 	t.Run("returns 400 when date format is invalid", func(t *testing.T) {
