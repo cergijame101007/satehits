@@ -28,21 +28,13 @@ function getBookableRange(): { min: Date; max: Date } {
   return { min: tomorrow, max: maxDate };
 }
 
-/** 曜日に応じた来店時間の選択肢を取得 */
-function getTimeSlots(dateStr: string): string[] {
-  const date = new Date(dateStr);
-  const dayOfWeek = date.getDay();
-
-  // 土日: 8:30-14:00, 平日: 11:30-14:00
-  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-  const startHour = isWeekend ? 8 : 11;
-  const startMinute = isWeekend ? 30 : 30;
-
+/** 予約可能な来店時間の選択肢（11:30-13:30。日曜朝営業の朝 8:30〜は予約不可） */
+function getTimeSlots(_dateStr: string): string[] {
   const slots: string[] = [];
-  let h = startHour;
-  let m = startMinute;
+  let h = 11;
+  let m = 30;
 
-  while (h < 14 || (h === 14 && m === 0)) {
+  while (h < 13 || (h === 13 && m <= 30)) {
     slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
     m += 30;
     if (m >= 60) {
