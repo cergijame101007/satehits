@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import type { Reservation, ReservationStatus, AvailabilityResponse } from '../../types/reservation';
 import { statusLabels, statusColors, statusBadgeBg, statusBadgeText } from '../../mocks/reservation';
-import { getAvailability } from '@/lib/availability';
-import { listReservations, updateReservationStatus } from '@/lib/adminReservation';
+import { getAvailability, toAvailabilityErrorMessage } from '@/lib/availability';
+import { listReservations, updateReservationStatus, toReservationErrorMessage } from '@/lib/adminReservation';
 import { useMonthCalendarData } from '@/lib/useMonthCalendar';
 import MonthCalendar from '@/components/react/MonthCalendar';
 import { formatDate, formatDateJa } from '@/lib/calendarUtils';
@@ -78,7 +78,7 @@ export default function ReservationTable() {
         }
       } catch (err) {
         if (!cancelled) {
-          setLoadError(err instanceof Error ? err.message : '予約一覧の取得に失敗しました');
+          setLoadError(toReservationErrorMessage(err));
           setReservationList([]);
           setIsLoaded(true);
         }
@@ -108,7 +108,7 @@ export default function ReservationTable() {
         }
       } catch (err) {
         if (!cancelled) {
-          setAvailabilityError(err instanceof Error ? err.message : '空き状況の取得に失敗しました');
+          setAvailabilityError(toAvailabilityErrorMessage(err));
           setAvailability(null);
         }
       } finally {
@@ -166,7 +166,7 @@ export default function ReservationTable() {
       setReservationList(data);
       setAvailability(avail);
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'ステータスの更新に失敗しました');
+      setActionError(toReservationErrorMessage(err));
     }
   };
 
