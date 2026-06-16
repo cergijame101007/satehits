@@ -24,6 +24,7 @@ type CreateAdminReservationCommand struct {
 }
 
 // CreateAdminReservationUseCase は管理者向け予約手動登録
+// TODO: メール機能実装時（またはその前）に pending 未対応のまま来店日3日前・1日前にオーナーへ通知する pending 放置対策メールを実装する（Web 申請 pending の承認・拒否遅延対策）
 type CreateAdminReservationUseCase struct {
 	repo domain.ReservationRepository
 }

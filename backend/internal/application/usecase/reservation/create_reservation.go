@@ -41,6 +41,7 @@ type CreateReservationCommand struct {
 }
 
 // CreateReservationUseCase は顧客向け予約作成
+// TODO: メール機能実装時（またはその前）に pending 未対応のまま来店日3日前・1日前にオーナーへ通知する pending 放置対策メールを実装する
 type CreateReservationUseCase struct {
 	repo         domain.ReservationRepository
 	resolver     *service.ScheduleResolver
