@@ -237,6 +237,7 @@ export default function ReservationForm() {
 
   const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? '';
   const isTurnstileEnabled = Boolean(turnstileSiteKey);
+  const isTurnstileMisconfigured = import.meta.env.PROD && !isTurnstileEnabled;
   const timeSlots = selectedDate ? getTimeSlots() : [];
 
   const handleDateSelect = (dateStr: string) => {
@@ -305,6 +306,11 @@ export default function ReservationForm() {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!validate()) return;
+
+    if (isTurnstileMisconfigured) {
+      setErrors({ submit: '予約フォームの認証設定が未完了のため、現在お申し込みできません' });
+      return;
+    }
 
     if (isTurnstileEnabled && !turnstileToken) {
       setErrors((prev) => ({ ...prev, turnstile: '認証を完了してください' }));
@@ -509,7 +515,11 @@ export default function ReservationForm() {
       </section>
 
       {/* Turnstile */}
-      {isTurnstileEnabled ? (
+      {isTurnstileMisconfigured ? (
+        <p className="text-sm text-red-600">
+          予約フォームの認証（Turnstile）が未設定のため、本番環境ではお申し込みできません
+        </p>
+      ) : isTurnstileEnabled ? (
         <section>
           <TurnstileWidget
             siteKey={turnstileSiteKey}
@@ -537,6 +547,7 @@ export default function ReservationForm() {
           isSubmitting ||
           isAvailabilityLoading ||
           !!availabilityError ||
+          isTurnstileMisconfigured ||
           (isTurnstileEnabled && !turnstileToken)
         }
         className={`w-full py-4 rounded-xl text-white font-medium text-lg transition-all ${
