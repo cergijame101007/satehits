@@ -37,7 +37,6 @@ type CreateReservationCommand struct {
 	Email          string
 	Note           string
 	TurnstileToken string
-	RemoteIP       string
 }
 
 // CreateReservationUseCase は顧客向け予約作成
@@ -74,7 +73,7 @@ func (u *CreateReservationUseCase) Execute(ctx context.Context, cmd CreateReserv
 		return nil, &ValidationError{Violations: violations}
 	}
 
-	if err := u.verifier.Verify(ctx, cmd.TurnstileToken, cmd.RemoteIP); err != nil {
+	if err := u.verifier.Verify(ctx, cmd.TurnstileToken); err != nil {
 		return nil, err
 	}
 

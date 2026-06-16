@@ -352,7 +352,7 @@ type fakeCaptchaVerifier struct {
 	err error
 }
 
-func (f fakeCaptchaVerifier) Verify(context.Context, string, string) error {
+func (f fakeCaptchaVerifier) Verify(context.Context, string) error {
 	return f.err
 }
 

@@ -114,7 +114,6 @@ func (h *ReservationHandler) handleCreate(w http.ResponseWriter, r *http.Request
 		Email:          request.Email,
 		Note:           request.Note,
 		TurnstileToken: request.TurnstileToken,
-		RemoteIP:       clientRemoteIP(r),
 	})
 	if err != nil {
 		var vErr *usecase.ValidationError

@@ -32,18 +32,16 @@ type siteVerifyResponse struct {
 	ErrorCodes []string `json:"error-codes"`
 }
 
-// Verify は Turnstile トークンを検証する
-func (v *Verifier) Verify(ctx context.Context, token, remoteIP string) error {
-	if strings.TrimSpace(token) == "" {
+// Verify は Turnstile トークンを検証する（remoteip は Cloud Run 等で不一致になり得るため送らない）
+func (v *Verifier) Verify(ctx context.Context, token string) error {
+	token = strings.TrimSpace(token)
+	if token == "" || token == "dev-bypass" {
 		return domain.ErrCaptchaFailed
 	}
 
 	data := url.Values{}
 	data.Set("secret", v.secret)
 	data.Set("response", token)
-	if remoteIP != "" {
-		data.Set("remoteip", remoteIP)
-	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, siteVerifyURL, strings.NewReader(data.Encode()))
 	if err != nil {

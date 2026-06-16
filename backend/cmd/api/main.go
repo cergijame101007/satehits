@@ -85,7 +85,7 @@ func main() {
 	txManager := repository.NewTxManager(db)
 
 	var captchaVerifier reservationusecase.CaptchaVerifier = reservationusecase.NoOpCaptchaVerifier{}
-	if cfg.TurnstileSecret != "" && cfg.Environment != "development" {
+	if cfg.Environment != "development" {
 		captchaVerifier = turnstile.NewVerifier(cfg.TurnstileSecret, nil)
 	}
 
