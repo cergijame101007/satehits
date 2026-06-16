@@ -29,13 +29,15 @@ func (e *ValidationError) Error() string {
 
 // CreateReservationCommand は顧客向け Web 予約申請の入力
 type CreateReservationCommand struct {
-	Name      string
-	People    int
-	VisitDate datetime.Date
-	VisitTime datetime.Time
-	Phone     string
-	Email     string
-	Note      string
+	Name           string
+	People         int
+	VisitDate      datetime.Date
+	VisitTime      datetime.Time
+	Phone          string
+	Email          string
+	Note           string
+	TurnstileToken string
+	RemoteIP       string
 }
 
 // CreateReservationUseCase は顧客向け予約作成
@@ -44,6 +46,7 @@ type CreateReservationUseCase struct {
 	resolver     *service.ScheduleResolver
 	availability *service.AvailabilityService
 	txManager    application.TxManager
+	verifier     CaptchaVerifier
 }
 
 // NewCreateReservationUseCase は CreateReservationUseCase の生成
@@ -52,12 +55,14 @@ func NewCreateReservationUseCase(
 	resolver *service.ScheduleResolver,
 	availability *service.AvailabilityService,
 	txManager application.TxManager,
+	verifier CaptchaVerifier,
 ) *CreateReservationUseCase {
 	return &CreateReservationUseCase{
 		repo:         repo,
 		resolver:     resolver,
 		availability: availability,
 		txManager:    txManager,
+		verifier:     verifier,
 	}
 }
 
@@ -66,6 +71,10 @@ func (u *CreateReservationUseCase) Execute(ctx context.Context, cmd CreateReserv
 	violations := validateCreateReservation(cmd, time.Now())
 	if len(violations) > 0 {
 		return nil, &ValidationError{Violations: violations}
+	}
+
+	if err := u.verifier.Verify(ctx, cmd.TurnstileToken, cmd.RemoteIP); err != nil {
+		return nil, err
 	}
 
 	eff, err := u.resolver.ResolveForDate(ctx, cmd.VisitDate)

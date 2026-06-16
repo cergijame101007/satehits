@@ -18,6 +18,7 @@ const (
 	NotFoundCode            = "NOT_FOUND"
 	CapacityExceededCode    = "CAPACITY_EXCEEDED"
 	ReservationConflictCode = "RESERVATION_CONFLICT"
+	CaptchaFailedCode       = "CAPTCHA_FAILED"
 	InternalErrorCode       = "INTERNAL_ERROR"
 )
 

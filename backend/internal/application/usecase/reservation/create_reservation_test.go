@@ -98,7 +98,7 @@ func (r *createTestReservationRepo) SumApprovedPeopleByDateRange(_ context.Conte
 func newCreateReservationUseCaseForTest(sched createTestScheduleRepo, repo *createTestReservationRepo) *CreateReservationUseCase {
 	resolver := service.NewScheduleResolver(sched)
 	avail := service.NewAvailabilityService(resolver, repo)
-	return NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{})
+	return NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, NoOpCaptchaVerifier{})
 }
 
 // firstBookableWeekday は JST 基準で翌日〜14日先の範囲内で最初の指定曜日を返す
@@ -344,6 +344,44 @@ func TestCreateReservationUseCase_Execute_availability(t *testing.T) {
 		assertHasViolationField(t, vErr.Violations, "visit_time")
 		if len(repo.created) != 0 {
 			t.Fatalf("created count = %d, want 0", len(repo.created))
+		}
+	})
+}
+
+type fakeCaptchaVerifier struct {
+	err error
+}
+
+func (f fakeCaptchaVerifier) Verify(context.Context, string, string) error {
+	return f.err
+}
+
+func TestCreateReservationUseCase_Execute_captcha(t *testing.T) {
+	now := time.Now().In(storeLocation)
+	sunday := firstBookableWeekday(t, now, time.Sunday)
+	repo := &createTestReservationRepo{approvedByDate: map[string]int{sunday.String(): 3}}
+	sched := createTestScheduleRepo{
+		byDate: map[string]domain.Schedule{
+			sunday.String(): {Date: sunday, ScheduleType: domain.ScheduleTypeMorning, Capacity: 10},
+		},
+	}
+	resolver := service.NewScheduleResolver(sched)
+	avail := service.NewAvailabilityService(resolver, repo)
+	cmd := validCreateCommandForDate(sunday)
+
+	t.Run("creates reservation when captcha verification succeeds", func(t *testing.T) {
+		uc := NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, fakeCaptchaVerifier{})
+		_, err := uc.Execute(context.Background(), cmd)
+		if err != nil {
+			t.Fatalf("Execute() err = %v, want nil", err)
+		}
+	})
+
+	t.Run("returns captcha failed when verification fails", func(t *testing.T) {
+		uc := NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, fakeCaptchaVerifier{err: domain.ErrCaptchaFailed})
+		_, err := uc.Execute(context.Background(), cmd)
+		if !errors.Is(err, domain.ErrCaptchaFailed) {
+			t.Fatalf("Execute() err = %v, want ErrCaptchaFailed", err)
 		}
 	})
 }

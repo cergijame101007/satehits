@@ -14,7 +14,7 @@ type Config struct {
 	JWTSecret       []byte
 	CORSOrigins     []string
 	CookieDomain    string
-	RecaptchaSecret string
+	TurnstileSecret string
 	Environment     string
 	MigrationsDir   string
 }
@@ -46,7 +46,7 @@ func Load() Config {
 		JWTSecret:       []byte(jwtSecret),
 		CORSOrigins:     corsOrigins,
 		CookieDomain:    os.Getenv("COOKIE_DOMAIN"),
-		RecaptchaSecret: os.Getenv("RECAPTCHA_SECRET_KEY"),
+		TurnstileSecret: os.Getenv("TURNSTILE_SECRET_KEY"),
 		Environment:     os.Getenv("ENVIRONMENT"),
 		MigrationsDir:   migrationsDir,
 	}

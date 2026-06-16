@@ -14,6 +14,7 @@ import (
 	scheduleusecase "github.com/cergijame101007/satehits/internal/application/usecase/schedule"
 	"github.com/cergijame101007/satehits/internal/domain/service"
 	"github.com/cergijame101007/satehits/internal/handler"
+	"github.com/cergijame101007/satehits/internal/infrastructure/external/turnstile"
 	"github.com/cergijame101007/satehits/internal/repository"
 	"github.com/cergijame101007/satehits/pkg/config"
 	"github.com/cergijame101007/satehits/pkg/jwt"
@@ -58,6 +59,9 @@ func main() {
 	availabilityPath := reservationsPath + "/availability"
 	availabilityHandler := handler.NewAvailabilityHandler(getAvailability, availabilityPath)
 
+	publicSchedulesPath := "/api/" + apiVersion + "/schedules"
+	publicScheduleHandler := handler.NewPublicScheduleHandler(getAvailability, publicSchedulesPath)
+
 	listReservations := reservationusecase.NewListReservationsUseCase(reservationRepo)
 	createAdminReservation := reservationusecase.NewCreateAdminReservationUseCase(reservationRepo)
 	updateReservationStatus := reservationusecase.NewUpdateReservationStatusUseCase(reservationRepo)
@@ -80,7 +84,14 @@ func main() {
 	refreshTokenRepo := repository.NewPostgresRefreshTokenRepository(db)
 	txManager := repository.NewTxManager(db)
 
-	createReservation := reservationusecase.NewCreateReservationUseCase(reservationRepo, scheduleResolver, availabilityService, txManager)
+	var captchaVerifier reservationusecase.CaptchaVerifier = reservationusecase.NoOpCaptchaVerifier{}
+	if cfg.TurnstileSecret != "" && cfg.Environment != "development" {
+		captchaVerifier = turnstile.NewVerifier(cfg.TurnstileSecret, nil)
+	}
+
+	createReservation := reservationusecase.NewCreateReservationUseCase(
+		reservationRepo, scheduleResolver, availabilityService, txManager, captchaVerifier,
+	)
 	reservationHandler := handler.NewReservationHandler(reservationRepo, createReservation, reservationsPath)
 
 	loginUC := authusecase.NewLoginUseCase(adminUserRepo, refreshTokenRepo, jwtService)
@@ -91,6 +102,7 @@ func main() {
 	// ルーティング（公開 API は /api/v1/...）
 	http.HandleFunc("/", handleRoot)
 	http.HandleFunc(availabilityPath, availabilityHandler.HandleAvailability)
+	http.HandleFunc(publicSchedulesPath, publicScheduleHandler.HandlePublicSchedules)
 	http.HandleFunc(reservationsPath, reservationHandler.HandleReservations)
 
 	// 認証エンドポイント、login / refresh は AT 不要
