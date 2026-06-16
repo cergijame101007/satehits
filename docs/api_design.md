@@ -176,7 +176,7 @@ Web からの予約を申請する。リクエストボディに **`status` や 
   "phone": "090-1234-5678",
   "email": "yamada@example.com",
   "note": "エビアレルギーあり",
-  "recaptcha_token": "xxxxx"
+  "turnstile_token": "xxxxx"
 }
 ```
 
@@ -189,7 +189,7 @@ Web からの予約を申請する。リクエストボディに **`status` や 
 | phone | string | Yes | 電話番号 |
 | email | string | Yes | メールアドレス |
 | note | string | No | 備考 |
-| recaptcha_token | string | Yes | reCAPTCHAトークン |
+| turnstile_token | string | Yes | Cloudflare Turnstile トークン |
 
 #### バリデーションルール
 
