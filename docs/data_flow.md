@@ -109,11 +109,11 @@ flowchart TB
 
     subgraph ReservationData[予約データ集計]
         Reservations[reservations]
-        SumPeople[承認済み予約の人数合計]
+        SumPeople[予約済み（pending + approved）の人数合計]
     end
 
     subgraph Calculation[計算]
-        Calc[残り食数 = 提供可能数 - 承認済み人数]
+        Calc[残り食数 = 提供可能数 - 予約済み人数]
     end
 
     subgraph Output[出力]

@@ -12,12 +12,13 @@ import (
 // validCreateReservationCommand は公開予約 API の正常系ベース（2026-05-16 土・JST 基準）
 func validCreateReservationCommand() CreateReservationCommand {
 	return CreateReservationCommand{
-		Name:      "山田太郎",
-		People:    2,
-		VisitDate: datetime.MustParseDate("2026-05-16"),
-		VisitTime: datetime.MustParseTime("12:00"),
-		Phone:     "090-1234-5678",
-		Email:     "a@example.com",
+		Name:           "山田太郎",
+		People:         2,
+		VisitDate:      datetime.MustParseDate("2026-05-16"),
+		VisitTime:      datetime.MustParseTime("12:00"),
+		Phone:          "090-1234-5678",
+		Email:          "a@example.com",
+		TurnstileToken: DevBypassTurnstileToken,
 	}
 }
 

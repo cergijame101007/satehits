@@ -987,6 +987,7 @@ components:
           type: integer
         reserved:
           type: integer
+          description: pending と approved の予約人数合計（NOTE: ローンチ前に要確認 pending を reserved に含める仮方針）
         available:
           type: integer
         schedule_type:
@@ -1017,7 +1018,7 @@ components:
 
     CreateReservationRequest:
       type: object
-      required: [name, people, visit_date, visit_time, phone, email, recaptcha_token]
+      required: [name, people, visit_date, visit_time, phone, email, turnstile_token]
       properties:
         name:
           type: string
@@ -1041,8 +1042,9 @@ components:
         note:
           type: string
           maxLength: 500
-        recaptcha_token:
+        turnstile_token:
           type: string
+          description: Cloudflare Turnstile トークン
 
     ReservationResponse:
       type: object

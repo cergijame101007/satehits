@@ -208,12 +208,13 @@ RETURNING id, name, people, visit_date, visit_time, phone, email,
 	return reservation, nil
 }
 
-// SumApprovedPeopleByDate は指定日の承認済み予約人数合計を返す
-func (r *PostgresReservationRepository) SumApprovedPeopleByDate(ctx context.Context, date datetime.Date) (int, error) {
+// SumReservedPeopleByDate は指定日の予約済み人数合計（pending + approved）を返す
+// NOTE: ローンチ前に要確認 pending を reserved に含める仮方針
+func (r *PostgresReservationRepository) SumReservedPeopleByDate(ctx context.Context, date datetime.Date) (int, error) {
 	query := `
 SELECT COALESCE(SUM(people), 0)
 FROM reservations
-WHERE visit_date = $1 AND status = 'approved'`
+WHERE visit_date = $1 AND status IN ('pending', 'approved')`
 	var total int
 	if err := r.getDB(ctx).QueryRowContext(ctx, query, date).Scan(&total); err != nil {
 		return 0, err
@@ -221,12 +222,13 @@ WHERE visit_date = $1 AND status = 'approved'`
 	return total, nil
 }
 
-// SumApprovedPeopleByDateRange は期間内の日付別・承認済み予約人数合計を返す
-func (r *PostgresReservationRepository) SumApprovedPeopleByDateRange(ctx context.Context, from, to datetime.Date) (map[string]int, error) {
+// SumReservedPeopleByDateRange は期間内の日付別・予約済み人数合計（pending + approved）を返す
+// NOTE: ローンチ前に要確認 pending を reserved に含める仮方針
+func (r *PostgresReservationRepository) SumReservedPeopleByDateRange(ctx context.Context, from, to datetime.Date) (map[string]int, error) {
 	query := `
 SELECT visit_date, COALESCE(SUM(people), 0)
 FROM reservations
-WHERE visit_date >= $1 AND visit_date <= $2 AND status = 'approved'
+WHERE visit_date >= $1 AND visit_date <= $2 AND status IN ('pending', 'approved')
 GROUP BY visit_date`
 	rows, err := r.getDB(ctx).QueryContext(ctx, query, from, to)
 	if err != nil {

@@ -20,6 +20,7 @@ type Availability struct {
 }
 
 // AvailabilityService は空き状況を計算する Domain Service
+// NOTE: ローンチ前に要確認 pending を reserved に含める仮方針
 type AvailabilityService struct {
 	resolver *ScheduleResolver
 	repo     domain.ReservationRepository
@@ -37,7 +38,7 @@ func (s *AvailabilityService) ResolveForDate(ctx context.Context, date datetime.
 		return Availability{}, err
 	}
 
-	reserved, err := s.repo.SumApprovedPeopleByDate(ctx, date)
+	reserved, err := s.repo.SumReservedPeopleByDate(ctx, date)
 	if err != nil {
 		return Availability{}, err
 	}
@@ -53,7 +54,7 @@ func (s *AvailabilityService) ResolveMonth(ctx context.Context, year, month int)
 	}
 
 	from, to := MonthDateRange(year, month)
-	reservedByDate, err := s.repo.SumApprovedPeopleByDateRange(ctx, from, to)
+	reservedByDate, err := s.repo.SumReservedPeopleByDateRange(ctx, from, to)
 	if err != nil {
 		return nil, err
 	}

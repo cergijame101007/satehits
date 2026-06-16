@@ -50,11 +50,11 @@ func (f *fakeReservationRepo) UpdateStatus(_ context.Context, id uuid.UUID, stat
 	return updated, nil
 }
 
-func (f *fakeReservationRepo) SumApprovedPeopleByDate(context.Context, datetime.Date) (int, error) {
+func (f *fakeReservationRepo) SumReservedPeopleByDate(context.Context, datetime.Date) (int, error) {
 	return 0, nil
 }
 
-func (f *fakeReservationRepo) SumApprovedPeopleByDateRange(context.Context, datetime.Date, datetime.Date) (map[string]int, error) {
+func (f *fakeReservationRepo) SumReservedPeopleByDateRange(context.Context, datetime.Date, datetime.Date) (map[string]int, error) {
 	return map[string]int{}, nil
 }
 

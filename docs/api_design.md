@@ -155,7 +155,7 @@ GET /api/v1/reservations/availability?year=2026&month=2
 
 #### ビジネスロジック（概要）
 
-- `reserved`: その日付の、ステータスが `approved` の予約の人数合計。
+- `reserved`: その日付の、ステータスが `pending` または `approved` の予約の人数合計（NOTE: ローンチ前に要確認 pending を reserved に含める仮方針）
 - `available`: `capacity - reserved`（負にならないようクリップする等の詳細は実装・OpenAPIの例に従う）。
 - `is_holiday` / `schedule_type` / `capacity`: **`daily_schedules` の該当日行を正**とし、行が無い日はドメイン既定で合成した**その日の営業設定（有効なスケジュール）**に基づく（[docs/domain_knowledge.md](domain_knowledge.md) も参照）。
 
@@ -176,7 +176,7 @@ Web からの予約を申請する。リクエストボディに **`status` や 
   "phone": "090-1234-5678",
   "email": "yamada@example.com",
   "note": "エビアレルギーあり",
-  "recaptcha_token": "xxxxx"
+  "turnstile_token": "xxxxx"
 }
 ```
 
@@ -189,7 +189,7 @@ Web からの予約を申請する。リクエストボディに **`status` や 
 | phone | string | Yes | 電話番号 |
 | email | string | Yes | メールアドレス |
 | note | string | No | 備考 |
-| recaptcha_token | string | Yes | reCAPTCHAトークン |
+| turnstile_token | string | Yes | Cloudflare Turnstile トークン |
 
 #### バリデーションルール
 
@@ -466,6 +466,14 @@ Cookie の RT を revoke し、同名 Cookie を削除する。リクエスト�
 **成功時（204 No Content）** — `Set-Cookie` で `refresh_token` を `Max-Age=0` にして削除。
 
 **認証エラー時（401 Unauthorized）** — AT 無し・無効時は `UNAUTHORIZED` / `INVALID_TOKEN`。
+
+---
+
+### 管理者予約 API（`/admin/reservations`）
+
+#### TODO（未実装）
+
+- **pending 放置対策メール（オーナー向け）**: メール機能実装時、またはその前に実装する。Web 申請で `status = pending` のまま来店日（`visit_date`）の **3日前** と **1日前** に、オーナーへ未対応リマインドを送る（重複送信防止・当日以降の扱いは要設計）。`reserved` に `pending` を含める方針（上記 NOTE 参照）のため、承認・拒否の遅延は空き表示と Web 申請可否に影響する
 
 ---
 

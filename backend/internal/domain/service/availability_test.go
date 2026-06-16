@@ -52,14 +52,14 @@ func (r availabilityReservationRepo) UpdateStatus(context.Context, uuid.UUID, st
 	return domain.Reservation{}, nil
 }
 
-func (r availabilityReservationRepo) SumApprovedPeopleByDate(_ context.Context, date datetime.Date) (int, error) {
+func (r availabilityReservationRepo) SumReservedPeopleByDate(_ context.Context, date datetime.Date) (int, error) {
 	if r.approvedByDate == nil {
 		return 0, nil
 	}
 	return r.approvedByDate[date.String()], nil
 }
 
-func (r availabilityReservationRepo) SumApprovedPeopleByDateRange(_ context.Context, from, to datetime.Date) (map[string]int, error) {
+func (r availabilityReservationRepo) SumReservedPeopleByDateRange(_ context.Context, from, to datetime.Date) (map[string]int, error) {
 	if r.approvedByDate == nil {
 		return map[string]int{}, nil
 	}

@@ -14,7 +14,7 @@ type Config struct {
 	JWTSecret       []byte
 	CORSOrigins     []string
 	CookieDomain    string
-	RecaptchaSecret string
+	TurnstileSecret string
 	Environment     string
 	MigrationsDir   string
 }
@@ -41,13 +41,19 @@ func Load() Config {
 		migrationsDir = "migrations"
 	}
 
+	environment := os.Getenv("ENVIRONMENT")
+	turnstileSecret := os.Getenv("TURNSTILE_SECRET_KEY")
+	if environment != "development" && turnstileSecret == "" {
+		log.Fatal("TURNSTILE_SECRET_KEY is required when ENVIRONMENT is not development")
+	}
+
 	return Config{
 		DatabaseURL:     dbURL,
 		JWTSecret:       []byte(jwtSecret),
 		CORSOrigins:     corsOrigins,
 		CookieDomain:    os.Getenv("COOKIE_DOMAIN"),
-		RecaptchaSecret: os.Getenv("RECAPTCHA_SECRET_KEY"),
-		Environment:     os.Getenv("ENVIRONMENT"),
+		TurnstileSecret: turnstileSecret,
+		Environment:     environment,
 		MigrationsDir:   migrationsDir,
 	}
 }

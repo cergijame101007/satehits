@@ -1,7 +1,38 @@
 import { useState, type FormEvent } from 'react';
 import type { AdminReservationRequest } from '../../types/reservation';
 import { createAdminReservation, ReservationApiError } from '@/lib/adminReservation';
+import { getAvailability } from '@/lib/availability';
 import DatePickerField from '@/components/react/DatePickerField';
+
+/** pending / approved は reserved 集計対象。超過時は登録前に確認する */
+async function confirmIfCapacityExceeded(
+  visitDate: string,
+  people: number,
+  status: string,
+): Promise<boolean> {
+  if (status !== 'pending' && status !== 'approved') {
+    return true;
+  }
+
+  try {
+    const availability = await getAvailability(visitDate);
+    if (availability.is_holiday) {
+      return true;
+    }
+
+    const { capacity, reserved } = availability;
+    if (reserved + people <= capacity) {
+      return true;
+    }
+
+    const total = reserved + people;
+    return window.confirm(
+      `提供可能数（${capacity}食）を超えて登録されます（予約済み ${reserved}食 + 今回 ${people}食 = ${total}食）。このまま登録しますか？`,
+    );
+  } catch {
+    return true;
+  }
+}
 
 export default function ReservationCreateForm() {
   const [form, setForm] = useState<AdminReservationRequest>({
@@ -48,6 +79,10 @@ export default function ReservationCreateForm() {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!validate()) return;
+
+    const status = form.status ?? 'approved';
+    const confirmed = await confirmIfCapacityExceeded(form.visit_date, form.people, status);
+    if (!confirmed) return;
 
     setIsSubmitting(true);
     setErrors({});
