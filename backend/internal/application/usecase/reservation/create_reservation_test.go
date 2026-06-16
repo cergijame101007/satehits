@@ -73,14 +73,14 @@ func (r *createTestReservationRepo) UpdateStatus(context.Context, uuid.UUID, str
 	return domain.Reservation{}, nil
 }
 
-func (r *createTestReservationRepo) SumApprovedPeopleByDate(_ context.Context, date datetime.Date) (int, error) {
+func (r *createTestReservationRepo) SumReservedPeopleByDate(_ context.Context, date datetime.Date) (int, error) {
 	if r.approvedByDate == nil {
 		return 0, nil
 	}
 	return r.approvedByDate[date.String()], nil
 }
 
-func (r *createTestReservationRepo) SumApprovedPeopleByDateRange(_ context.Context, from, to datetime.Date) (map[string]int, error) {
+func (r *createTestReservationRepo) SumReservedPeopleByDateRange(_ context.Context, from, to datetime.Date) (map[string]int, error) {
 	if r.approvedByDate == nil {
 		return map[string]int{}, nil
 	}

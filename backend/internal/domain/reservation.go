@@ -89,8 +89,9 @@ type ReservationRepository interface {
 	List(ctx context.Context, f ListReservationsFilter) ([]Reservation, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Reservation, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status string) (Reservation, error)
-	// SumApprovedPeopleByDate は指定日の承認済み予約人数合計を返す
-	SumApprovedPeopleByDate(ctx context.Context, date datetime.Date) (int, error)
-	// SumApprovedPeopleByDateRange は期間内の日付別・承認済み予約人数合計を返す（キー: YYYY-MM-DD）
-	SumApprovedPeopleByDateRange(ctx context.Context, from, to datetime.Date) (map[string]int, error)
+	// SumReservedPeopleByDate は指定日の予約済み人数合計（pending + approved）を返す
+	// NOTE: ローンチ前に要確認 pending を reserved に含める仮方針
+	SumReservedPeopleByDate(ctx context.Context, date datetime.Date) (int, error)
+	// SumReservedPeopleByDateRange は期間内の日付別・予約済み人数合計（pending + approved、キー: YYYY-MM-DD）を返す
+	SumReservedPeopleByDateRange(ctx context.Context, from, to datetime.Date) (map[string]int, error)
 }
