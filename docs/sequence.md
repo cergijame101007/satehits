@@ -26,8 +26,8 @@ sequenceDiagram
     
     AvailService->>AvailService: その日の営業設定（有効なスケジュール）の解決（DB行を正、無ければドメイン既定で合成）
     
-    AvailService->>ReservationRepo: CountApprovedPeopleByDate(date)
-    ReservationRepo->>DB: SELECT SUM(people) FROM reservations WHERE visit_date = ? AND status = 'approved'
+    AvailService->>ReservationRepo: SumReservedPeopleByDate(date)
+    ReservationRepo->>DB: SELECT SUM(people) FROM reservations WHERE visit_date = ? AND status IN ('pending', 'approved')
     DB-->>ReservationRepo: 6
     ReservationRepo-->>AvailService: 6
     

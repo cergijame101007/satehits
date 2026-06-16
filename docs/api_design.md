@@ -155,7 +155,7 @@ GET /api/v1/reservations/availability?year=2026&month=2
 
 #### ビジネスロジック（概要）
 
-- `reserved`: その日付の、ステータスが `approved` の予約の人数合計。
+- `reserved`: その日付の、ステータスが `pending` または `approved` の予約の人数合計（NOTE: ローンチ前に要確認 pending を reserved に含める仮方針）
 - `available`: `capacity - reserved`（負にならないようクリップする等の詳細は実装・OpenAPIの例に従う）。
 - `is_holiday` / `schedule_type` / `capacity`: **`daily_schedules` の該当日行を正**とし、行が無い日はドメイン既定で合成した**その日の営業設定（有効なスケジュール）**に基づく（[docs/domain_knowledge.md](domain_knowledge.md) も参照）。
 
