@@ -1,0 +1,13 @@
+# environment variables
+.env
+.env.*
+!.env.example
+
+# build output
+dist/
+
+# generated types
+.astro/
+
+# dependencies
+node_modules/
