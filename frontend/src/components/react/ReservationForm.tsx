@@ -1,6 +1,8 @@
-import { useState, useEffect, useMemo, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, useCallback, type FormEvent } from 'react';
 import type { ReservationRequest, AvailabilityResponse } from '../../types/reservation';
 import { fetchAvailabilityMapForRange, toAvailabilityErrorMessage } from '@/lib/availability';
+import { createReservation, ReservationApiError } from '@/lib/reservation';
+import TurnstileWidget from '@/components/react/TurnstileWidget';
 
 /** 日付を YYYY-MM-DD 形式にフォーマット */
 function formatDate(date: Date): string {
@@ -196,6 +198,8 @@ export default function ReservationForm() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [availabilityMap, setAvailabilityMap] = useState<Map<string, AvailabilityResponse>>(new Map());
   const [isAvailabilityLoading, setIsAvailabilityLoading] = useState(true);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
@@ -231,6 +235,8 @@ export default function ReservationForm() {
     };
   }, []);
 
+  const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? '';
+  const isTurnstileEnabled = Boolean(turnstileSiteKey);
   const timeSlots = selectedDate ? getTimeSlots() : [];
 
   const handleDateSelect = (dateStr: string) => {
@@ -273,9 +279,37 @@ export default function ReservationForm() {
     return Object.keys(newErrors).length === 0;
   };
 
+  const handleTurnstileToken = useCallback((token: string) => {
+    setTurnstileToken(token);
+    if (token) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.turnstile;
+        return next;
+      });
+    }
+  }, []);
+
+  const handleTurnstileError = useCallback(() => {
+    setErrors((prev) => ({
+      ...prev,
+      turnstile: '認証に失敗しました。もう一度お試しください',
+    }));
+  }, []);
+
+  const resetTurnstile = () => {
+    setTurnstileToken('');
+    setTurnstileResetKey((prev) => prev + 1);
+  };
+
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!validate()) return;
+
+    if (isTurnstileEnabled && !turnstileToken) {
+      setErrors((prev) => ({ ...prev, turnstile: '認証を完了してください' }));
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -287,17 +321,12 @@ export default function ReservationForm() {
       phone: form.phone.trim(),
       email: form.email.trim(),
       note: form.note.trim(),
-      recaptcha_token: 'mock-token', // TODO: reCAPTCHAトークンを取得
+      turnstile_token: isTurnstileEnabled ? turnstileToken : 'dev-bypass',
     };
 
     try {
-      // TODO: POST /api/v1/reservations に置き換え
-      console.log('予約申請:', payload);
+      await createReservation(payload);
 
-      // モック: 1秒待ってから完了画面に遷移
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // 完了画面に予約情報を渡す
       sessionStorage.setItem('reservation_complete', JSON.stringify({
         visit_date: formatDateJa(selectedDate!),
         visit_time: form.visit_time,
@@ -306,7 +335,22 @@ export default function ReservationForm() {
       }));
 
       window.location.href = '/reservation/complete';
-    } catch {
+    } catch (err) {
+      resetTurnstile();
+
+      if (err instanceof ReservationApiError) {
+        if (err.code === 'VALIDATION_ERROR' && err.details?.length) {
+          const fieldErrors: Record<string, string> = {};
+          for (const detail of err.details) {
+            fieldErrors[detail.field] = detail.message;
+          }
+          setErrors(fieldErrors);
+          return;
+        }
+        setErrors({ submit: err.message });
+        return;
+      }
+
       setErrors({ submit: '予約の申請に失敗しました。時間をおいて再度お試しください。' });
     } finally {
       setIsSubmitting(false);
@@ -464,16 +508,20 @@ export default function ReservationForm() {
         {errors.note && <p className="text-red-500 text-sm mt-1">{errors.note}</p>}
       </section>
 
-      {/* reCAPTCHA placeholder */}
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 flex items-center gap-3">
-        <div className="w-7 h-7 border-2 border-gray-300 rounded flex items-center justify-center">
-          <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-        </div>
-        <span className="text-sm text-gray-600">reCAPTCHA（モック）</span>
-        {/* TODO: Google reCAPTCHA v2/v3 を導入 */}
-      </div>
+      {/* Turnstile */}
+      {isTurnstileEnabled ? (
+        <section>
+          <TurnstileWidget
+            siteKey={turnstileSiteKey}
+            onToken={handleTurnstileToken}
+            onError={handleTurnstileError}
+            resetKey={turnstileResetKey}
+          />
+          {errors.turnstile && <p className="text-red-500 text-sm mt-2">{errors.turnstile}</p>}
+        </section>
+      ) : (
+        <p className="text-xs text-gray-400">開発環境: Turnstile サイトキー未設定のため認証をスキップします</p>
+      )}
 
       {/* エラーメッセージ */}
       {errors.submit && (
@@ -485,7 +533,12 @@ export default function ReservationForm() {
       {/* 送信ボタン */}
       <button
         type="submit"
-        disabled={isSubmitting || isAvailabilityLoading || !!availabilityError}
+        disabled={
+          isSubmitting ||
+          isAvailabilityLoading ||
+          !!availabilityError ||
+          (isTurnstileEnabled && !turnstileToken)
+        }
         className={`w-full py-4 rounded-xl text-white font-medium text-lg transition-all ${
           isSubmitting
             ? 'bg-gray-400 cursor-not-allowed'

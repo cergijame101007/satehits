@@ -29,7 +29,7 @@ export interface ReservationRequest {
   phone: string;
   email: string;
   note: string;
-  recaptcha_token: string;
+  turnstile_token: string;
 }
 
 /** 空き状況レスポンス */
