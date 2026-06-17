@@ -36,7 +36,8 @@ function hasMorningCircle(schedule: PublicDaySchedule | undefined): boolean {
 
 interface EventInfoItem {
   date: string;
-  title: string;
+  dateLabel: string;
+  name: string;
   description?: string;
 }
 
@@ -49,7 +50,8 @@ function toEventInfoItem(schedule: PublicDaySchedule): EventInfoItem {
 
   return {
     date: schedule.date,
-    title: `${month}/${day}(${weekday})…${name}`,
+    dateLabel: `${month}/${day}(${weekday})…`,
+    name,
     description: schedule.event_description?.trim() || undefined,
   };
 }
@@ -242,15 +244,18 @@ export default function PublicScheduleCalendar() {
         </p>
 
         {eventItems.length > 0 && (
-          <div className="space-y-2">
-            <p className="font-medium text-accent">◎Event Info</p>
-            <ul className="space-y-2 pl-1">
+          <div className="space-y-2 font-bold text-xs sm:text-sm">
+            <p className="text-accent">◎ Event Info</p>
+            <ul className="text-xs sm:text-sm">
               {eventItems.map((item) => (
-                <li key={item.date}>
-                  <p className="text-accent">{item.title}</p>
-                  {item.description && (
-                    <p className="text-[11px] text-accent sm:text-xs">{item.description}</p>
-                  )}
+                <li key={item.date} className="flex items-start text-accent">
+                  <span className="shrink-0">{item.dateLabel}</span>
+                  <div className="min-w-0">
+                    <p>{item.name}</p>
+                    {item.description && (
+                      <p className="text-[11px] sm:text-xs">{item.description}</p>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
