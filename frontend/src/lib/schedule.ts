@@ -2,13 +2,20 @@ import { authedFetch } from '@/lib/api';
 import type { DailySchedule, ScheduleType } from '@/types/reservation';
 
 /** API が受け付ける schedule_type（docs/api_design.md） */
-export type ApiScheduleType = 'normal' | 'morning' | 'event' | 'special_menu' | 'closed';
+export type ApiScheduleType =
+  | 'normal'
+  | 'morning'
+  | 'event'
+  | 'external_event'
+  | 'special_menu'
+  | 'closed';
 
 /** フォームで選択可能なタイプ（API 未対応の temporary_closed は除外） */
 export const editableScheduleTypes: ScheduleType[] = [
   'normal',
   'morning',
   'event',
+  'external_event',
   'special',
   'closed',
 ];
@@ -78,7 +85,13 @@ function toApiScheduleType(type: ScheduleType): ApiScheduleType {
 
 function fromApiScheduleType(type: string): ScheduleType {
   if (type === 'special_menu') return 'special';
-  if (type === 'normal' || type === 'morning' || type === 'event' || type === 'closed') {
+  if (
+    type === 'normal' ||
+    type === 'morning' ||
+    type === 'event' ||
+    type === 'external_event' ||
+    type === 'closed'
+  ) {
     return type;
   }
   return 'normal';
@@ -101,11 +114,16 @@ function buildSetScheduleRequest(
   description: string,
 ): SetScheduleRequest {
   const schedule_type = toApiScheduleType(type);
-  const body: SetScheduleRequest = { schedule_type, capacity };
+  const body: SetScheduleRequest = {
+    schedule_type,
+    capacity: type === 'external_event' ? 0 : capacity,
+  };
 
-  if (type === 'event') {
-    body.event_name = eventName;
-    body.event_description = description;
+  if (type === 'event' || type === 'external_event') {
+    body.event_name = eventName.trim();
+    if (description.trim()) {
+      body.event_description = description.trim();
+    }
   } else if (type === 'special') {
     if (eventName.trim()) body.event_name = eventName.trim();
     if (description.trim()) body.event_description = description.trim();

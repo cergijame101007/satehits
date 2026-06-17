@@ -56,6 +56,7 @@ export type PublicScheduleType =
   | 'normal'
   | 'morning'
   | 'event'
+  | 'external_event'
   | 'special_menu'
   | 'closed';
 
@@ -95,7 +96,14 @@ export interface LoginResponse {
 }
 
 /** 日別スケジュールタイプ */
-export type ScheduleType = 'normal' | 'morning' | 'event' | 'special' | 'closed' | 'temporary_closed';
+export type ScheduleType =
+  | 'normal'
+  | 'morning'
+  | 'event'
+  | 'external_event'
+  | 'special'
+  | 'closed'
+  | 'temporary_closed';
 
 /** 日別スケジュール */
 export interface DailySchedule {

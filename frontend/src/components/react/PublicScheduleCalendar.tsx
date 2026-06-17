@@ -3,6 +3,7 @@ import type { PublicDaySchedule } from '@/types/reservation';
 import { buildMonthDatesFixedGrid } from '@/lib/calendarUtils';
 import { getJapaneseMonthName } from '@/lib/japaneseMonth';
 import { getStoreHoursHeaderContent } from '@/lib/storeHours';
+import { getPublicScheduleCellDisplay, shouldShowClosedMark } from '@/lib/publicScheduleCell';
 import { listPublicSchedules } from '@/lib/publicSchedule';
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'] as const;
@@ -10,22 +11,26 @@ const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'] as const;
 const GRID_CELL_BORDER =
   'border-r border-b border-primary/40 [&:nth-child(7n)]:border-r-0 [&:nth-last-child(-n+7)]:border-b-0';
 
+/** 日付・休・Event バーを縦に収めるセル高さ */
+const CELL_MIN_HEIGHT = 'min-h-[4.5rem] sm:min-h-[5.25rem]';
+
+/** Event バー行の高さ（休の位置を Event あり/なしで揃える） */
+const EVENT_BAR_ROW = 'h-[1.125rem] shrink-0 sm:h-[1.25rem]';
+
+function EventBar() {
+  return (
+    <span className="flex h-full w-full items-center justify-center bg-[#6B3A32] text-[9px] tracking-wide text-white sm:text-[10px]">
+      Event
+    </span>
+  );
+}
+
 function parseDateLocal(dateStr: string): Date {
   return new Date(`${dateStr}T00:00:00`);
 }
 
-function isClosedDay(schedule: PublicDaySchedule | undefined): boolean {
-  if (!schedule) return false;
-  return schedule.is_holiday || schedule.schedule_type === 'closed';
-}
-
-function hasEventBanner(schedule: PublicDaySchedule | undefined): boolean {
-  if (!schedule || isClosedDay(schedule)) return false;
-  return schedule.schedule_type === 'event' || schedule.schedule_type === 'special_menu';
-}
-
 function hasMorningCircle(schedule: PublicDaySchedule | undefined): boolean {
-  if (!schedule || isClosedDay(schedule)) return false;
+  if (!schedule || shouldShowClosedMark(schedule)) return false;
   return schedule.schedule_type === 'morning';
 }
 
@@ -58,32 +63,36 @@ function CalendarCell({ dateStr, schedule }: CalendarCellProps) {
   const date = parseDateLocal(dateStr);
   const day = date.getDate();
   const isSunday = date.getDay() === 0;
-  const closed = isClosedDay(schedule);
   const morning = hasMorningCircle(schedule);
-  const event = hasEventBanner(schedule);
+  const { showClosedMark, showEventBar } = getPublicScheduleCellDisplay(schedule);
 
   return (
-    <div
-      className={`relative flex min-h-[3.25rem] flex-col items-center justify-start p-1 sm:min-h-[4rem] ${GRID_CELL_BORDER}`}
-    >
-      <span
-        className={`text-xs leading-none sm:text-sm ${
-          isSunday ? 'text-accent' : 'text-primary'
-        } ${morning ? 'flex h-6 w-6 items-center justify-center rounded-full border border-accent sm:h-7 sm:w-7' : ''}`}
-      >
-        {day}
-      </span>
-
-      {closed && (
-        <span className="absolute inset-0 flex items-center justify-center text-sm font-medium text-accent sm:text-base">
-          休
+    <div className={`flex ${CELL_MIN_HEIGHT} flex-col ${GRID_CELL_BORDER}`}>
+      <div className="flex min-h-0 flex-1 flex-col px-1 pt-1 sm:px-1.5 sm:pt-1.5">
+        <span
+          className={`shrink-0 self-center text-xs leading-none sm:text-sm ${
+            isSunday ? 'text-accent' : 'text-primary'
+          } ${morning ? 'flex h-6 w-6 items-center justify-center rounded-full border border-accent sm:h-7 sm:w-7' : ''}`}
+        >
+          {day}
         </span>
-      )}
 
-      {event && (
-        <span className="absolute bottom-0 left-0 right-0 bg-[#6B3A32] py-0.5 text-center text-[9px] tracking-wide text-white sm:text-[10px]">
-          Event
-        </span>
+        {showClosedMark && (
+          <div className="flex flex-1 items-center justify-center">
+            <span className="text-base font-medium leading-none text-accent sm:text-lg">休</span>
+          </div>
+        )}
+
+        {!showClosedMark && showEventBar && <div className="flex-1" aria-hidden="true" />}
+      </div>
+
+      {(showEventBar || showClosedMark) && (
+        <div
+          className={`${EVENT_BAR_ROW} w-full ${showEventBar ? '' : 'invisible'}`}
+          aria-hidden={!showEventBar}
+        >
+          {showEventBar && <EventBar />}
+        </div>
       )}
     </div>
   );
@@ -210,7 +219,7 @@ export default function PublicScheduleCalendar() {
             return (
               <div
                 key={`pad-${index}`}
-                className={`min-h-[3.25rem] sm:min-h-[4rem] ${GRID_CELL_BORDER}`}
+                className={`${CELL_MIN_HEIGHT} ${GRID_CELL_BORDER}`}
                 aria-hidden="true"
               />
             );
