@@ -68,7 +68,8 @@ func defaultBusinessHoursForType(scheduleType string) (openTime, lastOrder, clos
 // 店舗の開店時刻（ApplyDefaultBusinessHours）とは別。日曜朝営業は 8:30 開店だが予約は 11:30 から（domain_knowledge §4）。
 // closed や時刻未定の種別では ok=false。
 func BookingWindowMinutes(sch domain.Schedule) (openMinutes, lastOrderMinutes int, ok bool) {
-	if sch.ScheduleType == domain.ScheduleTypeClosed {
+	if sch.ScheduleType == domain.ScheduleTypeClosed ||
+		sch.ScheduleType == domain.ScheduleTypeExternalEvent {
 		return 0, 0, false
 	}
 

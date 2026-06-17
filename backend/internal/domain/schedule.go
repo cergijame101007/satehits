@@ -11,8 +11,9 @@ import (
 const (
 	ScheduleTypeNormal      = "normal"
 	ScheduleTypeMorning     = "morning"
-	ScheduleTypeEvent       = "event"
-	ScheduleTypeSpecialMenu = "special_menu"
+	ScheduleTypeEvent          = "event"
+	ScheduleTypeExternalEvent  = "external_event"
+	ScheduleTypeSpecialMenu    = "special_menu"
 	ScheduleTypeClosed      = "closed"
 )
 

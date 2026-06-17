@@ -16,11 +16,12 @@ const (
 )
 
 var allowedScheduleTypes = map[string]struct{}{
-	domain.ScheduleTypeNormal:      {},
-	domain.ScheduleTypeMorning:     {},
-	domain.ScheduleTypeEvent:       {},
-	domain.ScheduleTypeSpecialMenu: {},
-	domain.ScheduleTypeClosed:      {},
+	domain.ScheduleTypeNormal:         {},
+	domain.ScheduleTypeMorning:        {},
+	domain.ScheduleTypeEvent:          {},
+	domain.ScheduleTypeExternalEvent:  {},
+	domain.ScheduleTypeSpecialMenu:    {},
+	domain.ScheduleTypeClosed:         {},
 }
 
 func validateSetSchedule(cmd SetScheduleCommand) []FieldViolation {
@@ -52,8 +53,8 @@ func validateSetSchedule(cmd SetScheduleCommand) []FieldViolation {
 		if utf8.RuneCountInString(eventDesc) > maxEventDescriptionRunes {
 			violations = append(violations, FieldViolation{Field: "event_description", Message: fmt.Sprintf("イベント説明は%d文字以内で入力してください", maxEventDescriptionRunes)})
 		}
-		if st == domain.ScheduleTypeEvent {
-			violations = append(violations, validateEventSchedule(eventName, eventDesc)...)
+		if st == domain.ScheduleTypeEvent || st == domain.ScheduleTypeExternalEvent {
+			violations = append(violations, validateEventNameRequired(eventName)...)
 		}
 	}
 
@@ -81,14 +82,11 @@ func validateForbiddenEventText(eventName, eventDesc string) []FieldViolation {
 	return violations
 }
 
-// validateEventSchedule は event 時の名称・説明必須（営業時刻は任意・未指定時は店舗デフォルトを補完）
-func validateEventSchedule(eventName, eventDesc string) []FieldViolation {
+// validateEventNameRequired は event / external_event 時の名称必須（説明は任意）
+func validateEventNameRequired(eventName string) []FieldViolation {
 	var violations []FieldViolation
 	if eventName == "" {
 		violations = append(violations, FieldViolation{Field: "event_name", Message: "イベント名は必須です"})
-	}
-	if eventDesc == "" {
-		violations = append(violations, FieldViolation{Field: "event_description", Message: "イベント説明は必須です"})
 	}
 	return violations
 }

@@ -260,15 +260,15 @@ func TestCreateReservationUseCase_Execute_availability(t *testing.T) {
 		}
 	})
 
-	t.Run("rejects event day with zero capacity", func(t *testing.T) {
+	t.Run("rejects external_event day with visit_date", func(t *testing.T) {
 		repo := &createTestReservationRepo{}
 		uc := newCreateReservationUseCaseForTest(createTestScheduleRepo{
 			byDate: map[string]domain.Schedule{
 				sunday.String(): {
 					Date:         sunday,
-					ScheduleType: domain.ScheduleTypeEvent,
+					ScheduleType: domain.ScheduleTypeExternalEvent,
 					Capacity:     0,
-					EventName:    "evt",
+					EventName:    "和紅茶をしばく会",
 				},
 			},
 		}, repo)
@@ -277,8 +277,38 @@ func TestCreateReservationUseCase_Execute_availability(t *testing.T) {
 		cmd.People = 1
 
 		_, err := uc.Execute(context.Background(), cmd)
-		if !errors.Is(err, domain.ErrCapacityExceeded) {
-			t.Fatalf("Execute() err = %v, want ErrCapacityExceeded", err)
+		if err == nil {
+			t.Fatal("Execute() err = nil, want ValidationError")
+		}
+		var vErr *ValidationError
+		if !errors.As(err, &vErr) {
+			t.Fatalf("Execute() err = %v, want ValidationError", err)
+		}
+		assertHasViolationField(t, vErr.Violations, "visit_date")
+	})
+
+	t.Run("accepts in_store event day with available capacity", func(t *testing.T) {
+		repo := &createTestReservationRepo{}
+		uc := newCreateReservationUseCaseForTest(createTestScheduleRepo{
+			byDate: map[string]domain.Schedule{
+				sunday.String(): {
+					Date:         sunday,
+					ScheduleType: domain.ScheduleTypeEvent,
+					Capacity:     10,
+					EventName:    "店内イベント",
+				},
+			},
+		}, repo)
+
+		cmd := validCreateCommandForDate(sunday)
+		cmd.People = 2
+
+		_, err := uc.Execute(context.Background(), cmd)
+		if err != nil {
+			t.Fatalf("Execute() err = %v, want nil", err)
+		}
+		if len(repo.created) != 1 {
+			t.Fatalf("created count = %d, want 1", len(repo.created))
 		}
 	})
 

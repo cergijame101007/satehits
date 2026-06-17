@@ -88,13 +88,35 @@ func newAvailabilityHandlerForTest(sched handlerTestScheduleRepo, res handlerTes
 }
 
 func TestToAvailabilityResponse(t *testing.T) {
-	t.Run("sets schedule_type to null on holiday", func(t *testing.T) {
+	t.Run("sets schedule_type to null on closed holiday", func(t *testing.T) {
 		resp := toAvailabilityResponse(service.Availability{
-			Date:      datetime.MustParseDate("2026-05-21"),
-			IsHoliday: true,
+			Date:         datetime.MustParseDate("2026-05-21"),
+			ScheduleType: domain.ScheduleTypeClosed,
+			IsHoliday:    true,
 		})
 		if resp.ScheduleType != nil {
 			t.Fatalf("ScheduleType = %v, want nil", resp.ScheduleType)
+		}
+		if !resp.IsHoliday {
+			t.Fatal("IsHoliday = false, want true")
+		}
+	})
+
+	t.Run("preserves schedule_type and event fields on external_event holiday", func(t *testing.T) {
+		resp := toAvailabilityResponse(service.Availability{
+			Date:             datetime.MustParseDate("2026-02-11"),
+			ScheduleType:     domain.ScheduleTypeExternalEvent,
+			EventName:        "和紅茶をしばく会",
+			EventDescription: "入門編@WINE LAB",
+			IsHoliday:        true,
+			Capacity:         0,
+			Available:        0,
+		})
+		if resp.ScheduleType == nil || *resp.ScheduleType != domain.ScheduleTypeExternalEvent {
+			t.Fatalf("ScheduleType = %v, want external_event pointer", resp.ScheduleType)
+		}
+		if resp.EventName != "和紅茶をしばく会" {
+			t.Fatalf("EventName = %q", resp.EventName)
 		}
 		if !resp.IsHoliday {
 			t.Fatal("IsHoliday = false, want true")

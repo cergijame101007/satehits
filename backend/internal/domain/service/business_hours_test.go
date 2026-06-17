@@ -165,6 +165,11 @@ func TestBookingWindowMinutes(t *testing.T) {
 			schedule: domain.Schedule{ScheduleType: domain.ScheduleTypeClosed},
 			wantOK:   false,
 		},
+		{
+			name:     "external_event",
+			schedule: domain.Schedule{ScheduleType: domain.ScheduleTypeExternalEvent, EventName: "evt"},
+			wantOK:   false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

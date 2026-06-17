@@ -105,16 +105,55 @@ func TestAvailabilityService_ResolveForDate_normalDay(t *testing.T) {
 	}
 }
 
-func TestAvailabilityService_ResolveForDate_eventDayCapacityZero(t *testing.T) {
+func TestAvailabilityService_ResolveForDate_externalEventDay(t *testing.T) {
 	date := datetime.MustParseDate("2026-02-11")
 	svc := newAvailabilityService(availabilityScheduleRepo{
 		byDate: map[string]domain.Schedule{
 			date.String(): {
 				Date:             date,
-				ScheduleType:     domain.ScheduleTypeEvent,
+				ScheduleType:     domain.ScheduleTypeExternalEvent,
 				Capacity:         0,
 				EventName:        "和紅茶をしばく会",
 				EventDescription: "入門編",
+			},
+		},
+	}, availabilityReservationRepo{
+		approvedByDate: map[string]int{date.String(): 3},
+	})
+
+	got, err := svc.ResolveForDate(context.Background(), date)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if got.ScheduleType != domain.ScheduleTypeExternalEvent {
+		t.Fatalf("ScheduleType = %q, want external_event", got.ScheduleType)
+	}
+	if got.EventName != "和紅茶をしばく会" {
+		t.Fatalf("EventName = %q", got.EventName)
+	}
+	if got.EventDescription != "入門編" {
+		t.Fatalf("EventDescription = %q", got.EventDescription)
+	}
+	if got.Available != 0 || got.Capacity != 0 {
+		t.Fatalf("capacity/available = %d/%d, want 0/0", got.Capacity, got.Available)
+	}
+	if got.Reserved != 0 {
+		t.Fatalf("Reserved = %d, want 0", got.Reserved)
+	}
+	if !got.IsHoliday {
+		t.Fatal("IsHoliday = false, want true")
+	}
+}
+
+func TestAvailabilityService_ResolveForDate_inStoreEventWithDescriptionOptional(t *testing.T) {
+	date := datetime.MustParseDate("2026-02-09")
+	svc := newAvailabilityService(availabilityScheduleRepo{
+		byDate: map[string]domain.Schedule{
+			date.String(): {
+				Date:         date,
+				ScheduleType: domain.ScheduleTypeEvent,
+				Capacity:     10,
+				EventName:    "和紅茶をしばく会",
 			},
 		},
 	}, availabilityReservationRepo{})
@@ -123,17 +162,64 @@ func TestAvailabilityService_ResolveForDate_eventDayCapacityZero(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
-	if got.ScheduleType != domain.ScheduleTypeEvent {
-		t.Fatalf("ScheduleType = %q, want event", got.ScheduleType)
+	if got.IsHoliday {
+		t.Fatal("IsHoliday = true, want false")
 	}
-	if got.EventName != "和紅茶をしばく会" {
-		t.Fatalf("EventName = %q", got.EventName)
+	if got.Available != 10 {
+		t.Fatalf("Available = %d, want 10", got.Available)
 	}
-	if got.Available != 0 {
-		t.Fatalf("Available = %d, want 0", got.Available)
+}
+
+func TestAvailabilityService_ResolveForDate_storedInStoreEventOverridesDefaultClosed(t *testing.T) {
+	date := datetime.MustParseDate("2026-05-21") // 木曜・定例 closed
+	svc := newAvailabilityService(availabilityScheduleRepo{
+		byDate: map[string]domain.Schedule{
+			date.String(): {
+				Date:         date,
+				ScheduleType: domain.ScheduleTypeEvent,
+				Capacity:     10,
+				EventName:    "店内イベント",
+			},
+		},
+	}, availabilityReservationRepo{})
+
+	got, err := svc.ResolveForDate(context.Background(), date)
+	if err != nil {
+		t.Fatalf("err = %v", err)
 	}
 	if got.IsHoliday {
 		t.Fatal("IsHoliday = true, want false")
+	}
+	if got.ScheduleType != domain.ScheduleTypeEvent {
+		t.Fatalf("ScheduleType = %q, want event", got.ScheduleType)
+	}
+}
+
+func TestAvailabilityService_ResolveForDate_storedExternalEventOverridesDefaultClosed(t *testing.T) {
+	date := datetime.MustParseDate("2026-05-21") // 木曜・定例 closed
+	svc := newAvailabilityService(availabilityScheduleRepo{
+		byDate: map[string]domain.Schedule{
+			date.String(): {
+				Date:         date,
+				ScheduleType: domain.ScheduleTypeExternalEvent,
+				Capacity:     0,
+				EventName:    "外部イベント",
+			},
+		},
+	}, availabilityReservationRepo{})
+
+	got, err := svc.ResolveForDate(context.Background(), date)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if !got.IsHoliday {
+		t.Fatal("IsHoliday = false, want true")
+	}
+	if got.ScheduleType != domain.ScheduleTypeExternalEvent {
+		t.Fatalf("ScheduleType = %q, want external_event", got.ScheduleType)
+	}
+	if got.EventName != "外部イベント" {
+		t.Fatalf("EventName = %q", got.EventName)
 	}
 }
 
@@ -267,12 +353,14 @@ func TestAvailabilityService_ResolveForDate_boundaries(t *testing.T) {
 			wantScheduleType: domain.ScheduleTypeNormal,
 		},
 		{
-			name:             "capacity zero on bookable event day is not holiday",
-			schedule:         domain.Schedule{Date: date, ScheduleType: domain.ScheduleTypeEvent, Capacity: 0, EventName: "evt"},
-			approved:         0,
+			name:             "external event day is holiday with event metadata",
+			schedule:         domain.Schedule{Date: date, ScheduleType: domain.ScheduleTypeExternalEvent, Capacity: 0, EventName: "evt"},
+			approved:         3,
+			wantHoliday:      true,
 			wantCapacity:     0,
+			wantReserved:     0,
 			wantAvailable:    0,
-			wantScheduleType: domain.ScheduleTypeEvent,
+			wantScheduleType: domain.ScheduleTypeExternalEvent,
 		},
 		{
 			name:          "closed day ignores approved count in response",

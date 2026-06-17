@@ -8,6 +8,7 @@ import (
 
 	usecase "github.com/cergijame101007/satehits/internal/application/usecase/reservation"
 	"github.com/cergijame101007/satehits/internal/datetime"
+	"github.com/cergijame101007/satehits/internal/domain"
 	"github.com/cergijame101007/satehits/internal/domain/service"
 )
 
@@ -128,7 +129,7 @@ func toAvailabilityResponse(a service.Availability) AvailabilityResponse {
 		EventDescription: a.EventDescription,
 		IsHoliday:        a.IsHoliday,
 	}
-	if a.IsHoliday {
+	if a.IsHoliday && a.ScheduleType != domain.ScheduleTypeExternalEvent {
 		resp.ScheduleType = nil
 		return resp
 	}
