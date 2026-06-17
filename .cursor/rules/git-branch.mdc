@@ -1,0 +1,25 @@
+---
+description: 実装作業前に feature ブランチを切る
+alwaysApply: true
+---
+
+# Git ブランチ
+
+## 作業開始時
+
+- コード変更・コミット・PR 作成の前に、**必ず `develop`（または指定のベース）から `feature/` ブランチを切る**
+- ブランチ名は `feature/<短い英語スラッグ>`（例: `feature/public-schedule-calendar`）
+- ベースブランチ上で直接作業しない
+
+## 例
+
+```bash
+git checkout develop
+git pull origin develop
+git checkout -b feature/my-change
+```
+
+## 禁止
+
+- `develop` / `main` への直接コミット（ユーザーが明示指示した場合を除く）
+- 作業中にベースブランチへ checkout して変更を残す
