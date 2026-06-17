@@ -179,14 +179,15 @@ stateDiagram-v2
 
 ## 6. スケジュールタイプと予約可否
 
-**その日の営業設定（有効なスケジュール）**（DB 行または行なし時の合成結果）に応じて予約可否を決める。`closed` や `capacity: 0` に相当する日、および**既定解決の結果として休業相当となった日**は予約不可となる。
+**その日の営業設定（有効なスケジュール）**（DB 行または行なし時の合成結果）に応じて予約可否を決める。`closed`・`external_event`、および**既定解決の結果として休業相当となった日**は予約不可となる。
 
 ```mermaid
 flowchart TB
     subgraph ScheduleType[その日の営業設定（有効なスケジュール）に応じた区分]
         Normal[normal: 通常営業]
         Morning[morning: 朝営業]
-        Event[event: イベント]
+        Event[event: 店内イベント]
+        ExternalEvent[external_event: 外部イベント]
         Special[special_menu: 特別メニュー]
         Closed[closed: 臨時休業等]
         NoBook[その他 予約不可と解決された日]
@@ -203,6 +204,7 @@ flowchart TB
     Event --> YesWithNote
     Special --> YesWithNote
     Closed --> No
+    ExternalEvent --> No
     NoBook --> No
 ```
 

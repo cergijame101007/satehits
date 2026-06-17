@@ -152,14 +152,15 @@ ALTER TABLE reservations ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ;
 
 **制約:**
 - `capacity`: CHECK (capacity >= 0)
-- `schedule_type`: CHECK (schedule_type IN ('normal', 'morning', 'event', 'special_menu', 'closed'))
+- `schedule_type`: CHECK (schedule_type IN ('normal', 'morning', 'event', 'external_event', 'special_menu', 'closed'))
 
 **schedule_typeの値:**
 | 値 | 説明 | 予約 | デフォルト営業時間 |
 |----|------|------|-------------------|
 | normal | 通常営業（月火水土祝） | 可 | 11:30-15:00 (LO 13:30) |
 | morning | 朝営業（日曜） | 可 | 8:30-15:00 (LO 13:30) |
-| event | 店内イベント等（和紅茶をしばく会等）。名称・説明必須 | 可（注意書き表示） | 省略時は曜日別デフォルト |
+| event | 店内イベント等（和紅茶をしばく会等）。`event_name` 必須 | 可（注意書き表示） | 省略時は曜日別デフォルト |
+| external_event | 外部イベント（店舗休業）。`event_name` 必須 | 不可（イベント情報表示） | - |
 | special_menu | 特別メニュー（リゾットランチ等） | 可（注意書き表示） | 通常と同じ |
 | closed | 臨時休業 | 不可 | - |
 
@@ -301,7 +302,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_reservations_unique_active
 CREATE TABLE IF NOT EXISTS daily_schedules (
     date              DATE PRIMARY KEY,
     schedule_type     TEXT NOT NULL
-                      CHECK (schedule_type IN ('normal', 'morning', 'event', 'special_menu', 'closed')),
+                      CHECK (schedule_type IN ('normal', 'morning', 'event', 'external_event', 'special_menu', 'closed')),
     capacity          INTEGER NOT NULL DEFAULT 10 CHECK (capacity >= 0),
     event_name        TEXT,
     event_description TEXT,
@@ -417,7 +418,7 @@ INSERT INTO daily_schedules (date, schedule_type, capacity, event_name, event_de
 ('2026-02-01', 'morning', 10, NULL, NULL),  -- 日曜・朝営業
 ('2026-02-02', 'normal', 10, NULL, NULL),   -- 月曜・通常
 ('2026-02-07', 'normal', 10, NULL, NULL),  -- 土曜・通常営業
-('2026-02-11', 'event', 0, '和紅茶をしばく会', '和紅茶をしばく会 入門編@WINE LAB. 通常のランチ営業はおやすみです。'),
+('2026-02-11', 'external_event', 0, '和紅茶をしばく会', '和紅茶をしばく会 入門編@WINE LAB. 通常のランチ営業はおやすみです。'),
 ('2026-02-23', 'special_menu', 10, 'リゾットランチ', '本日はリゾットランチの日です。');
 
 -- 予約サンプル

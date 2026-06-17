@@ -95,16 +95,27 @@ paths:
                     schedule_type: "normal"
                     is_holiday: false
                 event:
-                  summary: イベント日（単日）
+                  summary: 店内イベント日（単日）
+                  value:
+                    date: "2026-02-09"
+                    capacity: 10
+                    reserved: 2
+                    available: 8
+                    schedule_type: "event"
+                    event_name: "和紅茶をしばく会"
+                    event_description: "和紅茶をしばく会 入門編@店内開催"
+                    is_holiday: false
+                external_event:
+                  summary: 外部イベント日（単日・店休）
                   value:
                     date: "2026-02-11"
                     capacity: 0
                     reserved: 0
                     available: 0
-                    schedule_type: "event"
+                    schedule_type: "external_event"
                     event_name: "和紅茶をしばく会"
                     event_description: "和紅茶をしばく会 入門編@WINE LAB. 通常のランチ営業はおやすみです。"
-                    is_holiday: false
+                    is_holiday: true
                 holiday:
                   summary: 休業日（単日）
                   value:
@@ -926,12 +937,13 @@ components:
 
     ScheduleType:
       type: string
-      enum: [normal, morning, event, special_menu, closed]
+      enum: [normal, morning, event, external_event, special_menu, closed]
       description: |
         スケジュールタイプ
         - `normal`: 通常営業（月火水）
         - `morning`: 朝営業（日曜）
-        - `event`: 店内イベント等（`event_name` / `event_description` 必須。営業時刻省略時は曜日別デフォルト）
+        - `event`: 店内イベント等（`event_name` 必須、`event_description` 任意。営業時刻省略時は曜日別デフォルト）
+        - `external_event`: 外部イベント（店舗休業。`event_name` 必須、`event_description` 任意。`capacity` 0 固定。営業時刻は保存しない）
         - `special_menu`: 特別メニュー
         - `closed`: 臨時休業（営業時刻は保存しない）
 
@@ -1339,18 +1351,19 @@ components:
           type: string
           maxLength: 100
           description: |
-            `schedule_type` が `event` のとき必須。`special_menu` ではメニュー名として任意。
+            `schedule_type` が `event` または `external_event` のとき必須。`special_menu` ではメニュー名として任意。
         event_description:
           type: string
           maxLength: 500
           description: |
-            `schedule_type` が `event` のとき必須（顧客に表示）。`special_menu` では任意。
+            `event` / `external_event` / `special_menu` では任意（顧客に表示）。
         open_time:
           type: string
           pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
           description: |
             `normal` / `morning` / `special_menu` で省略時は店舗デフォルトを適用。
-            `event` で省略時は曜日別デフォルト（日曜=朝、それ以外=通常）。`closed` では無視（常に NULL）。
+            `event` で省略時は曜日別デフォルト（日曜=朝、それ以外=通常）。
+            `closed` / `external_event` では無視（常に NULL）。
         last_order_time:
           type: string
           pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
