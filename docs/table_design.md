@@ -114,7 +114,11 @@ erDiagram
 
 **将来追加（メール送信実装時）:**
 
-非同期メール送信の送信済み判定・再送用。メールサービス（Resend / Cloud Tasks ワーカー）導入時に別マイグレーションで追加する。
+非同期メール送信の送信済み判定・再送用。初回実装（インプロセス非同期キュー + Resend）では **追加しない**。Cloud Tasks ワーカー等で再送・監査が必要になったタイミングで別マイグレーションで追加する。
+
+**拒否理由（reject_reason）:**
+
+オーナーが拒否時に任意入力できる理由は **DB カラムとしては保存しない**。PATCH `/admin/reservations/{id}/status` の任意 `reason` をメール本文生成にのみ使用する。
 
 ```sql
 ALTER TABLE reservations ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ;

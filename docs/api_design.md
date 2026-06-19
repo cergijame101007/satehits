@@ -575,13 +575,15 @@ Instagram・電話・知人経由など、オーナーが手動で予約を登�
 
 ```json
 {
-  "status": "approved"
+  "status": "approved",
+  "reason": "定員超過のため"
 }
 ```
 
 | フィールド | 型 | 必須 | 説明 |
 |------------|-----|------|------|
 | status | string | Yes | `approved` / `rejected` / `cancelled` / `no_show`（`UpdateStatusRequest`） |
+| reason | string | No | `rejected` 時のみ使用。拒否メール本文に任意で含める。**DB には保存しない**（空または未指定時はメール本文に「理由：」行を出さない） |
 
 パス `{id}` は予約 UUID。形式不正は 400。
 

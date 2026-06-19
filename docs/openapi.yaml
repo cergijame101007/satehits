@@ -1271,6 +1271,10 @@ components:
         status:
           type: string
           enum: [approved, rejected, cancelled, no_show]
+        reason:
+          type: string
+          maxLength: 500
+          description: rejected 時のみ。拒否メール本文用（DB 非保存）。空または未指定時はメールに理由行を出さない
 
     UpdateStatusResponse:
       type: object

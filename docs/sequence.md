@@ -76,13 +76,14 @@ sequenceDiagram
     ReservationRepo-->>UseCase: reservation
     
     UseCase->>MailService: SendReservationReceived(reservation)
-    MailService->>Resend: POST /emails（予約申請受付メール）
-    Resend-->>MailService: OK
-    Note right of MailService: 宛先: 顧客メールアドレス
-    
+    Note right of UseCase: インプロセス非同期キューへ投入（fire-and-forget）
     UseCase-->>Handler: ReservationResponse
     Handler-->>Frontend: 201 Created
     Frontend-->>Customer: 完了画面へ遷移
+
+    MailService->>Resend: POST /emails（予約申請受付メール）
+    Resend-->>MailService: OK
+    Note right of MailService: 宛先: 顧客メールアドレス<br>失敗時はログのみ
 ```
 
 ## 3. 予約申請失敗（空きなし）
@@ -310,13 +311,14 @@ sequenceDiagram
     DB-->>ReservationRepo: OK
     
     UseCase->>MailService: SendReservationApproved(reservation)
-    MailService->>Resend: POST /emails（予約承認メール）
-    Resend-->>MailService: OK
-    Note right of MailService: 宛先: 顧客メールアドレス<br>内容: 予約確定、来店日時、キャンセルポリシー
-    
+    Note right of UseCase: インプロセス非同期キューへ投入
     UseCase-->>Handler: UpdateStatusResponse
     Handler-->>Frontend: 200 OK {id: 123, status: "approved"}
     Frontend-->>Owner: ステータス更新を反映
+
+    MailService->>Resend: POST /emails（予約承認メール）
+    Resend-->>MailService: OK
+    Note right of MailService: 宛先: 顧客メールアドレス<br>内容: 予約確定、来店日時、キャンセルポリシー<br>失敗時はログのみ
 ```
 
 ## 7. 予約拒否（オーナー）
@@ -333,13 +335,13 @@ sequenceDiagram
     participant DB as Supabase
     participant Resend as Resend
 
-    Owner->>Frontend: 「拒否」ボタンをクリック
-    Frontend->>Middleware: PATCH /admin/reservations/123/status (with JWT)
+    Owner->>Frontend: 「拒否」ボタンをクリック（任意で理由入力）
+    Frontend->>Middleware: PATCH /admin/reservations/123/status {status, reason?} (with JWT)
     
     Middleware->>Middleware: JWT検証
     Middleware->>Handler: Request
     
-    Handler->>UseCase: Execute(id=123, status="rejected")
+    Handler->>UseCase: Execute(id=123, status="rejected", reason?)
     
     UseCase->>ReservationRepo: FindByID(123)
     ReservationRepo->>DB: SELECT * FROM reservations WHERE id = 123
@@ -353,19 +355,20 @@ sequenceDiagram
     ReservationRepo->>DB: UPDATE reservations SET status = 'rejected' WHERE id = 123
     DB-->>ReservationRepo: OK
     
-    UseCase->>MailService: SendReservationRejected(reservation)
-    MailService->>Resend: POST /emails（予約拒否メール）
-    Resend-->>MailService: OK
-    Note right of MailService: 宛先: 顧客メールアドレス<br>内容: 予約不可の旨、Instagramへの誘導
-    
+    UseCase->>MailService: SendReservationRejected(reservation, reason?)
+    Note right of UseCase: reason あり時のみメール本文に「理由：」行を含める
     UseCase-->>Handler: UpdateStatusResponse
     Handler-->>Frontend: 200 OK {id: 123, status: "rejected"}
     Frontend-->>Owner: ステータス更新を反映
+
+    MailService->>Resend: POST /emails（予約拒否メール）
+    Resend-->>MailService: OK
+    Note right of MailService: 宛先: 顧客メールアドレス<br>内容: 予約不可の旨、Instagramへの誘導<br>失敗時はログのみ
 ```
 
 ## 8. メール送信シーケンス
 
-予約に関する各種メール通知は、バックエンドの UseCase から MailService（Resend）を経由して顧客に送信される。
+予約に関する各種メール通知は、バックエンドの UseCase から MailNotifier（Infrastructure）を経由して**インプロセス非同期キュー**に投入され、ワーカー goroutine が Resend API へ送信する。HTTP レスポンスは DB 更新成功後に即返却し、メール送信失敗時も予約・ステータス更新は有効（エラーはログのみ）。
 
 ### 8.1 予約申請受付メール（顧客へ）
 
@@ -425,7 +428,7 @@ sequenceDiagram
     
     MailService->>MailService: メールテンプレート組み立て
     Note right of MailService: 件名: 【さて、羊に戻るとしよう】<br>ご予約についてのお知らせ
-    Note right of MailService: 本文:<br>・予約できなかった旨<br>・理由（定員超過等）<br>・別日程のご案内<br>・Instagramへの誘導
+    Note right of MailService: 本文:<br>・予約できなかった旨<br>・理由（オーナー入力時のみ）<br>・別日程のご案内<br>・Instagramへの誘導
     
     MailService->>Resend: POST /emails
     Note right of Resend: From: noreply@satehits.com<br>To: 顧客メールアドレス
