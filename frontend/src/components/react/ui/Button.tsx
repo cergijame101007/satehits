@@ -1,8 +1,8 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { cx } from '@/lib/cx';
+import type { ButtonSize, ButtonVariant } from '@/components/react/ui/types';
 
-export type ButtonVariant = 'primary' | 'success' | 'danger' | 'warning' | 'neutral' | 'ghost';
-export type ButtonSize = 'sm' | 'md' | 'lg';
+export type { ButtonSize, ButtonVariant } from '@/components/react/ui/types';
 
 const baseClass = 'rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 

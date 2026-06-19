@@ -1,5 +1,5 @@
 import type { Reservation, ReservationStatus } from '@/types/reservation';
-import type { ButtonVariant } from '@/components/react/ui/Button';
+import type { ButtonVariant } from '@/components/react/ui/types';
 
 export const statusActionLabels: Record<ReservationStatus, string> = {
   approved: '承認',
