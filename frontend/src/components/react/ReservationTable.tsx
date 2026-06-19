@@ -238,7 +238,7 @@ export default function ReservationTable() {
           {actionError && <Alert variant="error">{actionError}</Alert>}
 
           {isLoaded && !isLoading && (
-            <Alert variant="info" className="flex items-center gap-4">
+            <Card compact className="flex items-center gap-4 text-sm text-gray-700">
               {availabilityError && (
                 <span className="text-red-600">{availabilityError}</span>
               )}
@@ -260,7 +260,7 @@ export default function ReservationTable() {
                   </span>
                 </>
               )}
-            </Alert>
+            </Card>
           )}
 
           {isLoading && (
