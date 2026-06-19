@@ -3,8 +3,6 @@ import type { PublicDaySchedule } from '@/types/reservation';
 export interface PublicScheduleCellDisplay {
   showClosedMark: boolean;
   showEventBar: boolean;
-  eventBarLabel: string;
-  eventBarTitle?: string;
 }
 
 function hasEventName(schedule: PublicDaySchedule | undefined): boolean {
@@ -31,20 +29,8 @@ export function shouldShowEventBar(schedule: PublicDaySchedule | undefined): boo
 export function getPublicScheduleCellDisplay(
   schedule: PublicDaySchedule | undefined,
 ): PublicScheduleCellDisplay {
-  const name = schedule?.event_name?.trim() ?? '';
-  const showEventBar = shouldShowEventBar(schedule);
-
   return {
     showClosedMark: shouldShowClosedMark(schedule),
-    showEventBar,
-    eventBarLabel: showEventBar ? truncateEventName(name) : '',
-    eventBarTitle: showEventBar && name ? name : undefined,
+    showEventBar: shouldShowEventBar(schedule),
   };
-}
-
-/** セル幅に収まるようイベント名を短縮（CSS truncate のフォールバック） */
-export function truncateEventName(name: string, maxLength = 6): string {
-  const trimmed = name.trim();
-  if (trimmed.length <= maxLength) return trimmed;
-  return `${trimmed.slice(0, maxLength)}…`;
 }

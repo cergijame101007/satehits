@@ -4,7 +4,6 @@ import {
   getPublicScheduleCellDisplay,
   shouldShowClosedMark,
   shouldShowEventBar,
-  truncateEventName,
 } from '@/lib/publicScheduleCell';
 
 function schedule(partial: Partial<PublicDaySchedule> & Pick<PublicDaySchedule, 'date'>): PublicDaySchedule {
@@ -32,7 +31,6 @@ describe('publicScheduleCell', () => {
     expect(shouldShowEventBar(s)).toBe(true);
     expect(display.showClosedMark).toBe(false);
     expect(display.showEventBar).toBe(true);
-    expect(display.eventBarLabel).toContain('和紅茶');
   });
 
   it('shows closed mark and event bar for external event', () => {
@@ -46,7 +44,6 @@ describe('publicScheduleCell', () => {
 
     expect(display.showClosedMark).toBe(true);
     expect(display.showEventBar).toBe(true);
-    expect(display.eventBarTitle).toBe('和紅茶をしばく会');
   });
 
   it('shows closed mark only for regular holiday', () => {
@@ -58,9 +55,5 @@ describe('publicScheduleCell', () => {
 
     expect(display.showClosedMark).toBe(true);
     expect(display.showEventBar).toBe(false);
-  });
-
-  it('truncates long event names', () => {
-    expect(truncateEventName('和紅茶をしばく会入門編', 4)).toBe('和紅茶を…');
   });
 });
