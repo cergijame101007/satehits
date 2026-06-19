@@ -2,7 +2,8 @@ import type { DailySchedule, ScheduleType } from '@/types/reservation';
 import { scheduleTypeShort, scheduleTypeLabels } from '@/mocks/reservation';
 import { editableScheduleTypes } from '@/lib/schedule';
 import { typeColors, typeTextColors, WEEKDAYS, isClosedScheduleType } from '@/lib/calendarTheme';
-import { buildMonthDates, shiftMonth } from '@/lib/calendarUtils';
+import { buildMonthDates, formatDate, shiftMonth } from '@/lib/calendarUtils';
+import { cx } from '@/lib/cx';
 
 export interface DayReservationSummary {
   count: number;
@@ -63,6 +64,7 @@ export default function MonthCalendar({
 }: MonthCalendarProps) {
   const dayMap = new Map(days.map((d) => [d.date, d]));
   const calendarCells = buildMonthDates(viewYear, viewMonth);
+  const todayStr = formatDate(new Date());
 
   const prevMonth = () => {
     const next = shiftMonth(viewYear, viewMonth, -1);
@@ -75,7 +77,9 @@ export default function MonthCalendar({
   };
 
   const legendTypes =
-    variant === 'schedule' ? editableScheduleTypes : (['normal', 'morning', 'closed'] as ScheduleType[]);
+    variant === 'schedule' || variant === 'reservation'
+      ? editableScheduleTypes
+      : (['normal', 'morning', 'closed'] as ScheduleType[]);
 
   return (
     <div className={className}>
@@ -128,6 +132,7 @@ export default function MonthCalendar({
               const dayData = dayMap.get(dateStr);
               const schedule = dayData?.schedule ?? { date: dateStr, type: 'normal' as ScheduleType, capacity: 10 };
               const isSelected = selectedDate === dateStr;
+              const isToday = dateStr === todayStr;
               const isClosed = isClosedScheduleType(schedule.type);
               const isFull =
                 !isClosed &&
@@ -135,25 +140,18 @@ export default function MonthCalendar({
                 dayData.reservation.reservedMeals >= schedule.capacity;
               const isDisabled = variant === 'picker' && restrictSelection && (isClosed || isFull);
 
-              const cellClass = [
+              const cellClass = cx(
                 'flex flex-col items-center rounded-lg transition-colors',
                 compact ? 'py-1 min-h-[52px]' : 'py-2',
-                isSelected ? 'ring-2 ring-primary ring-offset-1' : '',
-                isDisabled
-                  ? 'text-gray-300 cursor-not-allowed opacity-60'
-                  : onSelectDate
-                    ? 'cursor-pointer hover:bg-gray-50'
-                    : '',
-              ]
-                .filter(Boolean)
-                .join(' ');
+                isSelected && 'ring-2 ring-primary ring-offset-1',
+                isToday && !isDisabled && 'bg-primary/10 hover:bg-primary/15',
+                isDisabled && 'text-gray-300 cursor-not-allowed opacity-60',
+                !isDisabled && onSelectDate && !isToday && 'cursor-pointer hover:bg-gray-50',
+                !isDisabled && onSelectDate && isToday && 'cursor-pointer',
+              );
 
               const cellStyle =
-                isSelected && !isDisabled
-                  ? { backgroundColor: typeColors[schedule.type] + '80' }
-                  : isClosed && variant === 'picker'
-                    ? { backgroundColor: '#F9FAFB' }
-                    : undefined;
+                isClosed && variant === 'picker' ? { backgroundColor: '#F9FAFB' } : undefined;
 
               return (
                 <button
