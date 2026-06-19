@@ -80,6 +80,36 @@ func TestQueueDropWhenFull(t *testing.T) {
 	queue.Shutdown(ctx)
 }
 
+func TestQueueSendTimeoutAllowsWorkerToContinue(t *testing.T) {
+	oldTimeout := mailSendTimeout
+	mailSendTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { mailSendTimeout = oldTimeout })
+
+	sender := &contextAwareBlockingSender{}
+	queue := NewQueue(sender, 4)
+	queue.Start()
+
+	queue.Enqueue(domain.MailMessage{To: "first@example.com", Subject: "first"})
+	queue.Enqueue(domain.MailMessage{To: "second@example.com", Subject: "second"})
+
+	deadline := time.Now().Add(2 * time.Second)
+	for sender.len() < 1 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if sender.len() != 1 {
+		t.Fatalf("sender calls = %d, want 1 (second message after first timed out)", sender.len())
+	}
+	msg := sender.last()
+	if msg.To != "second@example.com" {
+		t.Fatalf("unexpected message: %+v", msg)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	queue.Shutdown(ctx)
+}
+
 type blockingSender struct {
 	block chan struct{}
 }
@@ -87,4 +117,39 @@ type blockingSender struct {
 func (b *blockingSender) Send(_ context.Context, _ domain.MailMessage) error {
 	<-b.block
 	return nil
+}
+
+type contextAwareBlockingSender struct {
+	mu       sync.Mutex
+	calls    []domain.MailMessage
+	attempts int
+}
+
+func (s *contextAwareBlockingSender) Send(ctx context.Context, msg domain.MailMessage) error {
+	s.mu.Lock()
+	s.attempts++
+	attempt := s.attempts
+	s.mu.Unlock()
+
+	if attempt == 1 {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+
+	s.mu.Lock()
+	s.calls = append(s.calls, msg)
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *contextAwareBlockingSender) len() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.calls)
+}
+
+func (s *contextAwareBlockingSender) last() domain.MailMessage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.calls[len(s.calls)-1]
 }

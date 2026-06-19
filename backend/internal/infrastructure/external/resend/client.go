@@ -8,11 +8,14 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/cergijame101007/satehits/internal/domain"
 )
 
 const emailsURL = "https://api.resend.com/emails"
+
+const defaultHTTPTimeout = 30 * time.Second
 
 // Client は Resend の /emails API クライアント
 type Client struct {
@@ -23,7 +26,7 @@ type Client struct {
 // NewClient は Resend クライアントを生成する
 func NewClient(apiKey string, httpClient *http.Client) *Client {
 	if httpClient == nil {
-		httpClient = http.DefaultClient
+		httpClient = &http.Client{Timeout: defaultHTTPTimeout}
 	}
 	return &Client{apiKey: apiKey, httpClient: httpClient}
 }

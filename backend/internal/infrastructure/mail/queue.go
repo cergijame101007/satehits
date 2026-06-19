@@ -4,9 +4,12 @@ import (
 	"context"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/cergijame101007/satehits/internal/domain"
 )
+
+var mailSendTimeout = 30 * time.Second
 
 // Queue はインプロセス非同期メール送信キュー
 type Queue struct {
@@ -36,7 +39,10 @@ func (q *Queue) Start() {
 func (q *Queue) run() {
 	defer q.wg.Done()
 	for msg := range q.ch {
-		if err := q.sender.Send(context.Background(), msg); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), mailSendTimeout)
+		err := q.sender.Send(ctx, msg)
+		cancel()
+		if err != nil {
 			log.Printf("mail send failed: to=%s subject=%q err=%v", msg.To, msg.Subject, err)
 		}
 	}
