@@ -16,12 +16,12 @@ const (
 )
 
 var allowedScheduleTypes = map[string]struct{}{
-	domain.ScheduleTypeNormal:         {},
-	domain.ScheduleTypeMorning:        {},
-	domain.ScheduleTypeEvent:          {},
-	domain.ScheduleTypeExternalEvent:  {},
-	domain.ScheduleTypeSpecialMenu:    {},
-	domain.ScheduleTypeClosed:         {},
+	domain.ScheduleTypeNormal:        {},
+	domain.ScheduleTypeMorning:       {},
+	domain.ScheduleTypeEvent:         {},
+	domain.ScheduleTypeExternalEvent: {},
+	domain.ScheduleTypeSpecialMenu:   {},
+	domain.ScheduleTypeClosed:        {},
 }
 
 func validateSetSchedule(cmd SetScheduleCommand) []FieldViolation {
