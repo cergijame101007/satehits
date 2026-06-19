@@ -177,6 +177,8 @@ export default function ScheduleCalendar() {
                     setEditType(nextType);
                     if (nextType === 'external_event') {
                       setEditCapacity(0);
+                    } else if (nextType === 'event' && editCapacity === 0) {
+                      setEditCapacity(10);
                     }
                   }}
                   className={inputClass}
