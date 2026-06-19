@@ -125,9 +125,12 @@ export default function ReservationCreateForm() {
         </div>
         <p className="text-lg font-medium">予約を登録しました</p>
         <div className="flex gap-3 justify-center">
-          <Button variant="primary" size="md" onClick={() => { window.location.href = '/admin/reservations'; }}>
+          <a
+            href="/admin/reservations"
+            className="inline-flex items-center justify-center px-4 py-2 text-sm rounded-lg font-medium bg-primary text-white hover:bg-primary-dark transition-colors"
+          >
             予約一覧へ
-          </Button>
+          </a>
           <Button
             variant="ghost"
             size="md"
