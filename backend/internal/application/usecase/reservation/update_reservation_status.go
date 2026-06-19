@@ -12,16 +12,21 @@ import (
 type UpdateReservationStatusCommand struct {
 	ID     uuid.UUID
 	Status string
+	Reason string
 }
 
 // UpdateReservationStatusUseCase は管理者向け予約ステータス更新
 type UpdateReservationStatusUseCase struct {
-	repo domain.ReservationRepository
+	repo     domain.ReservationRepository
+	notifier MailNotifier
 }
 
 // NewUpdateReservationStatusUseCase は UpdateReservationStatusUseCase を生成する
-func NewUpdateReservationStatusUseCase(repo domain.ReservationRepository) *UpdateReservationStatusUseCase {
-	return &UpdateReservationStatusUseCase{repo: repo}
+func NewUpdateReservationStatusUseCase(repo domain.ReservationRepository, notifier MailNotifier) *UpdateReservationStatusUseCase {
+	if notifier == nil {
+		notifier = NoOpMailNotifier{}
+	}
+	return &UpdateReservationStatusUseCase{repo: repo, notifier: notifier}
 }
 
 // Execute は遷移ルールを検証しステータスを更新する
@@ -48,5 +53,13 @@ func (u *UpdateReservationStatusUseCase) Execute(ctx context.Context, cmd Update
 	if err != nil {
 		return nil, err
 	}
+
+	switch cmd.Status {
+	case "approved":
+		u.notifier.ReservationApproved(updated)
+	case "rejected":
+		u.notifier.ReservationRejected(updated, cmd.Reason)
+	}
+
 	return &updated, nil
 }

@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -12,9 +16,12 @@ import (
 	authusecase "github.com/cergijame101007/satehits/internal/application/usecase/auth"
 	reservationusecase "github.com/cergijame101007/satehits/internal/application/usecase/reservation"
 	scheduleusecase "github.com/cergijame101007/satehits/internal/application/usecase/schedule"
+	"github.com/cergijame101007/satehits/internal/domain"
 	"github.com/cergijame101007/satehits/internal/domain/service"
 	"github.com/cergijame101007/satehits/internal/handler"
+	"github.com/cergijame101007/satehits/internal/infrastructure/external/resend"
 	"github.com/cergijame101007/satehits/internal/infrastructure/external/turnstile"
+	inframail "github.com/cergijame101007/satehits/internal/infrastructure/mail"
 	"github.com/cergijame101007/satehits/internal/repository"
 	"github.com/cergijame101007/satehits/pkg/config"
 	"github.com/cergijame101007/satehits/pkg/jwt"
@@ -64,7 +71,24 @@ func main() {
 
 	listReservations := reservationusecase.NewListReservationsUseCase(reservationRepo)
 	createAdminReservation := reservationusecase.NewCreateAdminReservationUseCase(reservationRepo)
-	updateReservationStatus := reservationusecase.NewUpdateReservationStatusUseCase(reservationRepo)
+
+	var mailSender domain.MailSender = resend.NoOpSender{}
+	if cfg.ResendAPIKey != "" {
+		mailSender = resend.NewClient(cfg.ResendAPIKey, nil)
+		log.Println("Resend mail sender enabled")
+	} else {
+		log.Println("RESEND_API_KEY not set; mail sender runs in noop mode")
+	}
+	mailQueue := inframail.NewQueue(mailSender, cfg.MailQueueSize)
+	mailQueue.Start()
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		mailQueue.Shutdown(shutdownCtx)
+	}()
+	mailNotifier := inframail.NewReservationNotifier(mailQueue, cfg.MailFromAddress)
+
+	updateReservationStatus := reservationusecase.NewUpdateReservationStatusUseCase(reservationRepo, mailNotifier)
 	adminReservationsPath := adminBase + "/reservations"
 	adminReservationHandler := handler.NewAdminReservationHandler(
 		listReservations,
@@ -90,7 +114,7 @@ func main() {
 	}
 
 	createReservation := reservationusecase.NewCreateReservationUseCase(
-		reservationRepo, scheduleResolver, availabilityService, txManager, captchaVerifier,
+		reservationRepo, scheduleResolver, availabilityService, txManager, captchaVerifier, mailNotifier,
 	)
 	reservationHandler := handler.NewReservationHandler(reservationRepo, createReservation, reservationsPath)
 
@@ -130,8 +154,22 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	if err := srv.ListenAndServe(); err != nil {
+	go listenForShutdown(srv)
+
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Server failed to start: %v", err)
+	}
+}
+
+func listenForShutdown(srv *http.Server) {
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	<-stop
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("Server shutdown error: %v", err)
 	}
 }
 
