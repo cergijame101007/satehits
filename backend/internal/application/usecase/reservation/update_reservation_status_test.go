@@ -81,7 +81,7 @@ func TestUpdateReservationStatusUseCase(t *testing.T) {
 			repo := &fakeReservationRepo{
 				reservation: domain.Reservation{ID: reservationID, Status: tt.current},
 			}
-			uc := NewUpdateReservationStatusUseCase(repo)
+			uc := NewUpdateReservationStatusUseCase(repo, NoOpMailNotifier{})
 
 			result, err := uc.Execute(context.Background(), UpdateReservationStatusCommand{
 				ID:     reservationID,
