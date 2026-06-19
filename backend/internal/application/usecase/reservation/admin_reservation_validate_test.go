@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/cergijame101007/satehits/internal/datetime"
@@ -121,6 +122,29 @@ func TestValidateUpdateStatusTarget(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			violations := validateUpdateStatusTarget(tt.status)
+			if tt.wantField == "" {
+				assertNoViolations(t, violations)
+				return
+			}
+			assertHasViolationField(t, violations, tt.wantField)
+		})
+	}
+}
+
+func TestValidateUpdateStatusReason(t *testing.T) {
+	tests := []struct {
+		name      string
+		reason    string
+		wantField string
+	}{
+		{name: "accepts empty reason", reason: ""},
+		{name: "accepts reason at max length", reason: strings.Repeat("あ", maxRejectReasonRunes)},
+		{name: "rejects reason over max length", reason: strings.Repeat("あ", maxRejectReasonRunes+1), wantField: "reason"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			violations := validateUpdateStatusReason(tt.reason)
 			if tt.wantField == "" {
 				assertNoViolations(t, violations)
 				return

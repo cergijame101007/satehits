@@ -32,6 +32,7 @@ func NewUpdateReservationStatusUseCase(repo domain.ReservationRepository, notifi
 // Execute は遷移ルールを検証しステータスを更新する
 func (u *UpdateReservationStatusUseCase) Execute(ctx context.Context, cmd UpdateReservationStatusCommand) (*domain.Reservation, error) {
 	violations := validateUpdateStatusTarget(cmd.Status)
+	violations = append(violations, validateUpdateStatusReason(cmd.Reason)...)
 	if len(violations) > 0 {
 		return nil, &ValidationError{Violations: violations}
 	}
