@@ -1,6 +1,12 @@
 import { useState, useCallback } from 'react';
 import type { Supplier } from '../../types/supplier';
 import { getSuppliers } from '../../mocks/supplier';
+import Button from '@/components/react/ui/Button';
+import Card from '@/components/react/ui/Card';
+import Modal from '@/components/react/ui/Modal';
+import Textarea from '@/components/react/ui/Textarea';
+import { inputClassName } from '@/lib/ui/inputStyles';
+import { cx } from '@/lib/cx';
 
 interface SupplierFormData {
   name: string;
@@ -15,12 +21,6 @@ const emptyForm: SupplierFormData = {
   instagram_url: '',
   is_active: true,
 };
-
-function inputClass(hasError: boolean): string {
-  return `w-full px-4 py-3 rounded-lg border ${
-    hasError ? 'border-red-400 bg-red-50/50' : 'border-gray-200 bg-white'
-  } focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors text-base`;
-}
 
 export default function SupplierManager() {
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => getSuppliers());
@@ -163,6 +163,7 @@ export default function SupplierManager() {
       </div>
 
       <button
+        type="button"
         onClick={openCreate}
         className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-primary/50 hover:text-primary transition-colors font-medium"
       >
@@ -171,19 +172,21 @@ export default function SupplierManager() {
 
       <div className="space-y-3">
         {sorted.map((supplier) => (
-          <div
+          <Card
             key={supplier.id}
-            draggable
-            onDragStart={() => handleDragStart(supplier.id)}
-            onDragOver={(e) => handleDragOver(e, supplier.id)}
-            onDragEnd={handleDragEnd}
-            className={`rounded-xl border bg-white p-4 transition-all ${
-              draggedId === supplier.id
-                ? 'border-primary shadow-md opacity-70'
-                : 'border-gray-200'
-            }`}
+            compact
+            className={cx(
+              'transition-all',
+              draggedId === supplier.id && 'border-primary shadow-md opacity-70',
+            )}
           >
-            <div className="flex items-start gap-3">
+            <div
+              draggable
+              onDragStart={() => handleDragStart(supplier.id)}
+              onDragOver={(e) => handleDragOver(e, supplier.id)}
+              onDragEnd={handleDragEnd}
+              className="flex items-start gap-3"
+            >
               {/* ドラッグハンドル */}
               <div className="mt-1 cursor-grab text-gray-300 hover:text-gray-500 active:cursor-grabbing">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -222,21 +225,15 @@ export default function SupplierManager() {
 
               {/* アクションボタン */}
               <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => openEdit(supplier)}
-                  className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:border-primary/40 hover:text-primary transition-colors"
-                >
+                <Button variant="ghost" size="sm" onClick={() => openEdit(supplier)}>
                   編集
-                </button>
-                <button
-                  onClick={() => handleDelete(supplier.id)}
-                  className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-red-500 hover:border-red-300 hover:bg-red-50 transition-colors"
-                >
+                </Button>
+                <Button variant="danger" size="sm" onClick={() => handleDelete(supplier.id)}>
                   削除
-                </button>
+                </Button>
               </div>
             </div>
-          </div>
+          </Card>
         ))}
 
         {sorted.length === 0 && (
@@ -250,170 +247,93 @@ export default function SupplierManager() {
         ※ ドラッグで並び替え可能
       </p>
 
-      {/* 編集・追加モーダル */}
-      {editingId !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={closeModal}
-          />
-          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100">
-              <h2 className="text-lg font-medium">
-                {editingId === 'new' ? '取引先を追加' : '取引先を編集'}
-              </h2>
-              <button
-                onClick={closeModal}
-                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
+      <Modal
+        open={editingId !== null}
+        title={editingId === 'new' ? '取引先を追加' : '取引先を編集'}
+        onClose={closeModal}
+        size="lg"
+        closeDisabled={submitting}
+        footer={
+          <div className="flex items-center gap-3 p-5">
+            <Button variant="ghost" size="lg" onClick={closeModal} disabled={submitting}>
+              キャンセル
+            </Button>
+            <Button variant="primary" size="lg" onClick={handleSubmit} disabled={submitting}>
+              {submitting ? '保存中...' : '保存する'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium mb-1.5">
+              取引先名 <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              className={inputClassName(!!errors.name)}
+              placeholder="例: 〇〇農園"
+            />
+            {errors.name && <p className="mt-1 text-sm text-red-500">{errors.name}</p>}
+          </div>
 
-            <div className="p-5 space-y-5">
-              {/* 取引先名 */}
-              <div>
-                <label className="block text-sm font-medium mb-1.5">
-                  取引先名 <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  className={inputClass(!!errors.name)}
-                  placeholder="例: 〇〇農園"
+          <div>
+            <label className="block text-sm font-medium mb-1.5">
+              説明文 <span className="text-red-400">*</span>
+            </label>
+            <Textarea
+              value={form.description}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              rows={4}
+              hasError={!!errors.description}
+              placeholder="取引先の紹介文を入力"
+            />
+            {errors.description && <p className="mt-1 text-sm text-red-500">{errors.description}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Instagram URL</label>
+            <input
+              type="url"
+              value={form.instagram_url}
+              onChange={(e) => setForm((f) => ({ ...f, instagram_url: e.target.value }))}
+              className={inputClassName(!!errors.instagram_url)}
+              placeholder="https://instagram.com/..."
+            />
+            {errors.instagram_url && <p className="mt-1 text-sm text-red-500">{errors.instagram_url}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1.5">画像</label>
+            <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center text-gray-400">
+              <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
                 />
-                {errors.name && (
-                  <p className="mt-1 text-sm text-red-500">{errors.name}</p>
-                )}
-              </div>
-
-              {/* 説明文 */}
-              <div>
-                <label className="block text-sm font-medium mb-1.5">
-                  説明文 <span className="text-red-400">*</span>
-                </label>
-                <textarea
-                  value={form.description}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, description: e.target.value }))
-                  }
-                  rows={4}
-                  className={inputClass(!!errors.description)}
-                  placeholder="取引先の紹介文を入力"
-                />
-                {errors.description && (
-                  <p className="mt-1 text-sm text-red-500">{errors.description}</p>
-                )}
-              </div>
-
-              {/* Instagram URL */}
-              <div>
-                <label className="block text-sm font-medium mb-1.5">
-                  Instagram URL
-                </label>
-                <input
-                  type="url"
-                  value={form.instagram_url}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, instagram_url: e.target.value }))
-                  }
-                  className={inputClass(!!errors.instagram_url)}
-                  placeholder="https://instagram.com/..."
-                />
-                {errors.instagram_url && (
-                  <p className="mt-1 text-sm text-red-500">{errors.instagram_url}</p>
-                )}
-              </div>
-
-              {/* 画像（プレースホルダー） */}
-              <div>
-                <label className="block text-sm font-medium mb-1.5">画像</label>
-                <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center text-gray-400">
-                  <svg
-                    className="w-8 h-8 mx-auto mb-2"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
-                  <p className="text-sm">画像アップロード（未実装）</p>
-                </div>
-              </div>
-
-              {/* 表示設定 */}
-              <div className="flex items-center gap-3">
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.is_active}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, is_active: e.target.checked }))
-                    }
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/30 after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full" />
-                </label>
-                <span className="text-sm">サイトに表示する</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 p-5 border-t border-gray-100">
-              <button
-                onClick={closeModal}
-                className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
-              >
-                キャンセル
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={submitting}
-                className="flex-1 py-3 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
-              >
-                {submitting ? (
-                  <span className="inline-flex items-center gap-2">
-                    <svg
-                      className="w-4 h-4 animate-spin"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                      />
-                    </svg>
-                    保存中...
-                  </span>
-                ) : (
-                  '保存する'
-                )}
-              </button>
+              </svg>
+              <p className="text-sm">画像アップロード（未実装）</p>
             </div>
           </div>
+
+          <div className="flex items-center gap-3">
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.is_active}
+                onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/30 after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full" />
+            </label>
+            <span className="text-sm">サイトに表示する</span>
+          </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

@@ -47,6 +47,7 @@ type CreateReservationUseCase struct {
 	availability *service.AvailabilityService
 	txManager    application.TxManager
 	verifier     CaptchaVerifier
+	notifier     MailNotifier
 }
 
 // NewCreateReservationUseCase は CreateReservationUseCase の生成
@@ -56,13 +57,18 @@ func NewCreateReservationUseCase(
 	availability *service.AvailabilityService,
 	txManager application.TxManager,
 	verifier CaptchaVerifier,
+	notifier MailNotifier,
 ) *CreateReservationUseCase {
+	if notifier == nil {
+		notifier = NoOpMailNotifier{}
+	}
 	return &CreateReservationUseCase{
 		repo:         repo,
 		resolver:     resolver,
 		availability: availability,
 		txManager:    txManager,
 		verifier:     verifier,
+		notifier:     notifier,
 	}
 }
 
@@ -139,5 +145,6 @@ func (u *CreateReservationUseCase) Execute(ctx context.Context, cmd CreateReserv
 	if err != nil {
 		return nil, err
 	}
+	u.notifier.ReservationReceived(created)
 	return &created, nil
 }

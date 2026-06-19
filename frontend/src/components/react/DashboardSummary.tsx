@@ -4,6 +4,8 @@ import { getAvailability, toAvailabilityErrorMessage } from '@/lib/availability'
 import { listReservations, toReservationErrorMessage } from '@/lib/adminReservation';
 import { formatDate, formatDateJa } from '@/lib/calendarUtils';
 import type { AvailabilityResponse, Reservation } from '@/types/reservation';
+import Alert from '@/components/react/ui/Alert';
+import Card from '@/components/react/ui/Card';
 
 interface DaySummaryProps {
   title: string;
@@ -61,15 +63,15 @@ function DaySummary({ title, date }: DaySummaryProps) {
   const approvedPeople = approved.reduce((sum, r) => sum + r.people, 0);
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5">
+    <Card>
       <h3 className="text-sm text-gray-500 mb-1">{title}</h3>
       <p className="text-lg font-medium mb-4">{formatDateJa(dateStr)}</p>
 
       {availabilityError && (
-        <p className="text-red-600 text-sm text-center py-2">{availabilityError}</p>
+        <Alert variant="error" className="text-center">{availabilityError}</Alert>
       )}
       {reservationError && (
-        <p className="text-red-600 text-sm text-center py-2">{reservationError}</p>
+        <Alert variant="error" className="text-center">{reservationError}</Alert>
       )}
 
       {isLoading && (
@@ -137,7 +139,7 @@ function DaySummary({ title, date }: DaySummaryProps) {
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -160,47 +162,28 @@ export default function DashboardSummary() {
 
       {/* クイックリンク */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <a
-          href="/admin/reservations"
-          className="flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-200 bg-white hover:border-primary/30 hover:shadow-sm transition-all"
-        >
-          <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-          </svg>
-          <span className="text-sm font-medium">予約一覧</span>
-        </a>
-        <a
-          href="/admin/reservations/new"
-          className="flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-200 bg-white hover:border-primary/30 hover:shadow-sm transition-all"
-        >
-          <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
-          </svg>
-          <span className="text-sm font-medium">予約登録</span>
-        </a>
-        <a
-          href="/admin/schedules"
-          className="flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-200 bg-white hover:border-primary/30 hover:shadow-sm transition-all"
-        >
-          <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <span className="text-sm font-medium">スケジュール</span>
-        </a>
-        <a
-          href="/admin/suppliers"
-          className="flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-200 bg-white hover:border-primary/30 hover:shadow-sm transition-all"
-        >
-          <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
-          <span className="text-sm font-medium">取引先</span>
-        </a>
+        {[
+          { href: '/admin/reservations', label: '予約一覧', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+          { href: '/admin/reservations/new', label: '予約登録', icon: 'M12 4v16m8-8H4' },
+          { href: '/admin/schedules', label: 'スケジュール', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+          { href: '/admin/suppliers', label: '取引先', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' },
+        ].map((link) => (
+          <a
+            key={link.href}
+            href={link.href}
+            className="rounded-xl border border-gray-200 bg-white p-4 flex flex-col items-center gap-2 hover:border-primary/30 hover:shadow-sm transition-all"
+          >
+            <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={link.icon} />
+            </svg>
+            <span className="text-sm font-medium">{link.label}</span>
+          </a>
+        ))}
         <a
           href="/"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-200 bg-white hover:border-primary/30 hover:shadow-sm transition-all"
+          className="rounded-xl border border-gray-200 bg-white p-4 flex flex-col items-center gap-2 hover:border-primary/30 hover:shadow-sm transition-all"
         >
           <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />

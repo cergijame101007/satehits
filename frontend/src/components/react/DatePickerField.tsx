@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import MonthCalendar from '@/components/react/MonthCalendar';
 import { useMonthCalendarData } from '@/lib/useMonthCalendar';
+import Alert from '@/components/react/ui/Alert';
+import { inputClassName } from '@/lib/ui/inputStyles';
+import { cx } from '@/lib/cx';
 
 interface DatePickerFieldProps {
   value: string;
@@ -62,9 +65,11 @@ export default function DatePickerField({
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`w-full px-4 py-3 rounded-lg border text-left flex items-center justify-between transition-colors ${
-          error ? 'border-red-400 bg-red-50/50' : 'border-gray-200 bg-white hover:border-primary/40'
-        } focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary`}
+        className={cx(
+          inputClassName(!!error),
+          'text-left flex items-center justify-between',
+          !error && 'hover:border-primary/40',
+        )}
       >
         <span className={value ? 'text-base' : 'text-gray-400'}>{displayValue}</span>
         <svg className="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -80,14 +85,14 @@ export default function DatePickerField({
       {isOpen && (
         <div className="absolute z-20 mt-1 w-full min-w-[280px] rounded-xl border border-gray-200 bg-white p-4 shadow-lg">
           {loadError && (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-2 text-red-700 text-xs mb-3">
+            <Alert compact className="mb-3">
               {loadError}
-            </div>
+            </Alert>
           )}
           {summaryError && (
-            <div className="rounded-lg bg-amber-50 border border-amber-200 p-2 text-amber-800 text-xs mb-3">
+            <Alert variant="warning" compact className="mb-3">
               {summaryError}
-            </div>
+            </Alert>
           )}
           <MonthCalendar
             viewYear={viewYear}

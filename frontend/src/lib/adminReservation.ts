@@ -91,11 +91,18 @@ export async function createAdminReservation(req: AdminReservationRequest): Prom
 export async function updateReservationStatus(
   id: string,
   status: ReservationStatus,
+  reason?: string,
 ): Promise<UpdateStatusResponse> {
+  const body: { status: ReservationStatus; reason?: string } = { status };
+  const trimmedReason = reason?.trim();
+  if (trimmedReason) {
+    body.reason = trimmedReason;
+  }
+
   const res = await authedFetch(`/api/v1/admin/reservations/${id}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {

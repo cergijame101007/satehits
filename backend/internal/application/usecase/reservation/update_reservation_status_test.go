@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -81,7 +82,7 @@ func TestUpdateReservationStatusUseCase(t *testing.T) {
 			repo := &fakeReservationRepo{
 				reservation: domain.Reservation{ID: reservationID, Status: tt.current},
 			}
-			uc := NewUpdateReservationStatusUseCase(repo)
+			uc := NewUpdateReservationStatusUseCase(repo, NoOpMailNotifier{})
 
 			result, err := uc.Execute(context.Background(), UpdateReservationStatusCommand{
 				ID:     reservationID,
@@ -110,5 +111,34 @@ func TestUpdateReservationStatusUseCase(t *testing.T) {
 				t.Fatalf("repo.lastStatus = %q, want %q", repo.lastStatus, tt.wantStatus)
 			}
 		})
+	}
+}
+
+func TestUpdateReservationStatusUseCaseRejectsLongReason(t *testing.T) {
+	reservationID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	repo := &fakeReservationRepo{
+		reservation: domain.Reservation{ID: reservationID, Status: "pending"},
+	}
+	notifier := &fakeMailNotifier{}
+	uc := NewUpdateReservationStatusUseCase(repo, notifier)
+
+	_, err := uc.Execute(context.Background(), UpdateReservationStatusCommand{
+		ID:     reservationID,
+		Status: "rejected",
+		Reason: strings.Repeat("あ", maxRejectReasonRunes+1),
+	})
+	if err == nil {
+		t.Fatal("Execute() err = nil, want ValidationError")
+	}
+	var vErr *ValidationError
+	if !errors.As(err, &vErr) {
+		t.Fatalf("Execute() err = %v, want ValidationError", err)
+	}
+	assertHasViolationField(t, vErr.Violations, "reason")
+	if repo.lastStatus != "" {
+		t.Fatalf("repo.lastStatus = %q, want empty (no update)", repo.lastStatus)
+	}
+	if notifier.rejected != 0 {
+		t.Fatalf("rejected notifications = %d, want 0", notifier.rejected)
 	}
 }

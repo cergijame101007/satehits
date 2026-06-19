@@ -3,10 +3,15 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 	"strings"
 )
 
-const minJWTSecretBytes = 32
+const (
+	minJWTSecretBytes    = 32
+	defaultMailFrom      = "さて、羊に戻るとしよう <noreply@satehits.com>"
+	defaultMailQueueSize = 100
+)
 
 // Config はバックエンドが起動時に必要とする環境変数を集約する
 type Config struct {
@@ -17,6 +22,9 @@ type Config struct {
 	TurnstileSecret string
 	Environment     string
 	MigrationsDir   string
+	ResendAPIKey    string
+	MailFromAddress string
+	MailQueueSize   int
 }
 
 // Load は環境変数を読み込み、必須項目の検証に失敗したら log.Fatal する
@@ -47,6 +55,20 @@ func Load() Config {
 		log.Fatal("TURNSTILE_SECRET_KEY is required when ENVIRONMENT is not development")
 	}
 
+	mailFrom := strings.TrimSpace(os.Getenv("MAIL_FROM_ADDRESS"))
+	if mailFrom == "" {
+		mailFrom = defaultMailFrom
+	}
+
+	mailQueueSize := defaultMailQueueSize
+	if raw := strings.TrimSpace(os.Getenv("MAIL_QUEUE_SIZE")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n <= 0 {
+			log.Fatalf("MAIL_QUEUE_SIZE must be a positive integer, got %q", raw)
+		}
+		mailQueueSize = n
+	}
+
 	return Config{
 		DatabaseURL:     dbURL,
 		JWTSecret:       []byte(jwtSecret),
@@ -55,6 +77,9 @@ func Load() Config {
 		TurnstileSecret: turnstileSecret,
 		Environment:     environment,
 		MigrationsDir:   migrationsDir,
+		ResendAPIKey:    strings.TrimSpace(os.Getenv("RESEND_API_KEY")),
+		MailFromAddress: mailFrom,
+		MailQueueSize:   mailQueueSize,
 	}
 }
 

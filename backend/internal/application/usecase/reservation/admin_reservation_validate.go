@@ -1,10 +1,14 @@
 package usecase
 
 import (
+	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/cergijame101007/satehits/internal/domain"
 )
+
+const maxRejectReasonRunes = 500
 
 func isValidEnum(value string, allowed []string) bool {
 	for _, a := range allowed {
@@ -43,6 +47,15 @@ func validateUpdateStatusTarget(value string) []FieldViolation {
 	}
 	if !isValidEnum(value, domain.UpdateStatusTargets) {
 		return []FieldViolation{{Field: "status", Message: "ステータスの値が不正です"}}
+	}
+	return nil
+}
+
+func validateUpdateStatusReason(reason string) []FieldViolation {
+	if utf8.RuneCountInString(reason) > maxRejectReasonRunes {
+		return []FieldViolation{
+			{Field: "reason", Message: fmt.Sprintf("理由は%d文字以内で入力してください", maxRejectReasonRunes)},
+		}
 	}
 	return nil
 }

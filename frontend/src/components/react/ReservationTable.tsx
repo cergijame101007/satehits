@@ -3,8 +3,21 @@ import type { Reservation, ReservationStatus, AvailabilityResponse } from '../..
 import { statusLabels, statusColors, statusBadgeBg, statusBadgeText } from '../../mocks/reservation';
 import { getAvailability, toAvailabilityErrorMessage } from '@/lib/availability';
 import { listReservations, updateReservationStatus, toReservationErrorMessage } from '@/lib/adminReservation';
+import {
+  getStatusActionDialogContent,
+  statusActionLabels,
+  statusToButtonVariant,
+  type StatusActionTarget,
+} from '@/lib/reservationStatusTheme';
 import { useMonthCalendarData } from '@/lib/useMonthCalendar';
 import MonthCalendar from '@/components/react/MonthCalendar';
+import Alert from '@/components/react/ui/Alert';
+import Button from '@/components/react/ui/Button';
+import ButtonLink from '@/components/react/ui/ButtonLink';
+import Card from '@/components/react/ui/Card';
+import ConfirmModal from '@/components/react/ui/ConfirmModal';
+import Textarea from '@/components/react/ui/Textarea';
+import { inputClassName } from '@/lib/ui/inputStyles';
 import { formatDate, formatDateJa } from '@/lib/calendarUtils';
 import { isClosedScheduleType } from '@/lib/calendarTheme';
 
@@ -16,31 +29,6 @@ const statusTransitions: Record<ReservationStatus, ReservationStatus[]> = {
   cancelled: [],
   no_show: [],
 };
-
-const actionLabels: Record<ReservationStatus, string> = {
-  approved: '承認',
-  rejected: '拒否',
-  cancelled: 'キャンセル',
-  no_show: 'No Show',
-  pending: '',
-};
-
-/** アクションボタンのスタイル（現在のステータスバッジと区別） */
-function getActionButtonClass(status: ReservationStatus): string {
-  const base = 'px-4 py-1.5 text-sm rounded-lg transition-colors font-medium';
-  switch (status) {
-    case 'approved':
-      return `${base} bg-green-600 text-white hover:bg-green-700`;
-    case 'rejected':
-      return `${base} bg-red-600 text-white hover:bg-red-700`;
-    case 'cancelled':
-      return `${base} border border-gray-300 text-gray-600 bg-white hover:bg-gray-50`;
-    case 'no_show':
-      return `${base} bg-orange-600 text-white hover:bg-orange-700`;
-    default:
-      return base;
-  }
-}
 
 export default function ReservationTable() {
   const now = new Date();
@@ -56,6 +44,9 @@ export default function ReservationTable() {
   const [availability, setAvailability] = useState<AvailabilityResponse | null>(null);
   const [isAvailabilityLoading, setIsAvailabilityLoading] = useState(false);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  const [statusActionTarget, setStatusActionTarget] = useState<StatusActionTarget | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [isStatusSubmitting, setIsStatusSubmitting] = useState(false);
 
   const {
     days: calendarDays,
@@ -138,27 +129,10 @@ export default function ReservationTable() {
 
   const selectedDaySchedule = calendarDays.find((d) => d.date === selectedDate)?.schedule;
 
-  const handleStatusChange = async (id: string, newStatus: ReservationStatus) => {
-    const reservation = reservationList.find((r) => r.id === id);
-    if (!reservation) return;
-
-    const actionLabel = actionLabels[newStatus];
-
-    if (newStatus === 'no_show') {
-      if (
-        !confirm(
-          `${reservation.name}さんの予約を「No Show（無断キャンセル）」にしますか？\n\nこの操作は取り消せません。`,
-        )
-      ) {
-        return;
-      }
-    } else if (!confirm(`${reservation.name}さんの予約を「${actionLabel}」にしますか？`)) {
-      return;
-    }
-
+  const handleStatusChange = async (id: string, newStatus: ReservationStatus, reason?: string) => {
     setActionError(null);
     try {
-      await updateReservationStatus(id, newStatus);
+      await updateReservationStatus(id, newStatus, reason);
       const [data, avail] = await Promise.all([
         listReservations(selectedDate, statusFilter || undefined),
         getAvailability(selectedDate),
@@ -167,36 +141,66 @@ export default function ReservationTable() {
       setAvailability(avail);
     } catch (err) {
       setActionError(toReservationErrorMessage(err));
+      throw err;
+    }
+  };
+
+  const openStatusActionModal = (reservation: Reservation, newStatus: ReservationStatus) => {
+    setStatusActionTarget({ reservation, newStatus });
+    setRejectReason('');
+    setActionError(null);
+  };
+
+  const closeStatusActionModal = () => {
+    if (isStatusSubmitting) return;
+    setStatusActionTarget(null);
+    setRejectReason('');
+  };
+
+  const submitStatusAction = async () => {
+    if (!statusActionTarget) return;
+    setIsStatusSubmitting(true);
+    setActionError(null);
+    try {
+      const reason = statusActionTarget.newStatus === 'rejected' ? rejectReason : undefined;
+      await handleStatusChange(statusActionTarget.reservation.id, statusActionTarget.newStatus, reason);
+      setStatusActionTarget(null);
+      setRejectReason('');
+    } catch {
+      // actionError は handleStatusChange 内で設定済み
+    } finally {
+      setIsStatusSubmitting(false);
     }
   };
 
   const isHoliday =
     selectedDaySchedule && isClosedScheduleType(selectedDaySchedule.type);
 
+  const statusActionDialog = statusActionTarget
+    ? getStatusActionDialogContent(statusActionTarget)
+    : null;
+  const isRejectAction = statusActionTarget?.newStatus === 'rejected';
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-medium">予約一覧</h1>
-        <a
-          href="/admin/reservations/new"
-          className="px-4 py-2 bg-primary text-white text-sm rounded-lg hover:bg-primary-dark transition-colors"
-        >
+        <ButtonLink href="/admin/reservations/new" variant="primary" size="md">
           + 予約登録
-        </a>
+        </ButtonLink>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* ミニ月間カレンダー */}
-        <div className="lg:col-span-1 rounded-xl border border-gray-200 bg-white p-4">
+        <Card compact className="lg:col-span-1">
           {calendarError && (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-2 text-red-700 text-xs mb-3">
+            <Alert variant="error" compact className="mb-3">
               {calendarError}
-            </div>
+            </Alert>
           )}
           {calendarSummaryError && (
-            <div className="rounded-lg bg-amber-50 border border-amber-200 p-2 text-amber-800 text-xs mb-3">
+            <Alert variant="warning" compact className="mb-3">
               {calendarSummaryError}
-            </div>
+            </Alert>
           )}
           <MonthCalendar
             viewYear={viewYear}
@@ -209,16 +213,15 @@ export default function ReservationTable() {
             isLoading={calendarLoading}
             compact
           />
-        </div>
+        </Card>
 
-        {/* 予約リスト */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex flex-wrap items-center gap-3">
             <p className="text-sm font-medium text-gray-700">{formatDateJa(selectedDate)}</p>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors text-sm"
+              className={inputClassName(false, 'sm')}
             >
               <option value="">すべてのステータス</option>
               <option value="pending">申請中</option>
@@ -229,20 +232,11 @@ export default function ReservationTable() {
             </select>
           </div>
 
-          {loadError && (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-red-700 text-sm">
-              {loadError}
-            </div>
-          )}
-
-          {actionError && (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-red-700 text-sm">
-              {actionError}
-            </div>
-          )}
+          {loadError && <Alert variant="error">{loadError}</Alert>}
+          {actionError && <Alert variant="error">{actionError}</Alert>}
 
           {isLoaded && !isLoading && (
-            <div className="flex items-center gap-4 text-sm rounded-lg bg-primary/5 border border-primary/10 px-4 py-3">
+            <Card compact className="flex items-center gap-4 text-sm text-gray-700">
               {availabilityError && (
                 <span className="text-red-600">{availabilityError}</span>
               )}
@@ -264,7 +258,7 @@ export default function ReservationTable() {
                   </span>
                 </>
               )}
-            </div>
+            </Card>
           )}
 
           {isLoading && (
@@ -283,10 +277,7 @@ export default function ReservationTable() {
             !isLoading && (
               <div className="space-y-3">
                 {reservationList.map((r) => (
-                  <div
-                    key={r.id}
-                    className="rounded-xl border border-gray-200 bg-white p-5 transition-shadow hover:shadow-sm"
-                  >
+                  <Card key={r.id} className="transition-shadow hover:shadow-sm">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
                         <span
@@ -331,18 +322,19 @@ export default function ReservationTable() {
                       <div className="flex flex-wrap gap-2 mt-4 ml-6 pt-3 border-t border-gray-100">
                         <span className="text-xs text-gray-400 self-center mr-1">操作:</span>
                         {statusTransitions[r.status].map((nextStatus) => (
-                          <button
+                          <Button
                             key={nextStatus}
                             type="button"
-                            onClick={() => handleStatusChange(r.id, nextStatus)}
-                            className={getActionButtonClass(nextStatus)}
+                            variant={statusToButtonVariant(nextStatus)}
+                            size="sm"
+                            onClick={() => openStatusActionModal(r, nextStatus)}
                           >
-                            {actionLabels[nextStatus]}
-                          </button>
+                            {statusActionLabels[nextStatus]}
+                          </Button>
                         ))}
                       </div>
                     )}
-                  </div>
+                  </Card>
                 ))}
               </div>
             )
@@ -358,6 +350,38 @@ export default function ReservationTable() {
           </div>
         </div>
       </div>
+
+      {statusActionTarget && statusActionDialog && (
+        <ConfirmModal
+          open
+          title={statusActionDialog.title}
+          description={statusActionDialog.description}
+          confirmLabel={statusActionDialog.confirmLabel}
+          confirmVariant={statusActionDialog.confirmVariant}
+          isSubmitting={isStatusSubmitting}
+          onConfirm={submitStatusAction}
+          onCancel={closeStatusActionModal}
+        >
+          {isRejectAction && (
+            <div className="mt-4">
+              <label htmlFor="reject-reason" className="block text-sm font-medium text-gray-700 mb-2">
+                拒否理由（任意）
+              </label>
+              <Textarea
+                id="reject-reason"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                rows={4}
+                inputSize="sm"
+                placeholder="例: 定員超過のため"
+              />
+              <p className="mt-2 text-xs text-gray-500">
+                入力した場合のみ、顧客への拒否メールに理由が記載されます。
+              </p>
+            </div>
+          )}
+        </ConfirmModal>
+      )}
     </div>
   );
 }

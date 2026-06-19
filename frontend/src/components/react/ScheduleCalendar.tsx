@@ -9,6 +9,11 @@ import {
 } from '@/lib/schedule';
 import MonthCalendar from '@/components/react/MonthCalendar';
 import type { MonthCalendarDay } from '@/components/react/MonthCalendar';
+import Alert from '@/components/react/ui/Alert';
+import Button from '@/components/react/ui/Button';
+import Card from '@/components/react/ui/Card';
+import Textarea from '@/components/react/ui/Textarea';
+import { inputClassName } from '@/lib/ui/inputStyles';
 
 export default function ScheduleCalendar() {
   const now = new Date();
@@ -127,21 +132,14 @@ export default function ScheduleCalendar() {
     }
   };
 
-  const inputClass =
-    'w-full px-4 py-3 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors text-base';
-
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-medium">スケジュール設定</h1>
 
-      {loadError && (
-        <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-red-700 text-sm">
-          {loadError}
-        </div>
-      )}
+      {loadError && <Alert variant="error">{loadError}</Alert>}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <div className="lg:col-span-2 rounded-xl border border-gray-200 bg-white p-5">
+        <Card className="lg:col-span-2">
           {loadError && !isLoading ? (
             <div className="text-center py-16 text-gray-400 text-sm">スケジュールを表示できません</div>
           ) : (
@@ -159,9 +157,9 @@ export default function ScheduleCalendar() {
               isLoading={isLoading}
             />
           )}
-        </div>
+        </Card>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-5">
+        <Card>
           {selectedSchedule ? (
             <div className="space-y-4">
               <h3 className="font-medium">
@@ -181,7 +179,7 @@ export default function ScheduleCalendar() {
                       setEditCapacity(10);
                     }
                   }}
-                  className={inputClass}
+                  className={inputClassName()}
                 >
                   {editableScheduleTypes.map((key) => (
                     <option key={key} value={key}>
@@ -198,7 +196,7 @@ export default function ScheduleCalendar() {
                     type="text"
                     value={editEventName}
                     onChange={(e) => setEditEventName(e.target.value)}
-                    className={inputClass}
+                    className={inputClassName()}
                     required
                   />
                 </div>
@@ -209,11 +207,10 @@ export default function ScheduleCalendar() {
                   <label className="block text-sm font-medium mb-2">
                     説明（顧客に表示）
                   </label>
-                  <textarea
+                  <Textarea
                     value={editDescription}
                     onChange={(e) => setEditDescription(e.target.value)}
                     rows={3}
-                    className={inputClass}
                   />
                 </div>
               )}
@@ -224,7 +221,7 @@ export default function ScheduleCalendar() {
                 <select
                   value={editCapacity}
                   onChange={(e) => setEditCapacity(parseInt(e.target.value))}
-                  className={inputClass}
+                  className={inputClassName()}
                 >
                   {Array.from({ length: 16 }, (_, i) => i).map((n) => (
                     <option key={n} value={n}>
@@ -235,31 +232,24 @@ export default function ScheduleCalendar() {
               </div>
               )}
 
-              {saveError && (
-                <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-red-700 text-sm">
-                  {saveError}
-                </div>
-              )}
+              {saveError && <Alert variant="error">{saveError}</Alert>}
 
-              <button
+              <Button
                 type="button"
+                variant="primary"
+                size="lg"
                 onClick={handleSave}
                 disabled={isSaving || isLoading}
-                className={`w-full py-3 rounded-xl text-white font-medium transition-all ${
-                  isSaving || isLoading
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-primary hover:bg-primary-dark active:scale-[0.98] shadow-lg'
-                }`}
               >
                 {isSaving ? '保存中...' : '保存する'}
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="text-center py-12 text-gray-400 text-sm">
               カレンダーから日付を選択してください
             </div>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );

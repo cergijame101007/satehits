@@ -34,6 +34,7 @@ type AdminReservationRequest struct {
 // UpdateStatusRequest は予約ステータス更新リクエスト DTO
 type UpdateStatusRequest struct {
 	Status string `json:"status"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // ReservationResponse は予約レスポンス DTO（OpenAPI ReservationResponse）
@@ -222,6 +223,7 @@ func (h *AdminReservationHandler) handleUpdateStatus(w http.ResponseWriter, r *h
 	updated, err := h.updateStatus.Execute(r.Context(), usecase.UpdateReservationStatusCommand{
 		ID:     id,
 		Status: request.Status,
+		Reason: request.Reason,
 	})
 	if writeReservationUsecaseError(w, err, "Failed to update reservation status") {
 		return
