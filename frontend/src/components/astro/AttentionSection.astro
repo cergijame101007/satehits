@@ -1,6 +1,7 @@
 ---
 import AccordionItem from './AccordionItem.astro';
 import SectionReveal from './SectionReveal.astro';
+import PublicScheduleCalendar from '../react/PublicScheduleCalendar.tsx';
 ---
 
 <section id="attention" class="py-20 md:py-28 section-light">
@@ -17,21 +18,7 @@ import SectionReveal from './SectionReveal.astro';
     <SectionReveal delay={0.2}>
       <div class="glass rounded-2xl p-6 md:p-8 shadow-lg">
         <AccordionItem title="営業について" defaultOpen={true}>
-          <div class="space-y-3 text-sm md:text-base">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div class="p-4 bg-gray-50 rounded-lg">
-                <p class="font-medium text-gray-800 mb-2">月・火・水・土・祝</p>
-                <p>11:30 - 15:00</p>
-                <p class="text-gray-500 text-sm">ラストオーダー 13:30</p>
-              </div>
-              <div class="p-4 bg-gray-50 rounded-lg">
-                <p class="font-medium text-gray-800 mb-2">日曜</p>
-                <p>8:30 - 15:00</p>
-                <p class="text-gray-500 text-sm">ラストオーダー 13:30（朝営業あり）</p>
-              </div>
-            </div>
-            <p class="text-gray-500 pt-2">※ 定休日は木曜・金曜です</p>
-          </div>
+          <PublicScheduleCalendar client:load />
         </AccordionItem>
 
         <AccordionItem title="ご予約について">

@@ -91,6 +91,7 @@ func TestValidateSetSchedule_scheduleType(t *testing.T) {
 		{name: "accepts normal", in: domain.ScheduleTypeNormal, wantField: ""},
 		{name: "accepts morning", in: domain.ScheduleTypeMorning, wantField: ""},
 		{name: "accepts event", in: domain.ScheduleTypeEvent, wantField: ""},
+		{name: "accepts external_event", in: domain.ScheduleTypeExternalEvent, wantField: ""},
 		{name: "accepts special_menu", in: domain.ScheduleTypeSpecialMenu, wantField: ""},
 		{name: "accepts closed", in: domain.ScheduleTypeClosed, wantField: ""},
 		{name: "accepts trimmed schedule_type", in: " " + domain.ScheduleTypeNormal + " ", wantField: ""},
@@ -99,7 +100,8 @@ func TestValidateSetSchedule_scheduleType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := validSetScheduleCommand()
 			cmd.ScheduleType = tt.in
-			if strings.TrimSpace(tt.in) == domain.ScheduleTypeEvent {
+			if strings.TrimSpace(tt.in) == domain.ScheduleTypeEvent ||
+				strings.TrimSpace(tt.in) == domain.ScheduleTypeExternalEvent {
 				cmd.EventName = "テストイベント"
 				cmd.EventDescription = testEventDescShort
 			}
@@ -136,11 +138,34 @@ func TestValidateSetSchedule_eventRequiredFields(t *testing.T) {
 		assertSingleViolationField(t, validateSetSchedule(cmd), "event_name")
 	})
 
-	t.Run("rejects event without event_description", func(t *testing.T) {
+	t.Run("accepts event without event_description", func(t *testing.T) {
 		cmd := validSetScheduleCommand()
 		cmd.ScheduleType = domain.ScheduleTypeEvent
 		cmd.EventName = testEventNameSample
-		assertSingleViolationField(t, validateSetSchedule(cmd), "event_description")
+		assertNoViolations(t, validateSetSchedule(cmd))
+	})
+
+	t.Run("accepts external_event without event_description", func(t *testing.T) {
+		cmd := validSetScheduleCommand()
+		cmd.ScheduleType = domain.ScheduleTypeExternalEvent
+		cmd.EventName = testEventNameSample
+		cmd.Capacity = 0
+		assertNoViolations(t, validateSetSchedule(cmd))
+	})
+
+	t.Run("rejects external_event without event_name", func(t *testing.T) {
+		cmd := validSetScheduleCommand()
+		cmd.ScheduleType = domain.ScheduleTypeExternalEvent
+		cmd.Capacity = 0
+		assertSingleViolationField(t, validateSetSchedule(cmd), "event_name")
+	})
+
+	t.Run("rejects external_event with whitespace-only event_name", func(t *testing.T) {
+		cmd := validSetScheduleCommand()
+		cmd.ScheduleType = domain.ScheduleTypeExternalEvent
+		cmd.Capacity = 0
+		cmd.EventName = "  "
+		assertSingleViolationField(t, validateSetSchedule(cmd), "event_name")
 	})
 
 	t.Run("rejects event with whitespace-only event_name", func(t *testing.T) {

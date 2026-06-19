@@ -674,7 +674,8 @@ PUT /api/v1/admin/schedules/2025-02-11
 | `schedule_type` | `event_name` / `event_description` | 時刻（`open_time` 等） |
 |-----------------|-------------------------------------|-------------------------|
 | `normal` / `morning` / `special_menu` | 任意（`special_menu` はメニュー名など） | 省略時は店舗デフォルトを適用 |
-| `event` | **両方必須** | **任意**（省略時は曜日別の店舗デフォルトを適用） |
+| `event` | 名称**必須** / 説明**任意** | **任意**（省略時は曜日別の店舗デフォルトを適用） |
+| `external_event` | 名称**必須** / 説明**任意** | 保存しない（常に NULL）。`capacity` は 0 固定 |
 | `closed` | 不要 | 送信しても保存しない（常に NULL） |
 
 ```json

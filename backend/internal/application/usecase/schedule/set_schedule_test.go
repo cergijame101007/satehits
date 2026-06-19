@@ -142,3 +142,66 @@ func TestSetScheduleUseCase_Execute_clearsEventTextForNormalAndClosed(t *testing
 		}
 	})
 }
+
+func TestSetScheduleUseCase_Execute_externalEvent(t *testing.T) {
+	t.Run("clears business hours for external_event", func(t *testing.T) {
+		repo := &stubScheduleRepo{inserted: true}
+		uc := NewSetScheduleUseCase(repo)
+
+		_, err := uc.Execute(context.Background(), SetScheduleCommand{
+			Date:          datetime.MustParseDate("2026-02-11"),
+			ScheduleType:  domain.ScheduleTypeExternalEvent,
+			Capacity:      0,
+			EventName:     "和紅茶をしばく会",
+			OpenTime:      datetime.MustParseTime("11:30"),
+			LastOrderTime: datetime.MustParseTime("13:30"),
+			CloseTime:     datetime.MustParseTime("15:00"),
+		})
+		if err != nil {
+			t.Fatalf("Execute() err = %v, want nil", err)
+		}
+		if !repo.lastIn.OpenTime.IsZero() || !repo.lastIn.LastOrderTime.IsZero() || !repo.lastIn.CloseTime.IsZero() {
+			t.Fatalf("times = %s/%s/%s, want all zero",
+				repo.lastIn.OpenTime, repo.lastIn.LastOrderTime, repo.lastIn.CloseTime)
+		}
+	})
+
+	t.Run("forces capacity zero for external_event", func(t *testing.T) {
+		repo := &stubScheduleRepo{inserted: true}
+		uc := NewSetScheduleUseCase(repo)
+
+		_, err := uc.Execute(context.Background(), SetScheduleCommand{
+			Date:         datetime.MustParseDate("2026-02-11"),
+			ScheduleType: domain.ScheduleTypeExternalEvent,
+			Capacity:     10,
+			EventName:    "和紅茶をしばく会",
+		})
+		if err != nil {
+			t.Fatalf("Execute() err = %v, want nil", err)
+		}
+		if repo.lastIn.Capacity != 0 {
+			t.Fatalf("Capacity = %d, want 0", repo.lastIn.Capacity)
+		}
+	})
+
+	t.Run("persists event name and optional description for external_event", func(t *testing.T) {
+		repo := &stubScheduleRepo{inserted: true}
+		uc := NewSetScheduleUseCase(repo)
+
+		_, err := uc.Execute(context.Background(), SetScheduleCommand{
+			Date:         datetime.MustParseDate("2026-02-11"),
+			ScheduleType: domain.ScheduleTypeExternalEvent,
+			Capacity:     0,
+			EventName:    "和紅茶をしばく会",
+		})
+		if err != nil {
+			t.Fatalf("Execute() err = %v, want nil", err)
+		}
+		if repo.lastIn.EventName != "和紅茶をしばく会" {
+			t.Fatalf("EventName = %q", repo.lastIn.EventName)
+		}
+		if repo.lastIn.EventDescription != "" {
+			t.Fatalf("EventDescription = %q, want empty", repo.lastIn.EventDescription)
+		}
+	})
+}

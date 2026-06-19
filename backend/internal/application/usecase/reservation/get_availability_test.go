@@ -76,7 +76,14 @@ func (r getAvailReservationRepo) SumReservedPeopleByDateRange(_ context.Context,
 }
 
 func newGetAvailabilityUseCaseForTest(res getAvailReservationRepo) *GetAvailabilityUseCase {
-	resolver := service.NewScheduleResolver(getAvailScheduleRepo{})
+	return newGetAvailabilityUseCaseForTestWithSchedule(getAvailScheduleRepo{}, res)
+}
+
+func newGetAvailabilityUseCaseForTestWithSchedule(
+	sched getAvailScheduleRepo,
+	res getAvailReservationRepo,
+) *GetAvailabilityUseCase {
+	resolver := service.NewScheduleResolver(sched)
 	avail := service.NewAvailabilityService(resolver, res)
 	return NewGetAvailabilityUseCase(avail)
 }
@@ -113,6 +120,37 @@ func TestGetAvailabilityUseCase_Execute(t *testing.T) {
 			t.Fatalf("Execute() err = %v, want ValidationError", err)
 		}
 		assertHasViolationField(t, vErr.Violations, "date")
+	})
+
+	t.Run("returns external_event with holiday flag and event metadata on Execute", func(t *testing.T) {
+		extDate := datetime.MustParseDate("2026-02-11")
+		uc := newGetAvailabilityUseCaseForTestWithSchedule(
+			getAvailScheduleRepo{
+				byDate: map[string]domain.Schedule{
+					extDate.String(): {
+						Date:         extDate,
+						ScheduleType: domain.ScheduleTypeExternalEvent,
+						Capacity:     0,
+						EventName:    "和紅茶をしばく会",
+					},
+				},
+			},
+			getAvailReservationRepo{},
+		)
+
+		got, err := uc.Execute(context.Background(), extDate)
+		if err != nil {
+			t.Fatalf("Execute() err = %v, want nil", err)
+		}
+		if !got.IsHoliday {
+			t.Fatal("IsHoliday = false, want true")
+		}
+		if got.ScheduleType != domain.ScheduleTypeExternalEvent {
+			t.Fatalf("ScheduleType = %q, want external_event", got.ScheduleType)
+		}
+		if got.EventName != "和紅茶をしばく会" {
+			t.Fatalf("EventName = %q", got.EventName)
+		}
 	})
 
 	t.Run("returns holiday availability with zero counts", func(t *testing.T) {

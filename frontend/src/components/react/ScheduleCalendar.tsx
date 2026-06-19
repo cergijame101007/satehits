@@ -86,18 +86,22 @@ export default function ScheduleCalendar() {
     if (!selectedSchedule) return;
     setSaveError('');
 
-    if (editType === 'event' && (!editEventName.trim() || !editDescription.trim())) {
-      setSaveError('イベント名と説明は必須です');
+    if (
+      (editType === 'event' || editType === 'external_event') &&
+      !editEventName.trim()
+    ) {
+      setSaveError('イベント名は必須です');
       return;
     }
 
+    const capacityToSave = editType === 'external_event' ? 0 : editCapacity;
     setIsSaving(true);
 
     try {
       const saved = await setSchedule(
         selectedSchedule.date,
         editType,
-        editCapacity,
+        capacityToSave,
         editEventName,
         editDescription,
       );
@@ -168,7 +172,15 @@ export default function ScheduleCalendar() {
                 <label className="block text-sm font-medium mb-2">タイプ</label>
                 <select
                   value={editType}
-                  onChange={(e) => setEditType(e.target.value as ScheduleType)}
+                  onChange={(e) => {
+                    const nextType = e.target.value as ScheduleType;
+                    setEditType(nextType);
+                    if (nextType === 'external_event') {
+                      setEditCapacity(0);
+                    } else if (nextType === 'event' && editCapacity === 0) {
+                      setEditCapacity(10);
+                    }
+                  }}
                   className={inputClass}
                 >
                   {editableScheduleTypes.map((key) => (
@@ -179,7 +191,7 @@ export default function ScheduleCalendar() {
                 </select>
               </div>
 
-              {editType === 'event' && (
+              {(editType === 'event' || editType === 'external_event') && (
                 <div>
                   <label className="block text-sm font-medium mb-2">イベント名</label>
                   <input
@@ -192,7 +204,7 @@ export default function ScheduleCalendar() {
                 </div>
               )}
 
-              {(editType === 'event' || editType === 'special') && (
+              {(editType === 'event' || editType === 'external_event' || editType === 'special') && (
                 <div>
                   <label className="block text-sm font-medium mb-2">
                     説明（顧客に表示）
@@ -202,11 +214,11 @@ export default function ScheduleCalendar() {
                     onChange={(e) => setEditDescription(e.target.value)}
                     rows={3}
                     className={inputClass}
-                    required={editType === 'event'}
                   />
                 </div>
               )}
 
+              {editType !== 'external_event' && (
               <div>
                 <label className="block text-sm font-medium mb-2">提供可能数</label>
                 <select
@@ -221,6 +233,7 @@ export default function ScheduleCalendar() {
                   ))}
                 </select>
               </div>
+              )}
 
               {saveError && (
                 <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-red-700 text-sm">

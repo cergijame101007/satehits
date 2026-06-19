@@ -62,11 +62,14 @@ func (u *SetScheduleUseCase) Execute(ctx context.Context, cmd SetScheduleCommand
 
 	scheduleType := strings.TrimSpace(cmd.ScheduleType)
 	openTime, lastOrder, closeTime := service.ApplyDefaultBusinessHours(scheduleType, cmd.OpenTime, cmd.LastOrderTime, cmd.CloseTime)
-	if scheduleType == "event" {
+	if scheduleType == domain.ScheduleTypeEvent {
 		openTime, lastOrder, closeTime = service.ApplyEventDefaultBusinessHours(cmd.Date, openTime, lastOrder, closeTime)
 	}
-	if scheduleType == "closed" {
+	if scheduleType == domain.ScheduleTypeClosed || scheduleType == domain.ScheduleTypeExternalEvent {
 		openTime, lastOrder, closeTime = datetime.Time{}, datetime.Time{}, datetime.Time{}
+	}
+	if scheduleType == domain.ScheduleTypeExternalEvent {
+		cmd.Capacity = 0
 	}
 	if v := validateScheduleTimes(openTime, lastOrder, closeTime); len(v) > 0 {
 		return nil, &ValidationError{Violations: v}

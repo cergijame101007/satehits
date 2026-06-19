@@ -51,6 +51,33 @@ export interface AvailabilityListResponse {
   availabilities: AvailabilityResponse[];
 }
 
+/** 顧客向け公開スケジュールの schedule_type（OpenAPI DaySchedule） */
+export type PublicScheduleType =
+  | 'normal'
+  | 'morning'
+  | 'event'
+  | 'external_event'
+  | 'special_menu'
+  | 'closed';
+
+/** 顧客向け日別スケジュール（GET /schedules） */
+export interface PublicDaySchedule {
+  date: string;
+  schedule_type: PublicScheduleType | null;
+  capacity: number;
+  available: number;
+  event_name?: string;
+  event_description?: string;
+  is_holiday: boolean;
+}
+
+/** 顧客向け月間スケジュールレスポンス */
+export interface MonthlyPublicScheduleResponse {
+  year: number;
+  month: number;
+  schedules: PublicDaySchedule[];
+}
+
 /** ログインリクエスト */
 export interface LoginRequest {
   email: string;
@@ -69,7 +96,14 @@ export interface LoginResponse {
 }
 
 /** 日別スケジュールタイプ */
-export type ScheduleType = 'normal' | 'morning' | 'event' | 'special' | 'closed' | 'temporary_closed';
+export type ScheduleType =
+  | 'normal'
+  | 'morning'
+  | 'event'
+  | 'external_event'
+  | 'special'
+  | 'closed'
+  | 'temporary_closed';
 
 /** 日別スケジュール */
 export interface DailySchedule {

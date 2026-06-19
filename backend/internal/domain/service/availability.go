@@ -78,6 +78,18 @@ func buildAvailability(date datetime.Date, sch domain.Schedule, reserved int) Av
 			IsHoliday: true,
 		}
 	}
+	if sch.ScheduleType == domain.ScheduleTypeExternalEvent {
+		return Availability{
+			Date:             date,
+			Capacity:         0,
+			Reserved:         0,
+			Available:        0,
+			ScheduleType:     sch.ScheduleType,
+			EventName:        sch.EventName,
+			EventDescription: sch.EventDescription,
+			IsHoliday:        true,
+		}
+	}
 
 	capacity := sch.Capacity
 	available := capacity - reserved

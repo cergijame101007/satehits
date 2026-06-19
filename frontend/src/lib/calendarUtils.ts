@@ -23,8 +23,29 @@ export function buildMonthDates(year: number, month: number): (string | null)[] 
   for (let d = 1; d <= daysInMonth; d++) {
     cells.push(`${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
   }
+  while (cells.length % 7 !== 0) cells.push(null);
 
   return cells;
+}
+
+/** 固定行数（既定 6 行 × 7 列 = 42 マス）のカレンダー用。当月外は null */
+export function buildMonthDatesFixedGrid(
+  year: number,
+  month: number,
+  rows = 6,
+): (string | null)[] {
+  const firstDayOfMonth = new Date(year, month - 1, 1).getDay();
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const cells: (string | null)[] = [];
+  const totalCells = rows * 7;
+
+  for (let i = 0; i < firstDayOfMonth; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push(`${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+  }
+  while (cells.length < totalCells) cells.push(null);
+
+  return cells.slice(0, totalCells);
 }
 
 export function shiftMonth(year: number, month: number, delta: number): { year: number; month: number } {

@@ -136,7 +136,7 @@ export function getMonthlySchedules(year: number, month: number): DailySchedule[
   // モック: 特別な日を追加
   const eventDay = schedules.find((s) => s.date === `${year}-${String(month).padStart(2, '0')}-11`);
   if (eventDay && eventDay.type !== 'closed') {
-    eventDay.type = 'event';
+    eventDay.type = 'external_event';
     eventDay.event_name = '和紅茶をしばく会';
     eventDay.description = '和紅茶をしばく会 入門編\n@WINE LAB.\n通常のランチ営業はおやすみ';
     eventDay.capacity = 0;
@@ -186,6 +186,7 @@ export const scheduleTypeLabels: Record<ScheduleType, string> = {
   normal: '通常',
   morning: '朝営業',
   event: 'イベント',
+  external_event: '外部イベント（店休）',
   special: '特別メニュー',
   closed: '定休日',
   temporary_closed: '臨時休',
@@ -196,6 +197,7 @@ export const scheduleTypeShort: Record<ScheduleType, string> = {
   normal: '通',
   morning: '朝',
   event: 'イ',
+  external_event: '外',
   special: '特',
   closed: '休',
   temporary_closed: '臨',

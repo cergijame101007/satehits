@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	usecase "github.com/cergijame101007/satehits/internal/application/usecase/reservation"
+	"github.com/cergijame101007/satehits/internal/domain"
 	"github.com/cergijame101007/satehits/internal/domain/service"
 )
 
@@ -79,7 +80,7 @@ func toDaySchedule(a service.Availability) DaySchedule {
 		EventDescription: a.EventDescription,
 		IsHoliday:        a.IsHoliday,
 	}
-	if a.IsHoliday {
+	if a.IsHoliday && a.ScheduleType != domain.ScheduleTypeExternalEvent {
 		resp.ScheduleType = nil
 		return resp
 	}
