@@ -66,7 +66,10 @@ func (c *Client) Send(ctx context.Context, msg domain.MailMessage) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		if readErr != nil {
+			return fmt.Errorf("resend status %d: read body: %w", resp.StatusCode, readErr)
+		}
 		return fmt.Errorf("resend status %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
 	}
 	return nil
