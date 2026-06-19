@@ -24,5 +24,5 @@ export const typeTextColors: Record<ScheduleType, string> = {
 export const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'] as const;
 
 export function isClosedScheduleType(type: ScheduleType): boolean {
-  return type === 'closed' || type === 'temporary_closed';
+  return type === 'closed' || type === 'temporary_closed' || type === 'external_event';
 }
