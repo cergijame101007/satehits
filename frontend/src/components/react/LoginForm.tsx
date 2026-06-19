@@ -1,5 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { AuthError, login } from '@/lib/auth';
+import Alert from '@/components/react/ui/Alert';
+import Button from '@/components/react/ui/Button';
+import { inputClassName } from '@/components/react/ui/inputStyles';
 
 export default function LoginForm() {
   const [email, setEmail] = useState('');
@@ -38,9 +41,6 @@ export default function LoginForm() {
     }
   };
 
-  const inputClass =
-    'w-full px-4 py-3 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors text-base';
-
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
@@ -53,7 +53,7 @@ export default function LoginForm() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className={inputClass}
+              className={inputClassName()}
               autoComplete="email"
               required
             />
@@ -65,31 +65,18 @@ export default function LoginForm() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className={inputClass}
+              className={inputClassName()}
               autoComplete="current-password"
               required
             />
           </div>
 
-          {error && (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-red-700 text-sm">
-              {error}
-            </div>
-          )}
+          {error && <Alert variant="error">{error}</Alert>}
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className={`w-full py-3 rounded-xl text-white font-medium transition-all ${
-              isSubmitting
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-primary hover:bg-primary-dark active:scale-[0.98] shadow-lg'
-            }`}
-          >
+          <Button type="submit" variant="primary" size="lg" disabled={isSubmitting}>
             {isSubmitting ? 'ログイン中...' : 'ログイン'}
-          </button>
+          </Button>
         </form>
-
       </div>
     </div>
   );

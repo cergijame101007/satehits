@@ -3,6 +3,10 @@ import type { AdminReservationRequest } from '../../types/reservation';
 import { createAdminReservation, ReservationApiError } from '@/lib/adminReservation';
 import { getAvailability } from '@/lib/availability';
 import DatePickerField from '@/components/react/DatePickerField';
+import Alert from '@/components/react/ui/Alert';
+import Button from '@/components/react/ui/Button';
+import Textarea from '@/components/react/ui/Textarea';
+import { inputClassName } from '@/components/react/ui/inputStyles';
 
 /** pending / approved は reserved 集計対象。超過時は登録前に確認する */
 async function confirmIfCapacityExceeded(
@@ -109,10 +113,7 @@ export default function ReservationCreateForm() {
     }
   };
 
-  const inputClass = (fieldName: string) =>
-    `w-full px-4 py-3 rounded-lg border ${
-      errors[fieldName] ? 'border-red-400 bg-red-50/50' : 'border-gray-200 bg-white'
-    } focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors text-base`;
+  const inputClass = (fieldName: string) => inputClassName(!!errors[fieldName]);
 
   if (success) {
     return (
@@ -124,13 +125,12 @@ export default function ReservationCreateForm() {
         </div>
         <p className="text-lg font-medium">予約を登録しました</p>
         <div className="flex gap-3 justify-center">
-          <a
-            href="/admin/reservations"
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors text-sm"
-          >
+          <Button variant="primary" size="md" onClick={() => { window.location.href = '/admin/reservations'; }}>
             予約一覧へ
-          </a>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="md"
             onClick={() => {
               setSuccess(false);
               setForm({
@@ -145,10 +145,9 @@ export default function ReservationCreateForm() {
                 status: 'approved',
               });
             }}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm"
           >
             続けて登録
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -245,7 +244,7 @@ export default function ReservationCreateForm() {
         {/* 備考 */}
         <div>
           <label className="block text-sm font-medium mb-2">備考</label>
-          <textarea name="note" value={form.note} onChange={handleChange} rows={3} className={inputClass('note')} />
+          <Textarea name="note" value={form.note} onChange={handleChange} rows={3} hasError={!!errors.note} />
         </div>
 
         {/* ステータス */}
@@ -257,23 +256,11 @@ export default function ReservationCreateForm() {
           </select>
         </div>
 
-        {errors.submit && (
-          <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-red-700 text-sm">
-            {errors.submit}
-          </div>
-        )}
+        {errors.submit && <Alert>{errors.submit}</Alert>}
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className={`w-full py-3 rounded-xl text-white font-medium transition-all ${
-            isSubmitting
-              ? 'bg-gray-400 cursor-not-allowed'
-              : 'bg-primary hover:bg-primary-dark active:scale-[0.98] shadow-lg'
-          }`}
-        >
+        <Button type="submit" variant="primary" size="lg" disabled={isSubmitting}>
           {isSubmitting ? '登録中...' : '登録する'}
-        </button>
+        </Button>
       </form>
     </div>
   );
