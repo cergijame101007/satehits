@@ -79,10 +79,7 @@ export const mockReservations: Reservation[] = [
   },
 ];
 
-/**
- * 予約一覧を取得（モック）
- * TODO: GET /api/v1/admin/reservations?date=YYYY-MM-DD&status=xxx に置き換え
- */
+/** @deprecated 未使用。`lib/adminReservation.ts` を使用すること */
 export function getReservations(date?: string, status?: string): Reservation[] {
   let filtered = [...mockReservations];
   if (date) filtered = filtered.filter((r) => r.visit_date === date);
@@ -90,10 +87,7 @@ export function getReservations(date?: string, status?: string): Reservation[] {
   return filtered.sort((a, b) => a.visit_time.localeCompare(b.visit_time));
 }
 
-/**
- * ログイン（モック）
- * TODO: POST /api/v1/admin/login に置き換え
- */
+/** @deprecated 未使用。`lib/auth.ts` を使用すること */
 export function login(email: string, password: string): LoginResponse | null {
   if (email === 'owner@example.com' && password === 'password123') {
     return {
@@ -105,10 +99,7 @@ export function login(email: string, password: string): LoginResponse | null {
   return null;
 }
 
-/**
- * 月間スケジュールを生成（モック）
- * TODO: GET /api/v1/admin/schedules?month=YYYY-MM に置き換え
- */
+/** @deprecated 未使用。`lib/schedule.ts` を使用すること */
 export function getMonthlySchedules(year: number, month: number): DailySchedule[] {
   const schedules: DailySchedule[] = [];
   const daysInMonth = new Date(year, month, 0).getDate();
