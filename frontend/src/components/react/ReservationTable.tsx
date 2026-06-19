@@ -56,6 +56,9 @@ export default function ReservationTable() {
   const [availability, setAvailability] = useState<AvailabilityResponse | null>(null);
   const [isAvailabilityLoading, setIsAvailabilityLoading] = useState(false);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<Reservation | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [isRejectSubmitting, setIsRejectSubmitting] = useState(false);
 
   const {
     days: calendarDays,
@@ -138,7 +141,7 @@ export default function ReservationTable() {
 
   const selectedDaySchedule = calendarDays.find((d) => d.date === selectedDate)?.schedule;
 
-  const handleStatusChange = async (id: string, newStatus: ReservationStatus) => {
+  const handleStatusChange = async (id: string, newStatus: ReservationStatus, reason?: string) => {
     const reservation = reservationList.find((r) => r.id === id);
     if (!reservation) return;
 
@@ -152,13 +155,13 @@ export default function ReservationTable() {
       ) {
         return;
       }
-    } else if (!confirm(`${reservation.name}さんの予約を「${actionLabel}」にしますか？`)) {
+    } else if (newStatus !== 'rejected' && !confirm(`${reservation.name}さんの予約を「${actionLabel}」にしますか？`)) {
       return;
     }
 
     setActionError(null);
     try {
-      await updateReservationStatus(id, newStatus);
+      await updateReservationStatus(id, newStatus, reason);
       const [data, avail] = await Promise.all([
         listReservations(selectedDate, statusFilter || undefined),
         getAvailability(selectedDate),
@@ -167,6 +170,31 @@ export default function ReservationTable() {
       setAvailability(avail);
     } catch (err) {
       setActionError(toReservationErrorMessage(err));
+    }
+  };
+
+  const openRejectModal = (reservation: Reservation) => {
+    setRejectTarget(reservation);
+    setRejectReason('');
+    setActionError(null);
+  };
+
+  const closeRejectModal = () => {
+    if (isRejectSubmitting) return;
+    setRejectTarget(null);
+    setRejectReason('');
+  };
+
+  const submitReject = async () => {
+    if (!rejectTarget) return;
+    setIsRejectSubmitting(true);
+    setActionError(null);
+    try {
+      await handleStatusChange(rejectTarget.id, 'rejected', rejectReason);
+      setRejectTarget(null);
+      setRejectReason('');
+    } finally {
+      setIsRejectSubmitting(false);
     }
   };
 
@@ -334,7 +362,11 @@ export default function ReservationTable() {
                           <button
                             key={nextStatus}
                             type="button"
-                            onClick={() => handleStatusChange(r.id, nextStatus)}
+                            onClick={() =>
+                              nextStatus === 'rejected'
+                                ? openRejectModal(r)
+                                : handleStatusChange(r.id, nextStatus)
+                            }
                             className={getActionButtonClass(nextStatus)}
                           >
                             {actionLabels[nextStatus]}
@@ -358,6 +390,56 @@ export default function ReservationTable() {
           </div>
         </div>
       </div>
+
+      {rejectTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reject-dialog-title"
+            className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-lg"
+          >
+            <h2 id="reject-dialog-title" className="text-lg font-medium mb-2">
+              予約を拒否
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              {rejectTarget.name}さん（{rejectTarget.visit_time}・{rejectTarget.people}名）の予約を拒否します。
+            </p>
+            <label htmlFor="reject-reason" className="block text-sm font-medium text-gray-700 mb-2">
+              拒否理由（任意）
+            </label>
+            <textarea
+              id="reject-reason"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={4}
+              placeholder="例: 定員超過のため"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            />
+            <p className="mt-2 text-xs text-gray-500">
+              入力した場合のみ、顧客への拒否メールに理由が記載されます。
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeRejectModal}
+                disabled={isRejectSubmitting}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={submitReject}
+                disabled={isRejectSubmitting}
+                className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {isRejectSubmitting ? '処理中...' : '拒否する'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
