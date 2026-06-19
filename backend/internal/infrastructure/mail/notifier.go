@@ -1,8 +1,8 @@
 package mail
 
 import (
-	"github.com/cergijame101007/satehits/internal/domain"
 	reservationusecase "github.com/cergijame101007/satehits/internal/application/usecase/reservation"
+	"github.com/cergijame101007/satehits/internal/domain"
 )
 
 // ReservationNotifier は予約関連メールを非同期キューへ投入する

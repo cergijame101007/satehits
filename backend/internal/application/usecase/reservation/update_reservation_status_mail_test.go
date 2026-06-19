@@ -10,9 +10,9 @@ import (
 )
 
 type fakeMailNotifier struct {
-	received int
-	approved int
-	rejected int
+	received   int
+	approved   int
+	rejected   int
 	lastReason string
 }
 

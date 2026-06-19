@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	minJWTSecretBytes   = 32
-	defaultMailFrom     = "さて、羊に戻るとしよう <noreply@satehits.com>"
+	minJWTSecretBytes    = 32
+	defaultMailFrom      = "さて、羊に戻るとしよう <noreply@satehits.com>"
 	defaultMailQueueSize = 100
 )
 

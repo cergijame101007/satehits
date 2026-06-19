@@ -12,6 +12,6 @@ type MailNotifier interface {
 // NoOpMailNotifier はメール送信を行わない
 type NoOpMailNotifier struct{}
 
-func (NoOpMailNotifier) ReservationReceived(domain.Reservation)              {}
-func (NoOpMailNotifier) ReservationApproved(domain.Reservation)              {}
-func (NoOpMailNotifier) ReservationRejected(domain.Reservation, string)      {}
+func (NoOpMailNotifier) ReservationReceived(domain.Reservation)         {}
+func (NoOpMailNotifier) ReservationApproved(domain.Reservation)         {}
+func (NoOpMailNotifier) ReservationRejected(domain.Reservation, string) {}
