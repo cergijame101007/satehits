@@ -55,9 +55,7 @@ type ScheduleListResponse struct {
 	Schedules []ScheduleResponse `json:"schedules"`
 }
 
-// ScheduleHandler — 管理者向けスケジュール HTTP ハンドラ
-//
-// TODO: 管理者 JWT 必須（OpenAPI BearerAuth）。認証は main のミドルウェアで行う
+// ScheduleHandler — 管理者向けスケジュール HTTP ハンドラ（認証は main の RequireAuth）
 type ScheduleHandler struct {
 	setSchedule   *usecase.SetScheduleUseCase
 	listSchedules *usecase.ListSchedulesUseCase

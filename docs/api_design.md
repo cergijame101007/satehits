@@ -471,9 +471,10 @@ Cookie の RT を revoke し、同名 Cookie を削除する。リクエスト�
 
 ### 管理者予約 API（`/admin/reservations`）
 
-#### TODO（未実装）
+#### メール（実装状況）
 
-- **pending 放置対策メール（オーナー向け）**: メール機能実装時、またはその前に実装する。Web 申請で `status = pending` のまま来店日（`visit_date`）の **3日前** と **1日前** に、オーナーへ未対応リマインドを送る（重複送信防止・当日以降の扱いは要設計）。`reserved` に `pending` を含める方針（上記 NOTE 参照）のため、承認・拒否の遅延は空き表示と Web 申請可否に影響する
+- **UC-S01〜S03（顧客向け）**: 実装済み。Resend + 非同期キュー。`RESEND_API_KEY` 未設定時は NoOp（ログのみ）
+- **UC-S04 pending 放置対策（オーナー向け・未実装）**: Web 申請で `status = pending` のまま来店日（`visit_date`）の **3日前** と **1日前** に、オーナーへ未対応リマインドを送る（重複送信防止・当日以降の扱いは要設計）。`reserved` に `pending` を含める方針（上記 NOTE 参照）のため、承認・拒否の遅延は空き表示と Web 申請可否に影響する。詳細は `use_case.md` UC-S04
 
 ---
 

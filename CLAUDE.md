@@ -30,13 +30,8 @@
 
 ## 2. AI 利用ルール
 
-**バックエンド（Go）: AI によるコード生成は原則しない**
-- オーナー自身が実装する。Go の理解を深めることが目的
-- AI はコードレビュー・質問回答・ヒント提示のみ行う
-- AI がコードを提案する場合は「なぜその書き方が Go らしいか」を説明する
-
-**フロントエンド: AI によるコード生成 OK**
-- 設計方針（Islands Architecture、責務分離）に従うこと
+- フロントエンド・バックエンドともに AI によるコード生成 OK
+- 設計方針に従うこと（フロント: Islands Architecture・責務分離、バック: レイヤードアーキテクチャ・Repository・DI）
 - モックを API 呼び出しに置き換える作業は AI が担当してよい
 
 **共通ルール**
@@ -160,7 +155,8 @@ satehits/
 | `layouts/BaseLayout.astro` | 顧客向けページの HTML シェル（meta, font, global CSS） |
 | `layouts/AdminLayout.astro` | 管理画面のシェル（ナビ、`localStorage` の `auth_token` チェック、ログアウト） |
 | `types/reservation.ts` | 型定義。フロントとバックが共通で使う型はここに集約 |
-| `mocks/reservation.ts` | API 未実装時のモックデータ・関数。API 実装後に `lib/api.ts` の呼び出しに置き換える |
+| `lib/*.ts` | API クライアント・カレンダー共通ロジック（`auth`, `api`, `reservation`, `availability`, `schedule`, `publicSchedule` 等） |
+| `mocks/reservation.ts` | ステータス・スケジュール種別のラベル定数（モックデータ・関数は未使用・削除予定） |
 | `styles/global.css` | Tailwind v4 `@theme`（カスタムカラー `#43676B`、Noto Serif JP、グラデーション、アニメーション） |
 
 ### ハイドレーション戦略
@@ -201,13 +197,14 @@ Presentation  →  Application  →  Domain  ←  Infrastructure
 | レイヤー | ディレクトリ | 責務 |
 |---------|------------|------|
 | Presentation | `internal/presentation/handler/` | HTTP リクエスト受付、レスポンス返却、ミドルウェア（JWT 認証・CORS・ロギング） |
-| Application | `internal/application/usecase/` | ユースケースのオーケストレーション（reCAPTCHA検証 → バリデーション → 空き確認 → 保存 → メール送信） |
+| Application | `internal/application/usecase/` | ユースケースのオーケストレーション（Turnstile 検証 → バリデーション → 空き確認 → 保存 → メール送信） |
 | Application | `internal/application/dto/` | リクエスト / レスポンスの変換 |
 | Domain | `internal/domain/entity/` | ビジネスエンティティ、バリデーション、ステータス遷移ルール（例: `CanTransitionTo()`） |
 | Domain | `internal/domain/repository/` | Repository インターフェース定義（DB に依存しない） |
 | Domain | `internal/domain/service/` | 複数エンティティにまたがるドメインロジック（空き状況計算、営業時間判定） |
 | Infrastructure | `internal/infrastructure/persistence/` | Repository 実装（Supabase / pgx） |
-| Infrastructure | `internal/infrastructure/external/` | 外部 API クライアント（reCAPTCHA, Resend） |
+| Infrastructure | `internal/infrastructure/external/` | 外部 API クライアント（Turnstile, Resend） |
+| Infrastructure | `internal/infrastructure/mail/` | メールテンプレート・非同期キュー・Notifier |
 
 **依存ルール**
 - Domain 層は他のレイヤーに依存しない（最も安定）
@@ -246,17 +243,21 @@ Presentation  →  Application  →  Domain  ←  Infrastructure
 | メソッド | パス | 概要 | 実装状況 |
 |---------|------|------|---------|
 | `GET` | `/` | ヘルスチェック | 実装済み |
-| `GET` | `/reservations` | 予約一覧取得 | 実装済み（最小限） |
-| `POST` | `/reservations` | 予約作成 | 実装済み（最小限） |
-| `GET` | `/api/v1/reservations/availability` | 日付別・月次空き確認 | 実装済み（単日 + 月次） |
-| `GET` | `/api/v1/admin/reservations` | 管理者：予約一覧 | 未実装 |
-| `POST` | `/api/v1/admin/reservations` | 管理者：予約手動登録 | 未実装 |
-| `PATCH` | `/api/v1/admin/reservations/:id/status` | 予約ステータス更新 | 未実装 |
-| `POST` | `/api/v1/admin/login` | 管理者ログイン | 未実装 |
-| `POST` | `/api/v1/admin/logout` | 管理者ログアウト | 未実装 |
+| `GET` | `/api/v1/reservations` | 予約一覧（無認証・開発用レガシー） | 実装済み（要整理） |
+| `POST` | `/api/v1/reservations` | 顧客：予約申請（Turnstile） | 実装済み |
+| `GET` | `/api/v1/reservations/availability` | 日付別・月次空き確認 | 実装済み |
+| `GET` | `/api/v1/schedules` | 顧客：月間スケジュール | 実装済み |
+| `POST` | `/api/v1/admin/login` | 管理者ログイン | 実装済み |
+| `POST` | `/api/v1/admin/refresh` | AT 更新 | 実装済み |
+| `POST` | `/api/v1/admin/logout` | 管理者ログアウト | 実装済み |
+| `GET` | `/api/v1/admin/reservations` | 管理者：予約一覧 | 実装済み |
+| `POST` | `/api/v1/admin/reservations` | 管理者：予約手動登録 | 実装済み |
+| `PATCH` | `/api/v1/admin/reservations/{id}/status` | 予約ステータス更新 | 実装済み |
 | `GET` | `/api/v1/admin/schedules` | 月間スケジュール取得 | 実装済み |
 | `GET` | `/api/v1/admin/schedules/{date}` | 日別スケジュール取得 | 実装済み |
 | `PUT` | `/api/v1/admin/schedules/{date}` | 日別スケジュール設定（Upsert） | 実装済み |
+| `DELETE` | `/api/v1/admin/schedules/{date}` | スケジュール削除（デフォルト復帰） | 未実装 |
+| `GET` | `/api/v1/suppliers` | 取引先一覧（公開） | 未実装 |
 | `GET` | `/api/v1/admin/suppliers` | 取引先一覧取得 | 未実装 |
 | `POST` | `/api/v1/admin/suppliers` | 取引先作成 | 未実装 |
 | `PUT` | `/api/v1/admin/suppliers/:id` | 取引先更新 | 未実装 |
@@ -306,12 +307,17 @@ bun run test:run  # Vitest（単発実行）
 # バックエンド
 DATABASE_URL=postgresql://user:password@host:5432/dbname
 JWT_SECRET=your-jwt-secret
-RECAPTCHA_SECRET_KEY=your-recaptcha-secret-key
+CORS_ORIGINS=http://localhost:4321
+COOKIE_DOMAIN=
+TURNSTILE_SECRET_KEY=your-turnstile-secret-key
 ENVIRONMENT=development
+RESEND_API_KEY=
+MAIL_FROM_ADDRESS=さて、羊に戻るとしよう <noreply@satehits.com>
+MAIL_QUEUE_SIZE=100
 
 # フロントエンド（Astro: PUBLIC_ プレフィックスでクライアントに公開）
 PUBLIC_API_URL=http://localhost:8080
-PUBLIC_RECAPTCHA_SITE_KEY=your-recaptcha-site-key
+PUBLIC_TURNSTILE_SITE_KEY=your-turnstile-site-key
 ```
 
 ---
