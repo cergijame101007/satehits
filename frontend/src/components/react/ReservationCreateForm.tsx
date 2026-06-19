@@ -5,8 +5,9 @@ import { getAvailability } from '@/lib/availability';
 import DatePickerField from '@/components/react/DatePickerField';
 import Alert from '@/components/react/ui/Alert';
 import Button from '@/components/react/ui/Button';
+import ButtonLink from '@/components/react/ui/ButtonLink';
 import Textarea from '@/components/react/ui/Textarea';
-import { inputClassName } from '@/components/react/ui/inputStyles';
+import { inputClassName } from '@/lib/ui/inputStyles';
 
 /** pending / approved は reserved 集計対象。超過時は登録前に確認する */
 async function confirmIfCapacityExceeded(
@@ -125,12 +126,9 @@ export default function ReservationCreateForm() {
         </div>
         <p className="text-lg font-medium">予約を登録しました</p>
         <div className="flex gap-3 justify-center">
-          <a
-            href="/admin/reservations"
-            className="inline-flex items-center justify-center px-4 py-2 text-sm rounded-lg font-medium bg-primary text-white hover:bg-primary-dark transition-colors"
-          >
+          <ButtonLink href="/admin/reservations" variant="primary" size="md">
             予約一覧へ
-          </a>
+          </ButtonLink>
           <Button
             variant="ghost"
             size="md"

@@ -5,7 +5,7 @@ import Button from '@/components/react/ui/Button';
 import Card from '@/components/react/ui/Card';
 import Modal from '@/components/react/ui/Modal';
 import Textarea from '@/components/react/ui/Textarea';
-import { inputClassName } from '@/components/react/ui/inputStyles';
+import { inputClassName } from '@/lib/ui/inputStyles';
 import { cx } from '@/lib/cx';
 
 interface SupplierFormData {
@@ -228,7 +228,7 @@ export default function SupplierManager() {
                 <Button variant="ghost" size="sm" onClick={() => openEdit(supplier)}>
                   編集
                 </Button>
-                <Button variant="ghost" size="sm" className="text-red-500 hover:border-red-300 hover:bg-red-50" onClick={() => handleDelete(supplier.id)}>
+                <Button variant="danger" size="sm" onClick={() => handleDelete(supplier.id)}>
                   削除
                 </Button>
               </div>
@@ -255,10 +255,10 @@ export default function SupplierManager() {
         closeDisabled={submitting}
         footer={
           <div className="flex items-center gap-3 p-5">
-            <Button variant="ghost" size="md" fullWidth className="rounded-xl py-3" onClick={closeModal} disabled={submitting}>
+            <Button variant="ghost" size="lg" onClick={closeModal} disabled={submitting}>
               キャンセル
             </Button>
-            <Button variant="primary" size="md" fullWidth className="rounded-xl py-3" onClick={handleSubmit} disabled={submitting}>
+            <Button variant="primary" size="lg" onClick={handleSubmit} disabled={submitting}>
               {submitting ? '保存中...' : '保存する'}
             </Button>
           </div>

@@ -13,7 +13,7 @@ import Alert from '@/components/react/ui/Alert';
 import Button from '@/components/react/ui/Button';
 import Card from '@/components/react/ui/Card';
 import Textarea from '@/components/react/ui/Textarea';
-import { inputClassName } from '@/components/react/ui/inputStyles';
+import { inputClassName } from '@/lib/ui/inputStyles';
 
 export default function ScheduleCalendar() {
   const now = new Date();

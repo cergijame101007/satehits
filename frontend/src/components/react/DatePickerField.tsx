@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import MonthCalendar from '@/components/react/MonthCalendar';
 import { useMonthCalendarData } from '@/lib/useMonthCalendar';
 import Alert from '@/components/react/ui/Alert';
-import { inputClassName } from '@/components/react/ui/inputStyles';
+import { inputClassName } from '@/lib/ui/inputStyles';
 import { cx } from '@/lib/cx';
 
 interface DatePickerFieldProps {

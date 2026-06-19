@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { AuthError, login } from '@/lib/auth';
 import Alert from '@/components/react/ui/Alert';
 import Button from '@/components/react/ui/Button';
-import { inputClassName } from '@/components/react/ui/inputStyles';
+import { inputClassName } from '@/lib/ui/inputStyles';
 
 export default function LoginForm() {
   const [email, setEmail] = useState('');

@@ -13,10 +13,11 @@ import { useMonthCalendarData } from '@/lib/useMonthCalendar';
 import MonthCalendar from '@/components/react/MonthCalendar';
 import Alert from '@/components/react/ui/Alert';
 import Button from '@/components/react/ui/Button';
+import ButtonLink from '@/components/react/ui/ButtonLink';
 import Card from '@/components/react/ui/Card';
 import ConfirmModal from '@/components/react/ui/ConfirmModal';
 import Textarea from '@/components/react/ui/Textarea';
-import { inputClassName } from '@/components/react/ui/inputStyles';
+import { inputClassName } from '@/lib/ui/inputStyles';
 import { formatDate, formatDateJa } from '@/lib/calendarUtils';
 import { isClosedScheduleType } from '@/lib/calendarTheme';
 
@@ -184,12 +185,9 @@ export default function ReservationTable() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-medium">予約一覧</h1>
-        <a
-          href="/admin/reservations/new"
-          className="px-4 py-2 bg-primary text-white text-sm rounded-lg hover:bg-primary-dark transition-colors"
-        >
+        <ButtonLink href="/admin/reservations/new" variant="primary" size="md">
           + 予約登録
-        </a>
+        </ButtonLink>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">

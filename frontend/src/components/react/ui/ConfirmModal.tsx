@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Button from '@/components/react/ui/Button';
-import type { ButtonVariant } from '@/components/react/ui/types';
+import type { ButtonVariant } from '@/lib/ui/types';
 import Modal from '@/components/react/ui/Modal';
 import { cx } from '@/lib/cx';
 
