@@ -277,7 +277,9 @@ func (h *AdminSupplierHandler) handleUploadImage(w http.ResponseWriter, r *http.
 	}
 	defer func() {
 		if r.MultipartForm != nil {
-			_ = r.MultipartForm.RemoveAll()
+			if removeErr := r.MultipartForm.RemoveAll(); removeErr != nil {
+				log.Printf("failed to remove multipart temp files: %v", removeErr)
+			}
 		}
 	}()
 
