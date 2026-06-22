@@ -94,13 +94,13 @@ func TestCreateSupplierUseCase_Execute_rejectsInvalidFields(t *testing.T) {
 		wantField string
 	}{
 		{
-			name: "rejects empty name",
-			cmd: CreateSupplierCommand{Name: "  ", Description: "説明"},
+			name:      "rejects empty name",
+			cmd:       CreateSupplierCommand{Name: "  ", Description: "説明"},
 			wantField: "name",
 		},
 		{
-			name: "rejects empty description",
-			cmd: CreateSupplierCommand{Name: "〇〇農園", Description: "  "},
+			name:      "rejects empty description",
+			cmd:       CreateSupplierCommand{Name: "〇〇農園", Description: "  "},
 			wantField: "description",
 		},
 	}
