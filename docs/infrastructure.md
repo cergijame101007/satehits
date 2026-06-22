@@ -381,6 +381,23 @@ jobs:
 | MAIL_FROM_ADDRESS | メール送信元アドレス（例: noreply@satehits.com） |
 | ENVIRONMENT | 環境識別子（development/production） |
 | PORT | サーバーポート（Cloud Runは自動設定） |
+| STORAGE_ENDPOINT | S3 互換ストレージのエンドポイント（本番: Cloudflare R2、ローカル: MinIO） |
+| STORAGE_REGION | リージョン（R2 は `auto` 等） |
+| STORAGE_BUCKET | 画像バケット名 |
+| STORAGE_ACCESS_KEY | アクセスキー |
+| STORAGE_SECRET_KEY | シークレットキー |
+| STORAGE_PUBLIC_BASE_URL | 画像の公開 URL ベース（例: `https://images.example.com/bucket` または MinIO の `http://localhost:9000/bucket`） |
+
+### 画像ストレージ（取引先）
+
+| 環境 | 実装 | 備考 |
+|------|------|------|
+| ローカル | Docker MinIO（`docker-compose.yml`） | S3 API 互換。起動時に `satehits-images` バケットを public read で作成 |
+| 本番 | Cloudflare R2 | `aws-sdk-go-v2` の S3 クライアントで同一コードパス |
+
+`STORAGE_*` が未設定の場合、画像アップロード API は無効（NoOp ストレージ）。取引先 CRUD は DB の `image_url` 文字列のみで動作可能。
+
+> **運用**: 画像は公開配信される。非公開取引先の `image_url` を直接知られてもページ上は非表示だが、URL 自体はアクセス可能。機微情報を画像に載せないこと。
 
 ## 7. セキュリティ
 

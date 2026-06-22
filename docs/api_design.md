@@ -39,6 +39,7 @@
 | PUT | `/admin/suppliers/{id}` | 取引先を更新 |
 | DELETE | `/admin/suppliers/{id}` | 取引先を削除 |
 | PUT | `/admin/suppliers/order` | 取引先の表示順を更新 |
+| POST | `/admin/suppliers/{id}/image` | 取引先画像をアップロード |
 
 ## 3. 共通仕様
 
@@ -788,3 +789,31 @@ PUT /api/v1/admin/schedules/2025-02-11
 #### レスポンス
 
 **成功時（200 OK）** — `AdminSupplierListResponse`
+
+---
+
+### POST /admin/suppliers/{id}/image
+
+取引先の画像を multipart でアップロードし、ストレージに保存した公開 URL を `suppliers.image_url` に反映する。作成・更新 API とは分離（2 段階）。差し替え時の旧画像削除は best-effort。
+
+#### リクエスト
+
+`Content-Type: multipart/form-data`
+
+| フィールド | 型 | 必須 | 説明 |
+|------------|-----|------|------|
+| image | file | Yes | JPEG / PNG / WebP、最大 5MB |
+
+#### レスポンス
+
+**成功時（200 OK）**
+
+```json
+{
+  "image_url": "https://example.com/satehits-images/suppliers/1/abc.jpg"
+}
+```
+
+**エラー時** — 共通エラー形式（400: 形式・サイズ不正、404: 取引先なし、401: 未認証）
+
+> **運用**: 画像は公開ストレージで配信される。機微情報を画像に載せないこと。

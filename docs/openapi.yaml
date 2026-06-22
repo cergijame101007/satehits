@@ -868,6 +868,60 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /admin/suppliers/{id}/image:
+    post:
+      tags:
+        - 取引先管理
+      summary: 取引先画像をアップロード
+      description: multipart/form-data で画像を保存し image_url を更新します（JPEG / PNG / WebP、最大 5MB）。
+      operationId: uploadSupplierImage
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - image
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: JPEG / PNG / WebP（最大 5MB）
+      responses:
+        "200":
+          description: アップロード成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupplierImageResponse"
+        "400":
+          description: バリデーションエラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 取引先が見つからない
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /admin/suppliers/order:
     put:
       tags:
@@ -1475,3 +1529,11 @@ components:
           items:
             type: integer
           example: [3, 1, 2]
+
+    SupplierImageResponse:
+      type: object
+      required: [image_url]
+      properties:
+        image_url:
+          type: string
+          description: アップロード後の公開 URL

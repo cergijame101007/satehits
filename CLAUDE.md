@@ -230,7 +230,7 @@ Presentation  →  Application  →  Domain  ←  Infrastructure
 | `/` | `pages/index.astro` | BaseLayout | なし（静的） |
 | `/reservation` | `pages/reservation.astro` | BaseLayout | `ReservationForm` |
 | `/reservation/complete` | `pages/reservation/complete.astro` | BaseLayout | なし |
-| `/suppliers` | `pages/suppliers.astro` | BaseLayout | なし（静的） |
+| `/suppliers` | `pages/suppliers.astro` | BaseLayout | `SupplierList` |
 | `/admin` | `pages/admin/index.astro` | AdminLayout | `DashboardSummary` |
 | `/admin/login` | `pages/admin/login.astro` | なし | `LoginForm` |
 | `/admin/reservations` | `pages/admin/reservations.astro` | AdminLayout | `ReservationTable` |
@@ -257,12 +257,13 @@ Presentation  →  Application  →  Domain  ←  Infrastructure
 | `GET` | `/api/v1/admin/schedules/{date}` | 日別スケジュール取得 | 実装済み |
 | `PUT` | `/api/v1/admin/schedules/{date}` | 日別スケジュール設定（Upsert） | 実装済み |
 | `DELETE` | `/api/v1/admin/schedules/{date}` | スケジュール削除（デフォルト復帰） | 未実装 |
-| `GET` | `/api/v1/suppliers` | 取引先一覧（公開） | 未実装 |
-| `GET` | `/api/v1/admin/suppliers` | 取引先一覧取得 | 未実装 |
-| `POST` | `/api/v1/admin/suppliers` | 取引先作成 | 未実装 |
-| `PUT` | `/api/v1/admin/suppliers/:id` | 取引先更新 | 未実装 |
-| `DELETE` | `/api/v1/admin/suppliers/:id` | 取引先削除 | 未実装 |
-| `PUT` | `/api/v1/admin/suppliers/order` | 取引先並び順更新 | 未実装 |
+| `GET` | `/api/v1/suppliers` | 取引先一覧（公開） | 実装済み |
+| `GET` | `/api/v1/admin/suppliers` | 取引先一覧取得 | 実装済み |
+| `POST` | `/api/v1/admin/suppliers` | 取引先作成 | 実装済み |
+| `PUT` | `/api/v1/admin/suppliers/:id` | 取引先更新 | 実装済み |
+| `DELETE` | `/api/v1/admin/suppliers/:id` | 取引先削除 | 実装済み |
+| `PUT` | `/api/v1/admin/suppliers/order` | 取引先並び順更新 | 実装済み |
+| `POST` | `/api/v1/admin/suppliers/:id/image` | 取引先画像アップロード | 実装済み |
 
 ---
 
