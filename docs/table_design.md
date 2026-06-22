@@ -261,7 +261,7 @@ ALTER TABLE reservations ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ;
 | `000001_init_reservations.sql` | 1 | `reservations`（UUID、CHECK、インデックス、部分ユニーク） |
 | `000002_daily_schedules.sql` | 2 | `daily_schedules`、`update_updated_at_column()`、`daily_schedules` トリガー |
 | `000003_reservations_updated_at_trigger.sql` | 3 | `reservations` の `updated_at` トリガー |
-| `000004_suppliers.sql` | 4 | `suppliers`、インデックス、トリガー（**未作成**。番号は予約） |
+| `000004_suppliers.sql` | 4 | `suppliers`、インデックス、トリガー |
 | `000005_admin_users.sql` | 5 | `admin_users`、`updated_at` トリガー |
 | `000006_refresh_tokens.sql` | 6 | `refresh_tokens`、インデックス |
 | （将来）`reservations.email_sent_at` | - | メール送信実装時に別マイグレーションで追加（2.1 参照） |

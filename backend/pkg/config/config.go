@@ -25,6 +25,19 @@ type Config struct {
 	ResendAPIKey    string
 	MailFromAddress string
 	MailQueueSize   int
+	Storage         StorageConfig
+}
+
+// StorageConfig は取引先画像などを保存する S3 互換ストレージ（R2 / MinIO）の設定。
+// 必須項目が揃っていない場合は Enabled=false となり、画像アップロードは無効化される。
+type StorageConfig struct {
+	Enabled       bool
+	Endpoint      string
+	Region        string
+	Bucket        string
+	AccessKey     string
+	SecretKey     string
+	PublicBaseURL string
 }
 
 // Load は環境変数を読み込み、必須項目の検証に失敗したら log.Fatal する
@@ -80,7 +93,29 @@ func Load() Config {
 		ResendAPIKey:    strings.TrimSpace(os.Getenv("RESEND_API_KEY")),
 		MailFromAddress: mailFrom,
 		MailQueueSize:   mailQueueSize,
+		Storage:         loadStorageConfig(),
 	}
+}
+
+// loadStorageConfig は STORAGE_* 環境変数を読み込む。
+// 必須項目（endpoint / bucket / access key / secret key / public base url）が
+// すべて揃っている場合のみ Enabled=true となる。
+func loadStorageConfig() StorageConfig {
+	region := strings.TrimSpace(os.Getenv("STORAGE_REGION"))
+	if region == "" {
+		region = "auto"
+	}
+	cfg := StorageConfig{
+		Endpoint:      strings.TrimSpace(os.Getenv("STORAGE_ENDPOINT")),
+		Region:        region,
+		Bucket:        strings.TrimSpace(os.Getenv("STORAGE_BUCKET")),
+		AccessKey:     strings.TrimSpace(os.Getenv("STORAGE_ACCESS_KEY")),
+		SecretKey:     strings.TrimSpace(os.Getenv("STORAGE_SECRET_KEY")),
+		PublicBaseURL: strings.TrimSpace(os.Getenv("STORAGE_PUBLIC_BASE_URL")),
+	}
+	cfg.Enabled = cfg.Endpoint != "" && cfg.Bucket != "" &&
+		cfg.AccessKey != "" && cfg.SecretKey != "" && cfg.PublicBaseURL != ""
+	return cfg
 }
 
 func parseCSV(raw string) []string {
