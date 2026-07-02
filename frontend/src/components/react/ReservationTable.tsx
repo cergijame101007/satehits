@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Reservation, ReservationStatus, AvailabilityResponse } from '../../types/reservation';
-import { statusLabels, statusColors, statusBadgeBg, statusBadgeText } from '../../mocks/reservation';
+import { statusLabels, statusColors, statusBadgeBg, statusBadgeText } from '@/lib/reservationStatusTheme';
 import { getAvailability, toAvailabilityErrorMessage } from '@/lib/availability';
 import { listReservations, updateReservationStatus, toReservationErrorMessage } from '@/lib/adminReservation';
 import {
@@ -341,7 +341,7 @@ export default function ReservationTable() {
           )}
 
           <div className="flex flex-wrap gap-4 text-xs text-gray-500 pt-2">
-            {Object.entries(statusLabels).map(([key, label]) => (
+            {(Object.entries(statusLabels) as [ReservationStatus, string][]).map(([key, label]) => (
               <span key={key} className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: statusColors[key] }} />
                 {label}

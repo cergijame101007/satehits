@@ -1,6 +1,42 @@
 import type { Reservation, ReservationStatus } from '@/types/reservation';
 import type { ButtonVariant } from '@/lib/ui/types';
 
+/** ステータスの日本語表示 */
+export const statusLabels: Record<ReservationStatus, string> = {
+  pending: '申請中',
+  approved: '承認済み',
+  rejected: '拒否',
+  cancelled: 'キャンセル',
+  no_show: 'No Show',
+};
+
+/** ステータスの色クラス */
+export const statusColors: Record<ReservationStatus, string> = {
+  pending: '#EAB308',
+  approved: '#22C55E',
+  rejected: '#EF4444',
+  cancelled: '#9CA3AF',
+  no_show: '#EA580C',
+};
+
+/** ステータスバッジの背景色 */
+export const statusBadgeBg: Record<ReservationStatus, string> = {
+  pending: '#FEF3C7',
+  approved: '#DCFCE7',
+  rejected: '#FEE2E2',
+  cancelled: '#F3F4F6',
+  no_show: '#FED7AA',
+};
+
+/** ステータスバッジの文字色 */
+export const statusBadgeText: Record<ReservationStatus, string> = {
+  pending: '#92400E',
+  approved: '#166534',
+  rejected: '#991B1B',
+  cancelled: '#4B5563',
+  no_show: '#C2410C',
+};
+
 export const statusActionLabels: Record<ReservationStatus, string> = {
   approved: '承認',
   rejected: '拒否',

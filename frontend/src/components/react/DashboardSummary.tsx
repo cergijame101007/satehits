@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { statusLabels, statusBadgeBg, statusBadgeText } from '../../mocks/reservation';
+import { statusLabels, statusBadgeBg, statusBadgeText } from '@/lib/reservationStatusTheme';
 import { getAvailability, toAvailabilityErrorMessage } from '@/lib/availability';
 import { listReservations, toReservationErrorMessage } from '@/lib/adminReservation';
 import { formatDate, formatDateJa } from '@/lib/calendarUtils';

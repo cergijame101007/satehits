@@ -21,6 +21,28 @@ export const typeTextColors: Record<ScheduleType, string> = {
   temporary_closed: '#DC2626',
 };
 
+/** スケジュールタイプの表示ラベル */
+export const scheduleTypeLabels: Record<ScheduleType, string> = {
+  normal: '通常',
+  morning: '朝営業',
+  event: 'イベント',
+  external_event: '外部イベント（店休）',
+  special: '特別メニュー',
+  closed: '定休日',
+  temporary_closed: '臨時休',
+};
+
+/** スケジュールタイプの短縮表示 */
+export const scheduleTypeShort: Record<ScheduleType, string> = {
+  normal: '通',
+  morning: '朝',
+  event: 'イ',
+  external_event: '外',
+  special: '特',
+  closed: '休',
+  temporary_closed: '臨',
+};
+
 export const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'] as const;
 
 export function isClosedScheduleType(type: ScheduleType): boolean {

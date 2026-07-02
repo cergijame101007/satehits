@@ -1,6 +1,4 @@
 ---
-import MockBanner from './MockBanner.astro';
-
 interface Props {
   isTransparent?: boolean;
 }
@@ -29,7 +27,6 @@ const externalLinks = [
     isTransparent ? 'bg-transparent' : 'glass shadow-sm',
   ]}
 >
-  <MockBanner variant="inline" />
   <nav class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="relative z-50 flex items-center justify-between h-16 md:h-20">
       <!-- Logo -->
