@@ -42,10 +42,6 @@ func (r handlerTestReservationRepo) Create(context.Context, domain.CreateReserva
 	return domain.Reservation{}, nil
 }
 
-func (r handlerTestReservationRepo) GetAll(context.Context) ([]domain.Reservation, error) {
-	return nil, nil
-}
-
 func (r handlerTestReservationRepo) List(context.Context, domain.ListReservationsFilter) ([]domain.Reservation, error) {
 	return nil, nil
 }

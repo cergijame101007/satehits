@@ -85,7 +85,6 @@ type CreateReservationInput struct {
 // ReservationRepository は予約データを永続化するためのインターフェース
 type ReservationRepository interface {
 	Create(ctx context.Context, r CreateReservationInput) (Reservation, error)
-	GetAll(ctx context.Context) ([]Reservation, error)
 	List(ctx context.Context, f ListReservationsFilter) ([]Reservation, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Reservation, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status string) (Reservation, error)

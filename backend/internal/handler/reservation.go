@@ -32,7 +32,6 @@ type ReservationRequest struct {
 
 // ReservationHandler は予約に関するHTTPハンドラ
 type ReservationHandler struct {
-	repo              domain.ReservationRepository
 	createReservation *usecase.CreateReservationUseCase
 	reservationsPath  string
 }
@@ -40,53 +39,26 @@ type ReservationHandler struct {
 // NewReservationHandler はReservationHandlerのインスタンスを作成する
 // reservationsPath は net/http の ServeMux に登録する完全パス（例: /api/v1/reservations）と一致させること
 func NewReservationHandler(
-	repo domain.ReservationRepository,
 	createReservation *usecase.CreateReservationUseCase,
 	reservationsPath string,
 ) *ReservationHandler {
 	return &ReservationHandler{
-		repo:              repo,
 		createReservation: createReservation,
 		reservationsPath:  reservationsPath,
 	}
 }
 
-// HandleReservations はGET/POSTリクエストをルーティングする
+// HandleReservations は POST /reservations を処理する
 func (h *ReservationHandler) HandleReservations(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != h.reservationsPath {
 		http.NotFound(w, r)
 		return
 	}
-	switch r.Method {
-	case http.MethodGet:
-		h.handleList(w, r)
-	case http.MethodPost:
-		h.handleCreate(w, r)
-	default:
+	if r.Method != http.MethodPost {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-// handleList は予約一覧を取得する
-//
-// TODO: GET は認証なしで全件返却しており、OpenAPI の顧客向け /reservations（POST のみ）とも齟齬がある
-// 本来は次のいずれかに揃える:
-// - 一覧は GET /api/v1/admin/reservations 等へ移し JWT 必須にする（設計の管理者向け一覧と一致）
-// - 顧客向けに一覧が必要なら、公開範囲・クエリ・認証を OpenAPI と設計書に書いたうえで実装する
-// - 開発専用ならルート分離やビルドタグで本番から除外する
-func (h *ReservationHandler) handleList(w http.ResponseWriter, r *http.Request) {
-	reservations, err := h.repo.GetAll(r.Context())
-	if err != nil {
-		log.Printf("Failed to get reservations: %v", err)
-		respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
 		return
 	}
-
-	if reservations == nil {
-		reservations = []domain.Reservation{}
-	}
-
-	respondWithJSON(w, http.StatusOK, reservations)
+	h.handleCreate(w, r)
 }
 
 // handleCreate は予約を作成する

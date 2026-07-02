@@ -37,10 +37,6 @@ func (r getAvailReservationRepo) Create(context.Context, domain.CreateReservatio
 	return domain.Reservation{}, nil
 }
 
-func (r getAvailReservationRepo) GetAll(context.Context) ([]domain.Reservation, error) {
-	return nil, nil
-}
-
 func (r getAvailReservationRepo) List(context.Context, domain.ListReservationsFilter) ([]domain.Reservation, error) {
 	return nil, nil
 }
