@@ -104,6 +104,7 @@ function toDailySchedule(item: ScheduleResponse): DailySchedule {
     capacity: item.capacity,
     event_name: item.event_name || undefined,
     description: item.event_description || undefined,
+    is_default: item.is_default,
   };
 }
 
@@ -168,4 +169,15 @@ export async function setSchedule(
 
   const data = (await res.json()) as ScheduleResponse;
   return toDailySchedule(data);
+}
+
+/** DELETE /api/v1/admin/schedules/{date} — 例外設定を削除し店舗定例に戻す */
+export async function deleteSchedule(date: string): Promise<void> {
+  const res = await authedFetch(`/api/v1/admin/schedules/${date}`, {
+    method: 'DELETE',
+  });
+
+  if (!res.ok) {
+    throw await parseError(res);
+  }
 }

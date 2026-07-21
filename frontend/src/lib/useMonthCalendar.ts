@@ -77,6 +77,7 @@ function buildMonthDays(
       date: dateStr,
       type: 'normal' as const,
       capacity: 10,
+      is_default: true,
     };
     const reservation = reservationByDate.get(dateStr);
 

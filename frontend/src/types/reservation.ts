@@ -112,6 +112,8 @@ export interface DailySchedule {
   capacity: number;
   event_name?: string;
   description?: string;
+  /** true = 店舗定例合成（daily_schedules 行なし） */
+  is_default: boolean;
 }
 
 /** 管理者用予約登録リクエスト */
