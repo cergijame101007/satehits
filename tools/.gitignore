@@ -1,0 +1,2 @@
+# 公式 install.sh で取得するバイナリ（go.mod には載せない）
+bin/

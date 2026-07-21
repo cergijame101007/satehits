@@ -13,6 +13,16 @@ Plan の実装完了時（「Implement the plan」や同等の実装依頼を含
 - **プッシュ禁止**: `git push` およびリモート更新は行わない。ユーザーが明示的にプッシュ／PR 作成を頼んだときだけ可
 - コミット後はブランチ名・コミット一覧を短く報告する（プッシュの有無は書かない、または「未プッシュ」と明記）
 
+## Lint（必須）
+
+バックエンド（`backend/**`）を変更した実装では、コミット前に **`make lint` を必ず実行**し、失敗したら修正してからコミットする。
+
+- 実行手段はルートの `make lint` のみ（PATH 上の適当な golangci-lint を直接叩かない）
+- `make lint` は `tools/bin/golangci-lint` を使う。未導入なら公式 install.sh で自動取得（`tools/golangci-lint.version`。**本体 go.mod には入れない**）
+- `gofmt` / `goimports` は golangci-lint の formatters（`backend/.golangci.yml`）でカバー。別途 `go install` しない
+- フロントのみの変更では `make lint` は不要。代わりに `bun run lint`（`frontend/`）を実行する
+- レポートの「実施したテスト」に lint 結果（コマンド・成功／失敗・主な指摘と対応）を含める
+
 ## テスト保証レポート（必須）
 
 実装中または実装後にテストを実行した場合、最終応答で報告する。未実施なら「未実施」と理由を書く。
@@ -80,13 +90,18 @@ Plan の実装完了時（「Implement the plan」や同等の実装依頼を含
 | 日 | morning / 10 |
 | 月 | normal / 10 |
 
-コマンド: `go test ./internal/application/usecase/schedule/... ./internal/handler/ -count=1`  
+**Lint**
+- `make lint` → 成功（gofmt/goimports 含む）
+
+コマンド: `make lint`  
+`go test ./internal/application/usecase/schedule/... ./internal/handler/ -count=1`  
 `bun run test:run src/lib/storeDefaultSchedule.test.ts`
 
 ### 保証できたこと
 - 削除 UseCase の「行があるときだけ Delete」規則
 - DELETE の 204/404/405/400 とエラーコード対応（Handler 単体）
 - モーダル用プレビューの曜日→type/capacity ルール
+- golangci-lint（標準 + formatters）で新規コードがルール違反なし
 
 ### 保証していないこと
 - 実 PostgreSQL の DELETE SQL / RowsAffected

@@ -26,6 +26,7 @@ jobs:
         with:
           go-version: "1.24"
 
+      # 版は tools/golangci-lint.version と揃える（本体 go.mod には載せない）
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v7
         with:

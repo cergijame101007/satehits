@@ -277,7 +277,8 @@ make build        # Go バイナリビルド（bin/api）
 make run          # Go サーバー直接起動
 make test         # バックエンドテスト実行
 make test-coverage # カバレッジ付きテスト
-make lint         # golangci-lint
+make lint         # golangci-lint（tools/bin へ自動インストール。go.mod 非依存）
+make tools-install # lint ツールだけ先に入れる
 make clean        # ビルド成果物の削除
 ```
 

@@ -1,4 +1,19 @@
-.PHONY: dev dev-build dev-down dev-front prod prod-build prod-down build run test test-coverage lint clean migrate seed
+.PHONY: dev dev-build dev-down dev-front prod prod-build prod-down build run test test-coverage lint tools-install clean migrate seed
+
+# ===== 開発ツール（バイナリ。本体 go.mod には入れない） =====
+# golangci-lint は公式推奨どおり install.sh で取得する（go get -tool / tools.go は非推奨）
+# gofmt / goimports は backend/.golangci.yml の formatters 経由で実行される（別バイナリ不要）
+TOOLS_DIR := $(CURDIR)/tools
+TOOLS_BIN := $(TOOLS_DIR)/bin
+GOLANGCI_LINT_VERSION := $(shell tr -d '[:space:]' < $(TOOLS_DIR)/golangci-lint.version)
+GOLANGCI_LINT := $(TOOLS_BIN)/golangci-lint
+
+$(GOLANGCI_LINT):
+	@mkdir -p $(TOOLS_BIN)
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(TOOLS_BIN) $(GOLANGCI_LINT_VERSION)
+
+tools-install: $(GOLANGCI_LINT)
+	@$(GOLANGCI_LINT) version
 
 # ===== 開発環境（Docker） =====
 dev:
@@ -49,8 +64,9 @@ test-coverage:
 	cd backend && go tool cover -html=coverage.out -o coverage.html
 
 # ===== Lint =====
-lint:
-	cd backend && golangci-lint run
+# 未導入なら tools/bin へ自動インストール。CI の version と tools/golangci-lint.version を揃えること
+lint: $(GOLANGCI_LINT)
+	cd backend && $(GOLANGCI_LINT) run
 
 # ===== クリーンアップ =====
 clean:
