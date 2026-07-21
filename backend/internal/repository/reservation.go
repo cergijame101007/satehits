@@ -62,45 +62,6 @@ func isUniqueViolation(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
-// GetAll は全ての予約データを取得する
-func (r *PostgresReservationRepository) GetAll(ctx context.Context) ([]domain.Reservation, error) {
-	query := `
-SELECT id, name, people, visit_date, visit_time, phone, email,
-       COALESCE(note, ''), status, source, created_at, updated_at
-FROM reservations`
-	rows, err := r.db.QueryContext(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var reservations []domain.Reservation
-	for rows.Next() {
-		var reservation domain.Reservation
-		if err := rows.Scan(
-			&reservation.ID,
-			&reservation.Name,
-			&reservation.People,
-			&reservation.VisitDate,
-			&reservation.VisitTime,
-			&reservation.Phone,
-			&reservation.Email,
-			&reservation.Note,
-			&reservation.Status,
-			&reservation.Source,
-			&reservation.CreatedAt,
-			&reservation.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		reservations = append(reservations, reservation)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return reservations, nil
-}
-
 const reservationSelectColumns = `
 SELECT id, name, people, visit_date, visit_time, phone, email,
        COALESCE(note, ''), status, source, created_at, updated_at

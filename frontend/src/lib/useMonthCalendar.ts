@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { DailySchedule } from '@/types/reservation';
+import type { Reservation, DailySchedule } from '@/types/reservation';
 import { listSchedules, ScheduleApiError } from '@/lib/schedule';
 import { listReservations, ReservationApiError } from '@/lib/adminReservation';
 import type { DayReservationSummary, MonthCalendarDay } from '@/components/react/MonthCalendar';
@@ -13,28 +13,44 @@ interface UseMonthCalendarDataResult {
   summaryError: string;
 }
 
+interface UseMonthCalendarDataOptions {
+  /** false のとき fetch しない（デフォルト true） */
+  enabled?: boolean;
+  includeReservationSummary?: boolean;
+}
+
+/** 月内の pending / approved 予約から日別サマリーを組み立てる */
+export function buildReservationSummaryByDate(
+  reservations: Reservation[],
+  viewYear: number,
+  viewMonth: number,
+): Map<string, DayReservationSummary> {
+  const monthPrefix = `${viewYear}-${String(viewMonth).padStart(2, '0')}-`;
+  const activeStatuses = new Set(['pending', 'approved']);
+
+  return reservations
+    .filter((r) => r.visit_date.startsWith(monthPrefix) && activeStatuses.has(r.status))
+    .reduce((map, r) => {
+      const existing = map.get(r.visit_date) ?? { count: 0, reservedMeals: 0 };
+      existing.count += 1;
+      if (r.status === 'approved') {
+        existing.reservedMeals += r.people;
+      }
+      map.set(r.visit_date, existing);
+      return map;
+    }, new Map<string, DayReservationSummary>());
+}
+
 async function loadReservationSummary(
   viewYear: number,
   viewMonth: number,
 ): Promise<{ byDate: Map<string, DayReservationSummary>; error: string }> {
   try {
     const reservations = await listReservations();
-    const monthPrefix = `${viewYear}-${String(viewMonth).padStart(2, '0')}-`;
-    const activeStatuses = new Set(['pending', 'approved']);
-
-    const byDate = reservations
-      .filter((r) => r.visit_date.startsWith(monthPrefix) && activeStatuses.has(r.status))
-      .reduce((map, r) => {
-        const existing = map.get(r.visit_date) ?? { count: 0, reservedMeals: 0 };
-        existing.count += 1;
-        if (r.status === 'approved') {
-          existing.reservedMeals += r.people;
-        }
-        map.set(r.visit_date, existing);
-        return map;
-      }, new Map<string, DayReservationSummary>());
-
-    return { byDate, error: '' };
+    return {
+      byDate: buildReservationSummaryByDate(reservations, viewYear, viewMonth),
+      error: '',
+    };
   } catch (err) {
     return {
       byDate: new Map(),
@@ -46,18 +62,57 @@ async function loadReservationSummary(
   }
 }
 
+function buildMonthDays(
+  schedules: DailySchedule[],
+  viewYear: number,
+  viewMonth: number,
+  reservationByDate: Map<string, DayReservationSummary>,
+): MonthCalendarDay[] {
+  const daysInMonth = new Date(viewYear, viewMonth, 0).getDate();
+  const built: MonthCalendarDay[] = [];
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${viewYear}-${String(viewMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const schedule = schedules.find((s) => s.date === dateStr) ?? {
+      date: dateStr,
+      type: 'normal' as const,
+      capacity: 10,
+    };
+    const reservation = reservationByDate.get(dateStr);
+
+    built.push({
+      date: dateStr,
+      schedule,
+      reservation,
+    });
+  }
+
+  return built;
+}
+
 /** 月間スケジュール＋予約サマリーを取得 */
 export function useMonthCalendarData(
   viewYear: number,
   viewMonth: number,
-  options?: { includeReservationSummary?: boolean },
+  options?: UseMonthCalendarDataOptions,
 ): UseMonthCalendarDataResult {
+  const enabled = options?.enabled !== false;
+  const includeReservationSummary = options?.includeReservationSummary === true;
+
   const [days, setDays] = useState<MonthCalendarDay[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(enabled);
   const [error, setError] = useState('');
   const [summaryError, setSummaryError] = useState('');
 
   useEffect(() => {
+    if (!enabled) {
+      setDays([]);
+      setIsLoading(false);
+      setError('');
+      setSummaryError('');
+      return;
+    }
+
     let cancelled = false;
 
     const load = async () => {
@@ -69,7 +124,7 @@ export function useMonthCalendarData(
         const schedules = await listSchedules(viewYear, viewMonth);
 
         let reservationByDate = new Map<string, DayReservationSummary>();
-        if (options?.includeReservationSummary) {
+        if (includeReservationSummary) {
           const summary = await loadReservationSummary(viewYear, viewMonth);
           reservationByDate = summary.byDate;
           if (!cancelled && summary.error) {
@@ -79,26 +134,7 @@ export function useMonthCalendarData(
 
         if (cancelled) return;
 
-        const daysInMonth = new Date(viewYear, viewMonth, 0).getDate();
-        const built: MonthCalendarDay[] = [];
-
-        for (let d = 1; d <= daysInMonth; d++) {
-          const dateStr = `${viewYear}-${String(viewMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-          const schedule = schedules.find((s) => s.date === dateStr) ?? {
-            date: dateStr,
-            type: 'normal' as const,
-            capacity: 10,
-          };
-          const reservation = reservationByDate.get(dateStr);
-
-          built.push({
-            date: dateStr,
-            schedule,
-            reservation,
-          });
-        }
-
-        setDays(built);
+        setDays(buildMonthDays(schedules, viewYear, viewMonth, reservationByDate));
       } catch (err) {
         if (!cancelled) {
           setDays([]);
@@ -119,7 +155,7 @@ export function useMonthCalendarData(
     return () => {
       cancelled = true;
     };
-  }, [viewYear, viewMonth, options?.includeReservationSummary]);
+  }, [enabled, viewYear, viewMonth, includeReservationSummary]);
 
   return { days, isLoading, error, summaryError };
 }

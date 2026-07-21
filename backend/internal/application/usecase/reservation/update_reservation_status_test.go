@@ -23,10 +23,6 @@ func (f *fakeReservationRepo) Create(context.Context, domain.CreateReservationIn
 	return domain.Reservation{}, nil
 }
 
-func (f *fakeReservationRepo) GetAll(context.Context) ([]domain.Reservation, error) {
-	return nil, nil
-}
-
 func (f *fakeReservationRepo) List(context.Context, domain.ListReservationsFilter) ([]domain.Reservation, error) {
 	return nil, nil
 }

@@ -1,7 +1,6 @@
 ---
 import '../../styles/global.css';
 import LoginForm from '../../components/react/LoginForm.tsx';
-import MockBanner from '../../components/astro/MockBanner.astro';
 ---
 
 <!doctype html>
@@ -14,7 +13,6 @@ import MockBanner from '../../components/astro/MockBanner.astro';
     <title>ログイン | 管理画面</title>
   </head>
   <body class="min-h-screen bg-bg-light">
-    <MockBanner variant="static" />
     <LoginForm client:load />
   </body>
 </html>

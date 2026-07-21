@@ -137,7 +137,7 @@ export default function PublicScheduleCalendar() {
     return () => {
       cancelled = true;
     };
-  }, [viewYear, viewMonth]);
+  }, []);
 
   const scheduleMap = useMemo(() => new Map(schedules.map((s) => [s.date, s])), [schedules]);
 

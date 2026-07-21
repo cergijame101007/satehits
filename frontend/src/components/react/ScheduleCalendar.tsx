@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { DailySchedule, ScheduleType } from '@/types/reservation';
-import { scheduleTypeLabels } from '@/mocks/reservation';
+import { scheduleTypeLabels } from '@/lib/calendarTheme';
 import {
   editableScheduleTypes,
   listSchedules,

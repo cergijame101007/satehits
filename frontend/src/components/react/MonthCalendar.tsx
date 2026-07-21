@@ -1,5 +1,5 @@
 import type { DailySchedule, ScheduleType } from '@/types/reservation';
-import { scheduleTypeShort, scheduleTypeLabels } from '@/mocks/reservation';
+import { scheduleTypeShort, scheduleTypeLabels } from '@/lib/calendarTheme';
 import { editableScheduleTypes } from '@/lib/schedule';
 import { typeColors, typeTextColors, WEEKDAYS, isClosedScheduleType } from '@/lib/calendarTheme';
 import { buildMonthDates, formatDate, shiftMonth } from '@/lib/calendarUtils';

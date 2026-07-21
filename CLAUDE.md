@@ -102,8 +102,6 @@ satehits/
 │       │       └── suppliers.astro
 │       ├── types/
 │       │   └── reservation.ts   # 型定義（フロント・バック共通）
-│       ├── mocks/
-│       │   └── reservation.ts   # API 未実装時のモックデータ
 │       └── styles/
 │           └── global.css       # Tailwind v4 カスタムテーマ
 ├── backend/                     # Go バックエンド
@@ -155,8 +153,7 @@ satehits/
 | `layouts/BaseLayout.astro` | 顧客向けページの HTML シェル（meta, font, global CSS） |
 | `layouts/AdminLayout.astro` | 管理画面のシェル（ナビ、`localStorage` の `auth_token` チェック、ログアウト） |
 | `types/reservation.ts` | 型定義。フロントとバックが共通で使う型はここに集約 |
-| `lib/*.ts` | API クライアント・カレンダー共通ロジック（`auth`, `api`, `reservation`, `availability`, `schedule`, `publicSchedule` 等） |
-| `mocks/reservation.ts` | ステータス・スケジュール種別のラベル定数（モックデータ・関数は未使用・削除予定） |
+| `lib/*.ts` | API クライアント・カレンダー共通ロジック・表示ラベル（`auth`, `api`, `reservation`, `availability`, `schedule`, `calendarTheme`, `reservationStatusTheme` 等） |
 | `styles/global.css` | Tailwind v4 `@theme`（カスタムカラー `#43676B`、Noto Serif JP、グラデーション、アニメーション） |
 
 ### ハイドレーション戦略
@@ -243,7 +240,6 @@ Presentation  →  Application  →  Domain  ←  Infrastructure
 | メソッド | パス | 概要 | 実装状況 |
 |---------|------|------|---------|
 | `GET` | `/` | ヘルスチェック | 実装済み |
-| `GET` | `/api/v1/reservations` | 予約一覧（無認証・開発用レガシー） | 実装済み（要整理） |
 | `POST` | `/api/v1/reservations` | 顧客：予約申請（Turnstile） | 実装済み |
 | `GET` | `/api/v1/reservations/availability` | 日付別・月次空き確認 | 実装済み |
 | `GET` | `/api/v1/schedules` | 顧客：月間スケジュール | 実装済み |

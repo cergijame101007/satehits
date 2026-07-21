@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { Reservation, ReservationStatus, AvailabilityResponse } from '../../types/reservation';
-import { statusLabels, statusColors, statusBadgeBg, statusBadgeText } from '../../mocks/reservation';
+import { statusLabels, statusColors, statusBadgeBg, statusBadgeText } from '@/lib/reservationStatusTheme';
 import { getAvailability, toAvailabilityErrorMessage } from '@/lib/availability';
 import { listReservations, updateReservationStatus, toReservationErrorMessage } from '@/lib/adminReservation';
 import {
@@ -9,7 +9,7 @@ import {
   statusToButtonVariant,
   type StatusActionTarget,
 } from '@/lib/reservationStatusTheme';
-import { useMonthCalendarData } from '@/lib/useMonthCalendar';
+import { buildReservationSummaryByDate, useMonthCalendarData } from '@/lib/useMonthCalendar';
 import MonthCalendar from '@/components/react/MonthCalendar';
 import Alert from '@/components/react/ui/Alert';
 import Button from '@/components/react/ui/Button';
@@ -36,7 +36,7 @@ export default function ReservationTable() {
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth() + 1);
   const [statusFilter, setStatusFilter] = useState<string>('');
-  const [reservationList, setReservationList] = useState<Reservation[]>([]);
+  const [monthReservations, setMonthReservations] = useState<Reservation[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -49,28 +49,43 @@ export default function ReservationTable() {
   const [isStatusSubmitting, setIsStatusSubmitting] = useState(false);
 
   const {
-    days: calendarDays,
+    days: scheduleDays,
     isLoading: calendarLoading,
     error: calendarError,
-    summaryError: calendarSummaryError,
-  } = useMonthCalendarData(viewYear, viewMonth, { includeReservationSummary: true });
+  } = useMonthCalendarData(viewYear, viewMonth);
+
+  const calendarDays = useMemo(() => {
+    const summaryByDate = buildReservationSummaryByDate(monthReservations, viewYear, viewMonth);
+    return scheduleDays.map((day) => ({
+      ...day,
+      reservation: summaryByDate.get(day.date),
+    }));
+  }, [scheduleDays, monthReservations, viewYear, viewMonth]);
+
+  const reservationList = useMemo(() => {
+    let filtered = monthReservations.filter((r) => r.visit_date === selectedDate);
+    if (statusFilter) {
+      filtered = filtered.filter((r) => r.status === statusFilter);
+    }
+    return filtered.sort((a, b) => a.visit_time.localeCompare(b.visit_time));
+  }, [monthReservations, selectedDate, statusFilter]);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function fetchReservations() {
+    async function fetchMonthReservations() {
       setIsLoading(true);
       setLoadError(null);
       try {
-        const data = await listReservations(selectedDate, statusFilter || undefined);
+        const data = await listReservations();
         if (!cancelled) {
-          setReservationList(data);
+          setMonthReservations(data);
           setIsLoaded(true);
         }
       } catch (err) {
         if (!cancelled) {
           setLoadError(toReservationErrorMessage(err));
-          setReservationList([]);
+          setMonthReservations([]);
           setIsLoaded(true);
         }
       } finally {
@@ -80,11 +95,11 @@ export default function ReservationTable() {
       }
     }
 
-    fetchReservations();
+    fetchMonthReservations();
     return () => {
       cancelled = true;
     };
-  }, [selectedDate, statusFilter]);
+  }, [viewYear, viewMonth]);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,11 +148,8 @@ export default function ReservationTable() {
     setActionError(null);
     try {
       await updateReservationStatus(id, newStatus, reason);
-      const [data, avail] = await Promise.all([
-        listReservations(selectedDate, statusFilter || undefined),
-        getAvailability(selectedDate),
-      ]);
-      setReservationList(data);
+      const [data, avail] = await Promise.all([listReservations(), getAvailability(selectedDate)]);
+      setMonthReservations(data);
       setAvailability(avail);
     } catch (err) {
       setActionError(toReservationErrorMessage(err));
@@ -195,11 +207,6 @@ export default function ReservationTable() {
           {calendarError && (
             <Alert variant="error" compact className="mb-3">
               {calendarError}
-            </Alert>
-          )}
-          {calendarSummaryError && (
-            <Alert variant="warning" compact className="mb-3">
-              {calendarSummaryError}
             </Alert>
           )}
           <MonthCalendar
@@ -341,7 +348,7 @@ export default function ReservationTable() {
           )}
 
           <div className="flex flex-wrap gap-4 text-xs text-gray-500 pt-2">
-            {Object.entries(statusLabels).map(([key, label]) => (
+            {(Object.entries(statusLabels) as [ReservationStatus, string][]).map(([key, label]) => (
               <span key={key} className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: statusColors[key] }} />
                 {label}

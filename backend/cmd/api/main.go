@@ -160,7 +160,7 @@ func main() {
 	createReservation := reservationusecase.NewCreateReservationUseCase(
 		reservationRepo, scheduleResolver, availabilityService, txManager, captchaVerifier, mailNotifier,
 	)
-	reservationHandler := handler.NewReservationHandler(reservationRepo, createReservation, reservationsPath)
+	reservationHandler := handler.NewReservationHandler(createReservation, reservationsPath)
 
 	loginUC := authusecase.NewLoginUseCase(adminUserRepo, refreshTokenRepo, jwtService)
 	refreshUC := authusecase.NewRefreshUseCase(adminUserRepo, refreshTokenRepo, jwtService, txManager)
