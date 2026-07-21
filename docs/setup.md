@@ -129,16 +129,10 @@ make test-coverage
 
 ## Lint
 
-golangci-lint は **本体 `go.mod` には入れない**（公式推奨どおりバイナリ導入）。
-`make lint` が未導入なら `tools/bin/` へ公式 `install.sh` で取得する（版は [`tools/golangci-lint.version`](../tools/golangci-lint.version)、CI の `golangci-lint-action` と揃える）。
-
-`gofmt` / `goimports` も別ツールとして入れず、[`backend/.golangci.yml`](../backend/.golangci.yml) の formatters 経由で `make lint` に含める。
+版は [`tools/golangci-lint.version`](../tools/golangci-lint.version)（CI と同期）。設定は [`backend/.golangci.yml`](../backend/.golangci.yml)。
 
 ```bash
-# ツールだけ先に入れる場合
-make tools-install
-
-# lint 実行（未導入なら自動インストール）
+make tools-install   # 初回など
 make lint
 ```
 

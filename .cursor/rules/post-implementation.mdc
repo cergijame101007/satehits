@@ -17,9 +17,7 @@ Plan の実装完了時（「Implement the plan」や同等の実装依頼を含
 
 バックエンド（`backend/**`）を変更した実装では、コミット前に **`make lint` を必ず実行**し、失敗したら修正してからコミットする。
 
-- 実行手段はルートの `make lint` のみ（PATH 上の適当な golangci-lint を直接叩かない）
-- `make lint` は `tools/bin/golangci-lint` を使う。未導入なら公式 install.sh で自動取得（`tools/golangci-lint.version`。**本体 go.mod には入れない**）
-- `gofmt` / `goimports` は golangci-lint の formatters（`backend/.golangci.yml`）でカバー。別途 `go install` しない
+- 実行はルートの `make lint`（版は `tools/golangci-lint.version`）。PATH 上のバイナリを直接叩かない
 - フロントのみの変更では `make lint` は不要。代わりに `bun run lint`（`frontend/`）を実行する
 - レポートの「実施したテスト」に lint 結果（コマンド・成功／失敗・主な指摘と対応）を含める
 
