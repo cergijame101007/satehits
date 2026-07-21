@@ -57,10 +57,11 @@ type ScheduleListResponse struct {
 
 // ScheduleHandler — 管理者向けスケジュール HTTP ハンドラ（認証は main の RequireAuth）
 type ScheduleHandler struct {
-	setSchedule   *usecase.SetScheduleUseCase
-	listSchedules *usecase.ListSchedulesUseCase
-	getSchedule   *usecase.GetScheduleUseCase
-	schedulesPath string
+	setSchedule    *usecase.SetScheduleUseCase
+	listSchedules  *usecase.ListSchedulesUseCase
+	getSchedule    *usecase.GetScheduleUseCase
+	deleteSchedule *usecase.DeleteScheduleUseCase
+	schedulesPath  string
 }
 
 // NewScheduleHandler はScheduleHandlerのインスタンスを作成する
@@ -69,13 +70,15 @@ func NewScheduleHandler(
 	setSchedule *usecase.SetScheduleUseCase,
 	listSchedules *usecase.ListSchedulesUseCase,
 	getSchedule *usecase.GetScheduleUseCase,
+	deleteSchedule *usecase.DeleteScheduleUseCase,
 	schedulesPath string,
 ) *ScheduleHandler {
 	return &ScheduleHandler{
-		setSchedule:   setSchedule,
-		listSchedules: listSchedules,
-		getSchedule:   getSchedule,
-		schedulesPath: schedulesPath,
+		setSchedule:    setSchedule,
+		listSchedules:  listSchedules,
+		getSchedule:    getSchedule,
+		deleteSchedule: deleteSchedule,
+		schedulesPath:  schedulesPath,
 	}
 }
 
@@ -106,6 +109,8 @@ func (h *ScheduleHandler) HandleSchedules(w http.ResponseWriter, r *http.Request
 		h.handleGetByDate(w, r, datePart)
 	case http.MethodPut:
 		h.handleSet(w, r, datePart)
+	case http.MethodDelete:
+		h.handleDelete(w, r, datePart)
 	default:
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
@@ -190,6 +195,22 @@ func (h *ScheduleHandler) handleSet(w http.ResponseWriter, r *http.Request, date
 		s.Date, s.ScheduleType, s.Capacity, result.Inserted, s.OpenTime, s.LastOrderTime, s.CloseTime)
 
 	respondWithJSON(w, http.StatusOK, toScheduleResponse(s, false))
+}
+
+// handleDelete — DELETE /admin/schedules/{date} で例外設定を削除し店舗定例に戻す（204 No Content）
+func (h *ScheduleHandler) handleDelete(w http.ResponseWriter, r *http.Request, dateStr string) {
+	date, err := datetime.ParseDate(dateStr)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, InvalidRequestCode, "リクエスト形式が不正です", nil)
+		return
+	}
+
+	if err := h.deleteSchedule.Execute(r.Context(), date); writeScheduleUsecaseError(w, err, "Failed to delete schedule") {
+		return
+	}
+
+	log.Printf("Deleted Schedule date=%s", date)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func resolveSetScheduleCapacity(capacity *int) int {

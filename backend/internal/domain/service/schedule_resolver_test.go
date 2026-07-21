@@ -24,6 +24,10 @@ func (resolveMonthStubRepo) ListStoredByYearMonth(context.Context, int, int) ([]
 	return nil, nil
 }
 
+func (resolveMonthStubRepo) DeleteByDate(context.Context, datetime.Date) error {
+	return nil
+}
+
 func TestScheduleResolver_ResolveForDate_rejectsZeroDate(t *testing.T) {
 	r := NewScheduleResolver(resolveMonthStubRepo{})
 	_, err := r.ResolveForDate(context.Background(), datetime.Date{})

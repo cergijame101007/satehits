@@ -36,6 +36,10 @@ func (s *stubScheduleRepo) ListStoredByYearMonth(ctx context.Context, year, mont
 	return nil, nil
 }
 
+func (s *stubScheduleRepo) DeleteByDate(ctx context.Context, date datetime.Date) error {
+	return nil
+}
+
 func TestSetScheduleUseCase_Execute_appliesDefaultBusinessHours(t *testing.T) {
 	repo := &stubScheduleRepo{inserted: true}
 	uc := NewSetScheduleUseCase(repo)

@@ -2,10 +2,14 @@ package domain
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/cergijame101007/satehits/internal/datetime"
 )
+
+// ErrScheduleNotStored は削除対象の daily_schedules 行が存在しない
+var ErrScheduleNotStored = errors.New("schedule not stored")
 
 // schedule_type の列挙値（docs/table_design.md daily_schedules CHECK 制約）
 const (
@@ -51,4 +55,6 @@ type ScheduleRepository interface {
 	FindByDate(ctx context.Context, date datetime.Date) (Schedule, bool, error)
 	// ListStoredByYearMonth は指定年月に保存されている行のみを日付昇順で返す（定例合成は含まない）
 	ListStoredByYearMonth(ctx context.Context, year, month int) ([]Schedule, error)
+	// DeleteByDate は指定日の保存行を削除する。行がなければ ErrScheduleNotStored
+	DeleteByDate(ctx context.Context, date datetime.Date) error
 }

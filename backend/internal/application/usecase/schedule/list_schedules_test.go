@@ -34,6 +34,10 @@ func (s *listSchedulesStubRepo) ListStoredByYearMonth(ctx context.Context, year,
 	return list, nil
 }
 
+func (s *listSchedulesStubRepo) DeleteByDate(ctx context.Context, date datetime.Date) error {
+	return nil
+}
+
 func TestListSchedulesUseCase_Execute_mergesStoredAndDefaults(t *testing.T) {
 	storedDate := datetime.MustParseDate("2026-02-11")
 	repo := &listSchedulesStubRepo{
