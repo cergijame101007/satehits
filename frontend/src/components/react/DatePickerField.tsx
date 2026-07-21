@@ -32,6 +32,7 @@ export default function DatePickerField({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const { days, isLoading, error: loadError, summaryError } = useMonthCalendarData(viewYear, viewMonth, {
+    enabled: isOpen,
     includeReservationSummary: true,
   });
 

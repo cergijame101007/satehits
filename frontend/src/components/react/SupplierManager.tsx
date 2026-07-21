@@ -50,9 +50,13 @@ export default function SupplierManager() {
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
   const suppliersRef = useRef<Supplier[]>([]);
 
-  useEffect(() => {
-    suppliersRef.current = suppliers;
-  }, [suppliers]);
+  const updateSuppliers = useCallback((next: Supplier[] | ((prev: Supplier[]) => Supplier[])) => {
+    setSuppliers((prev) => {
+      const resolved = typeof next === 'function' ? next(prev) : next;
+      suppliersRef.current = resolved;
+      return resolved;
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,11 +68,11 @@ export default function SupplierManager() {
       try {
         const data = await listAdminSuppliers();
         if (!cancelled) {
-          setSuppliers(data);
+          updateSuppliers(data);
         }
       } catch (err) {
         if (!cancelled) {
-          setSuppliers([]);
+          updateSuppliers([]);
           setLoadError(toSupplierErrorMessage(err));
         }
       } finally {
@@ -201,11 +205,7 @@ export default function SupplierManager() {
         });
         // 画像アップロード失敗時の再保存で二重作成しないよう、直後に編集モードへ切り替える
         setEditingId(saved.id);
-        setSuppliers((prev) => {
-          const next = [...prev, saved];
-          suppliersRef.current = next;
-          return next;
-        });
+        updateSuppliers((prev) => [...prev, saved]);
       } else if (typeof editingId === 'number') {
         saved = await updateSupplier(editingId, {
           name: form.name.trim(),
@@ -222,11 +222,7 @@ export default function SupplierManager() {
         saved = { ...saved, image_url: imageUrl };
       }
 
-      setSuppliers((prev) => {
-        const next = prev.map((s) => (s.id === saved.id ? saved : s));
-        suppliersRef.current = next;
-        return next;
-      });
+      updateSuppliers((prev) => prev.map((s) => (s.id === saved.id ? saved : s)));
       closeModal();
     } catch (err) {
       if (err instanceof SupplierApiError) {
@@ -245,7 +241,7 @@ export default function SupplierManager() {
 
     try {
       await deleteSupplier(deleteTargetId);
-      setSuppliers((prev) => prev.filter((s) => s.id !== deleteTargetId));
+      updateSuppliers((prev) => prev.filter((s) => s.id !== deleteTargetId));
       setDeleteTargetId(null);
     } catch (err) {
       setLoadError(toSupplierErrorMessage(err));
@@ -263,7 +259,7 @@ export default function SupplierManager() {
     e.preventDefault();
     if (draggedId === null || draggedId === targetId) return;
 
-    setSuppliers((prev) => {
+    updateSuppliers((prev) => {
       const sorted = [...prev].sort((a, b) => a.display_order - b.display_order);
       const dragIdx = sorted.findIndex((s) => s.id === draggedId);
       const targetIdx = sorted.findIndex((s) => s.id === targetId);
@@ -273,7 +269,6 @@ export default function SupplierManager() {
       sorted.splice(targetIdx, 0, moved);
 
       const next = sorted.map((s, i) => ({ ...s, display_order: i + 1 }));
-      suppliersRef.current = next;
       return next;
     });
   };
@@ -286,12 +281,12 @@ export default function SupplierManager() {
 
     try {
       const updated = await reorderSuppliers(orderedIds);
-      setSuppliers(updated);
+      updateSuppliers(updated);
     } catch (err) {
       setLoadError(toSupplierErrorMessage(err));
       try {
         const data = await listAdminSuppliers();
-        setSuppliers(data);
+        updateSuppliers(data);
       } catch {
         // 一覧復元も失敗した場合は loadError を維持
       }
