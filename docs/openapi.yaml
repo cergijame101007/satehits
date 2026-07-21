@@ -680,7 +680,9 @@ paths:
       tags:
         - スケジュール管理
       summary: 日別スケジュールを削除
-      description: 指定日のスケジュールを削除し、デフォルト設定に戻します。
+      description: |
+        指定日の個別設定（daily_schedules 行）を削除し、店舗定例に戻します。
+        すでに店舗定例（行がない）場合は 404 を返します。
       operationId: deleteSchedule
       security:
         - BearerAuth: []
@@ -694,8 +696,20 @@ paths:
       responses:
         "204":
           description: 削除成功
+        "400":
+          description: リクエスト不正（日付形式など）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 削除対象の個別設定がない（すでに店舗定例）
           content:
             application/json:
               schema:
