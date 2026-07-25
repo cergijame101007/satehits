@@ -252,7 +252,7 @@ Presentation  →  Application  →  Domain  ←  Infrastructure
 | `GET` | `/api/v1/admin/schedules` | 月間スケジュール取得 | 実装済み |
 | `GET` | `/api/v1/admin/schedules/{date}` | 日別スケジュール取得 | 実装済み |
 | `PUT` | `/api/v1/admin/schedules/{date}` | 日別スケジュール設定（Upsert） | 実装済み |
-| `DELETE` | `/api/v1/admin/schedules/{date}` | スケジュール削除（デフォルト復帰） | 未実装 |
+| `DELETE` | `/api/v1/admin/schedules/{date}` | スケジュール削除（店舗定例に戻す） | 実装済み |
 | `GET` | `/api/v1/suppliers` | 取引先一覧（公開） | 実装済み |
 | `GET` | `/api/v1/admin/suppliers` | 取引先一覧取得 | 実装済み |
 | `POST` | `/api/v1/admin/suppliers` | 取引先作成 | 実装済み |
@@ -278,6 +278,7 @@ make run          # Go サーバー直接起動
 make test         # バックエンドテスト実行
 make test-coverage # カバレッジ付きテスト
 make lint         # golangci-lint
+make tools-install # lint ツールのインストール
 make clean        # ビルド成果物の削除
 ```
 

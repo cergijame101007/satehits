@@ -102,7 +102,8 @@ func main() {
 	setSchedule := scheduleusecase.NewSetScheduleUseCase(scheduleRepo)
 	listSchedules := scheduleusecase.NewListSchedulesUseCase(scheduleResolver)
 	getSchedule := scheduleusecase.NewGetScheduleUseCase(scheduleResolver)
-	scheduleHandler := handler.NewScheduleHandler(setSchedule, listSchedules, getSchedule, schedulesPath)
+	deleteSchedule := scheduleusecase.NewDeleteScheduleUseCase(scheduleRepo)
+	scheduleHandler := handler.NewScheduleHandler(setSchedule, listSchedules, getSchedule, deleteSchedule, schedulesPath)
 
 	// 取引先（Supplier）の DI
 	supplierRepo := repository.NewPostgresSupplierRepository(db)

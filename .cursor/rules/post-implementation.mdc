@@ -1,0 +1,112 @@
+---
+description: プラン実装後のコミット・プッシュ禁止・テスト保証レポート
+alwaysApply: true
+---
+
+# プラン実装後の行動
+
+Plan の実装完了時（「Implement the plan」や同等の実装依頼を含む）に従う。
+
+## Git
+
+- **コミットしてよい**: 実装完了後、依頼がなくてもコミットしてよい（`git-commit.mdc` / `git-branch.mdc` に従う）
+- **プッシュ禁止**: `git push` およびリモート更新は行わない。ユーザーが明示的にプッシュ／PR 作成を頼んだときだけ可
+- コミット後はブランチ名・コミット一覧を短く報告する（プッシュの有無は書かない、または「未プッシュ」と明記）
+
+## Lint（必須）
+
+バックエンド（`backend/**`）を変更した実装では、コミット前に **`make lint` を必ず実行**し、失敗したら修正してからコミットする。
+
+- 実行はルートの `make lint`（版は `tools/golangci-lint.version`）。PATH 上のバイナリを直接叩かない
+- フロントのみの変更では `make lint` は不要。代わりに `bun run lint`（`frontend/`）を実行する
+- レポートの「実施したテスト」に lint 結果（コマンド・成功／失敗・主な指摘と対応）を含める
+
+## テスト保証レポート（必須）
+
+実装中または実装後にテストを実行した場合、最終応答で報告する。未実施なら「未実施」と理由を書く。
+抽象的な一文（「動作確認した」「カバレッジあり」）は禁止。**層ごと・ケースごと**に書く。
+
+### 1. 実施したテスト
+
+レイヤー／ファイル単位で分け、各ケースを表にする。
+
+| 書くこと | 例 |
+|----------|-----|
+| コマンド | `go test ./internal/handler/ -run Delete -count=1` |
+| 対象ファイル | `delete_schedule_test.go`, `schedule_test.go` |
+| ケース名と期待結果 | 行なし → 404 `NOT_FOUND` |
+| 依存（fake / 実 DB / ブラウザ） | fake repo、httptest、Vitest |
+
+### 2. 保証できたこと
+
+そのテストが **実際に証明している振る舞いだけ**。推測や「実装してあるから大丈夫」は書かない。
+
+- UseCase の分岐（呼ばれる／呼ばれないメソッドまで）
+- HTTP ステータスとエラーコードの対応
+- FE なら入出力の具体値（曜日 → type/capacity）
+
+### 3. 保証していないこと
+
+触っていない・モックで飛ばした層を明示する（該当するものを列挙）。
+
+- 実 DB / SQL / マイグレーション
+- 認証・認可ミドルウェア（`RequireAuth`、role）
+- ルーティング登録（`main.go` の DI）と結合
+- UI・ブラウザ手動・E2E
+- 他パッケージの既存挙動（「Resolver が合成する」等は今回のテスト群外ならここに書く）
+
+### 4. 手動確認
+
+実施したら手順と結果。未実施なら「未実施」。
+
+## 例（形式）
+
+```markdown
+## テスト保証レポート
+
+### 実施したテスト
+
+**UseCase**（`delete_schedule_test.go`）— stub repo
+| ケース | 期待 |
+|--------|------|
+| 行あり | err=nil、`DeleteByDate` が呼ばれ行が消える |
+| 行なし | `ErrScheduleNotStored`、`DeleteByDate` は呼ばれない |
+| 日付ゼロ | `ValidationError`（field=date） |
+
+**Handler**（`schedule_test.go`）— httptest + fake repo（RequireAuth なし）
+| ケース | 期待 |
+|--------|------|
+| DELETE 行あり | 204、repo から削除 |
+| DELETE 行なし | 404 / `NOT_FOUND` |
+| DELETE リスト URL | 405 |
+| 日付不正 | 400 / `INVALID_REQUEST` |
+
+**FE**（`storeDefaultSchedule.test.ts`）
+| ケース | 期待 |
+|--------|------|
+| 木・金 | closed / 0 |
+| 日 | morning / 10 |
+| 月 | normal / 10 |
+
+**Lint**
+- `make lint` → 成功（gofmt/goimports 含む）
+
+コマンド: `make lint`  
+`go test ./internal/application/usecase/schedule/... ./internal/handler/ -count=1`  
+`bun run test:run src/lib/storeDefaultSchedule.test.ts`
+
+### 保証できたこと
+- 削除 UseCase の「行があるときだけ Delete」規則
+- DELETE の 204/404/405/400 とエラーコード対応（Handler 単体）
+- モーダル用プレビューの曜日→type/capacity ルール
+- golangci-lint（標準 + formatters）で新規コードがルール違反なし
+
+### 保証していないこと
+- 実 PostgreSQL の DELETE SQL / RowsAffected
+- `RequireAuth`（401）・role 認可
+- `ScheduleCalendar` のボタン表示・モーダル・再取得 UI
+- 削除後に Resolver が `is_default` 合成すること（既存 Resolver テスト頼み）
+
+### 手動確認
+- 未実施
+```

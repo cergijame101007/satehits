@@ -2,16 +2,19 @@ import { useState, useEffect } from 'react';
 import type { DailySchedule, ScheduleType } from '@/types/reservation';
 import { scheduleTypeLabels } from '@/lib/calendarTheme';
 import {
+  deleteSchedule,
   editableScheduleTypes,
   listSchedules,
   ScheduleApiError,
   setSchedule,
 } from '@/lib/schedule';
+import { formatStoreDefaultPreview } from '@/lib/storeDefaultSchedule';
 import MonthCalendar from '@/components/react/MonthCalendar';
 import type { MonthCalendarDay } from '@/components/react/MonthCalendar';
 import Alert from '@/components/react/ui/Alert';
 import Button from '@/components/react/ui/Button';
 import Card from '@/components/react/ui/Card';
+import ConfirmModal from '@/components/react/ui/ConfirmModal';
 import Textarea from '@/components/react/ui/Textarea';
 import { inputClassName } from '@/lib/ui/inputStyles';
 
@@ -29,6 +32,9 @@ export default function ScheduleCalendar() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [saveError, setSaveError] = useState('');
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const [schedules, setSchedules] = useState<DailySchedule[]>([]);
 
@@ -72,19 +78,29 @@ export default function ScheduleCalendar() {
     : Array.from({ length: new Date(viewYear, viewMonth, 0).getDate() }, (_, i) => {
         const d = i + 1;
         const dateStr = `${viewYear}-${String(viewMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        return { date: dateStr, schedule: { date: dateStr, type: 'normal' as ScheduleType, capacity: 10 } };
+        return {
+          date: dateStr,
+          schedule: { date: dateStr, type: 'normal' as ScheduleType, capacity: 10, is_default: true },
+        };
       });
 
   const handleSelectDay = (dateStr: string) => {
     const schedule =
       schedules.find((s) => s.date === dateStr) ??
-      ({ date: dateStr, type: 'normal' as ScheduleType, capacity: 10 } satisfies DailySchedule);
+      ({
+        date: dateStr,
+        type: 'normal' as ScheduleType,
+        capacity: 10,
+        is_default: true,
+      } satisfies DailySchedule);
     setSelectedSchedule(schedule);
     setEditType(schedule.type);
     setEditCapacity(schedule.capacity);
     setEditEventName(schedule.event_name ?? '');
     setEditDescription(schedule.description ?? '');
     setSaveError('');
+    setDeleteError('');
+    setDeleteModalOpen(false);
   };
 
   const handleSave = async () => {
@@ -131,6 +147,59 @@ export default function ScheduleCalendar() {
       setIsSaving(false);
     }
   };
+
+  const openDeleteModal = () => {
+    setDeleteError('');
+    setDeleteModalOpen(true);
+  };
+
+  const closeDeleteModal = () => {
+    if (isDeleting) return;
+    setDeleteModalOpen(false);
+    setDeleteError('');
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedSchedule) return;
+    setIsDeleting(true);
+    setDeleteError('');
+
+    try {
+      await deleteSchedule(selectedSchedule.date);
+      const data = await listSchedules(viewYear, viewMonth);
+      setSchedules(data);
+      const restored =
+        data.find((s) => s.date === selectedSchedule.date) ??
+        ({
+          date: selectedSchedule.date,
+          type: 'normal' as ScheduleType,
+          capacity: 10,
+          is_default: true,
+        } satisfies DailySchedule);
+      setSelectedSchedule(restored);
+      setEditType(restored.type);
+      setEditCapacity(restored.capacity);
+      setEditEventName(restored.event_name ?? '');
+      setEditDescription(restored.description ?? '');
+      setDeleteModalOpen(false);
+    } catch (err) {
+      if (err instanceof ScheduleApiError && err.code === 'NOT_FOUND') {
+        setDeleteError('すでに店舗定例です');
+      } else {
+        setDeleteError(
+          err instanceof ScheduleApiError
+            ? err.message
+            : '定例への復元に失敗しました。時間をおいて再度お試しください。',
+        );
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const storeDefaultPreview = selectedSchedule
+    ? formatStoreDefaultPreview(selectedSchedule.date)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -234,15 +303,29 @@ export default function ScheduleCalendar() {
 
               {saveError && <Alert variant="error">{saveError}</Alert>}
 
-              <Button
-                type="button"
-                variant="primary"
-                size="lg"
-                onClick={handleSave}
-                disabled={isSaving || isLoading}
-              >
-                {isSaving ? '保存中...' : '保存する'}
-              </Button>
+              <div className="flex flex-col gap-3">
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="lg"
+                  onClick={handleSave}
+                  disabled={isSaving || isLoading || isDeleting}
+                >
+                  {isSaving ? '保存中...' : '保存する'}
+                </Button>
+
+                {!selectedSchedule.is_default && (
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="lg"
+                    onClick={openDeleteModal}
+                    disabled={isSaving || isLoading || isDeleting}
+                  >
+                    定例に戻す
+                  </Button>
+                )}
+              </div>
             </div>
           ) : (
             <div className="text-center py-12 text-gray-400 text-sm">
@@ -251,6 +334,36 @@ export default function ScheduleCalendar() {
           )}
         </Card>
       </div>
+
+      {selectedSchedule && storeDefaultPreview && (
+        <ConfirmModal
+          open={deleteModalOpen}
+          title="店舗定例に戻す"
+          description={`${selectedSchedule.date.replace(/-/g, '/')} の個別設定を削除し、店舗定例に戻します。`}
+          confirmLabel="定例に戻す"
+          confirmVariant="danger"
+          isSubmitting={isDeleting}
+          onConfirm={handleDeleteConfirm}
+          onCancel={closeDeleteModal}
+        >
+          <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-2">
+            <p className="text-sm font-medium text-gray-800">戻る先の店舗定例</p>
+            <ul className="text-sm text-gray-600 space-y-1">
+              {storeDefaultPreview.summaryLines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+            <p className="text-sm font-medium text-gray-800 pt-2">
+              以下の設定に戻ります。よろしいですか？
+            </p>
+          </div>
+          {deleteError && (
+            <div className="mt-3">
+              <Alert variant="error">{deleteError}</Alert>
+            </div>
+          )}
+        </ConfirmModal>
+      )}
     </div>
   );
 }

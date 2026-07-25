@@ -34,6 +34,10 @@ func (r handlerTestScheduleRepo) ListStoredByYearMonth(context.Context, int, int
 	return nil, nil
 }
 
+func (r handlerTestScheduleRepo) DeleteByDate(context.Context, datetime.Date) error {
+	return nil
+}
+
 type handlerTestReservationRepo struct {
 	approvedByDate map[string]int
 }

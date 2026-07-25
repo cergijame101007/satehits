@@ -4,7 +4,7 @@
 
 - Docker & Docker Compose
 - Go 1.24+（ローカル開発時）
-- golangci-lint（ローカルでlint実行時）
+- curl（`make lint` 初回に golangci-lint バイナリを取得するため）
 
 ## セットアップ手順
 
@@ -129,11 +129,10 @@ make test-coverage
 
 ## Lint
 
-```bash
-# golangci-lint のインストール（初回のみ）
-go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+版は [`tools/golangci-lint.version`](../tools/golangci-lint.version)（CI と同期）。設定は [`backend/.golangci.yml`](../backend/.golangci.yml)。
 
-# lint 実行
+```bash
+make tools-install   # 初回など
 make lint
 ```
 

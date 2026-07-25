@@ -32,7 +32,7 @@
 | GET | `/admin/schedules` | 指定期間のスケジュール一覧を取得 |
 | GET | `/admin/schedules/{date}` | 日別スケジュールを取得 |
 | PUT | `/admin/schedules/{date}` | 日別スケジュールを設定 |
-| DELETE | `/admin/schedules/{date}` | 日別スケジュールを削除（デフォルトに戻す） |
+| DELETE | `/admin/schedules/{date}` | 日別スケジュールを削除（店舗定例に戻す） |
 | GET | `/admin/suppliers` | 取引先一覧を取得（非表示含む） |
 | POST | `/admin/suppliers` | 取引先を登録 |
 | GET | `/admin/suppliers/{id}` | 取引先を取得 |
@@ -708,11 +708,13 @@ PUT /api/v1/admin/schedules/2025-02-11
 
 ### DELETE /admin/schedules/{date}
 
-指定日のスケジュールを削除し、デフォルト設定に戻す。
+指定日の個別設定（`daily_schedules` 行）を削除し、店舗定例に戻す。
 
 #### レスポンス
 
 **成功時（204 No Content）**
+
+**対象なし（404 Not Found）** — すでに店舗定例（行がない）場合。`NOT_FOUND`
 
 ---
 

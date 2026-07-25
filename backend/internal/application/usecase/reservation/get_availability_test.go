@@ -29,6 +29,10 @@ func (r getAvailScheduleRepo) ListStoredByYearMonth(context.Context, int, int) (
 	return nil, nil
 }
 
+func (r getAvailScheduleRepo) DeleteByDate(context.Context, datetime.Date) error {
+	return nil
+}
+
 type getAvailReservationRepo struct {
 	approvedByDate map[string]int
 }

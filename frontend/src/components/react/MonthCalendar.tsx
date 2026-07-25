@@ -130,7 +130,12 @@ export default function MonthCalendar({
 
               const day = parseInt(dateStr.split('-')[2]);
               const dayData = dayMap.get(dateStr);
-              const schedule = dayData?.schedule ?? { date: dateStr, type: 'normal' as ScheduleType, capacity: 10 };
+              const schedule = dayData?.schedule ?? {
+                date: dateStr,
+                type: 'normal' as ScheduleType,
+                capacity: 10,
+                is_default: true,
+              };
               const isSelected = selectedDate === dateStr;
               const isToday = dateStr === todayStr;
               const isClosed = isClosedScheduleType(schedule.type);

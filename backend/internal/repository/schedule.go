@@ -129,6 +129,22 @@ func (r *PostgresScheduleRepository) FindByDate(ctx context.Context, date dateti
 	return out, true, nil
 }
 
+// DeleteByDate は指定日の保存済みスケジュールを削除する
+func (r *PostgresScheduleRepository) DeleteByDate(ctx context.Context, date datetime.Date) error {
+	res, err := r.db.ExecContext(ctx, `DELETE FROM daily_schedules WHERE date = $1`, date)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return domain.ErrScheduleNotStored
+	}
+	return nil
+}
+
 // ListStoredByYearMonth は指定年月に保存されている行のみを日付昇順で返す
 // year/month は呼び出し前に service 側で検証済みであること
 func (r *PostgresScheduleRepository) ListStoredByYearMonth(ctx context.Context, year, month int) ([]domain.Schedule, error) {
