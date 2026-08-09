@@ -11,21 +11,35 @@ const (
 	minJWTSecretBytes    = 32
 	defaultMailFrom      = "さて、羊に戻るとしよう <noreply@satehits.com>"
 	defaultMailQueueSize = 100
+
+	defaultLoginRateLimitEmailMax      = 5
+	defaultLoginRateLimitIPMax         = 20
+	defaultLoginRateLimitWindowMinutes = 15
+	defaultTrustedProxyHops            = 1
 )
 
 // Config はバックエンドが起動時に必要とする環境変数を集約する
 type Config struct {
-	DatabaseURL     string
-	JWTSecret       []byte
-	CORSOrigins     []string
-	CookieDomain    string
-	TurnstileSecret string
-	Environment     string
-	MigrationsDir   string
-	ResendAPIKey    string
-	MailFromAddress string
-	MailQueueSize   int
-	Storage         StorageConfig
+	DatabaseURL      string
+	JWTSecret        []byte
+	CORSOrigins      []string
+	CookieDomain     string
+	TurnstileSecret  string
+	Environment      string
+	MigrationsDir    string
+	ResendAPIKey     string
+	MailFromAddress  string
+	MailQueueSize    int
+	TrustedProxyHops int
+	LoginRateLimit   LoginRateLimitConfig
+	Storage          StorageConfig
+}
+
+// LoginRateLimitConfig はログイン失敗のレートリミットしきい値
+type LoginRateLimitConfig struct {
+	EmailMax      int
+	IPMax         int
+	WindowMinutes int
 }
 
 // StorageConfig は取引先画像などを保存する S3 互換ストレージ（R2 / MinIO）の設定。
@@ -83,18 +97,36 @@ func Load() Config {
 	}
 
 	return Config{
-		DatabaseURL:     dbURL,
-		JWTSecret:       []byte(jwtSecret),
-		CORSOrigins:     corsOrigins,
-		CookieDomain:    os.Getenv("COOKIE_DOMAIN"),
-		TurnstileSecret: turnstileSecret,
-		Environment:     environment,
-		MigrationsDir:   migrationsDir,
-		ResendAPIKey:    strings.TrimSpace(os.Getenv("RESEND_API_KEY")),
-		MailFromAddress: mailFrom,
-		MailQueueSize:   mailQueueSize,
-		Storage:         loadStorageConfig(),
+		DatabaseURL:      dbURL,
+		JWTSecret:        []byte(jwtSecret),
+		CORSOrigins:      corsOrigins,
+		CookieDomain:     os.Getenv("COOKIE_DOMAIN"),
+		TurnstileSecret:  turnstileSecret,
+		Environment:      environment,
+		MigrationsDir:    migrationsDir,
+		ResendAPIKey:     strings.TrimSpace(os.Getenv("RESEND_API_KEY")),
+		MailFromAddress:  mailFrom,
+		MailQueueSize:    mailQueueSize,
+		TrustedProxyHops: positiveIntEnv("TRUSTED_PROXY_HOPS", defaultTrustedProxyHops),
+		LoginRateLimit: LoginRateLimitConfig{
+			EmailMax:      positiveIntEnv("LOGIN_RATE_LIMIT_EMAIL_MAX", defaultLoginRateLimitEmailMax),
+			IPMax:         positiveIntEnv("LOGIN_RATE_LIMIT_IP_MAX", defaultLoginRateLimitIPMax),
+			WindowMinutes: positiveIntEnv("LOGIN_RATE_LIMIT_WINDOW_MINUTES", defaultLoginRateLimitWindowMinutes),
+		},
+		Storage: loadStorageConfig(),
 	}
+}
+
+func positiveIntEnv(key string, defaultValue int) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return defaultValue
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		log.Fatalf("%s must be a positive integer, got %q", key, raw)
+	}
+	return n
 }
 
 // loadStorageConfig は STORAGE_* 環境変数を読み込む。

@@ -8,8 +8,9 @@ import (
 // validLoginCommand は管理者ログイン API の正常系ベース
 func validLoginCommand() LoginCommand {
 	return LoginCommand{
-		Email:    "owner@example.com",
+		Email:    testLoginEmail,
 		Password: testLoginPassword,
+		ClientIP: testClientIP,
 	}
 }
 

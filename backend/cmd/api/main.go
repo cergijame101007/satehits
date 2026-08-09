@@ -163,10 +163,23 @@ func main() {
 	)
 	reservationHandler := handler.NewReservationHandler(createReservation, reservationsPath)
 
-	loginUC := authusecase.NewLoginUseCase(adminUserRepo, refreshTokenRepo, jwtService)
+	loginAttemptRepo := repository.NewPostgresLoginAttemptRepository(db)
+	loginUC := authusecase.NewLoginUseCase(
+		adminUserRepo,
+		refreshTokenRepo,
+		loginAttemptRepo,
+		jwtService,
+		authusecase.LoginRateLimitPolicy{
+			EmailMax: cfg.LoginRateLimit.EmailMax,
+			IPMax:    cfg.LoginRateLimit.IPMax,
+			Window:   time.Duration(cfg.LoginRateLimit.WindowMinutes) * time.Minute,
+		},
+	)
 	refreshUC := authusecase.NewRefreshUseCase(adminUserRepo, refreshTokenRepo, jwtService, txManager)
 	logoutUC := authusecase.NewLogoutUseCase(refreshTokenRepo)
-	authHandler := handler.NewAuthHandler(loginUC, refreshUC, logoutUC, cfg.CORSOrigins, cfg.CookieDomain)
+	authHandler := handler.NewAuthHandler(
+		loginUC, refreshUC, logoutUC, cfg.CORSOrigins, cfg.CookieDomain, cfg.TrustedProxyHops,
+	)
 
 	// ルーティング（公開 API は /api/v1/...）
 	http.HandleFunc("/", handleRoot)

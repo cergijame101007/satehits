@@ -19,6 +19,7 @@ const (
 	CapacityExceededCode    = "CAPACITY_EXCEEDED"
 	ReservationConflictCode = "RESERVATION_CONFLICT"
 	CaptchaFailedCode       = "CAPTCHA_FAILED"
+	TooManyRequestsCode     = "TOO_MANY_REQUESTS"
 	InternalErrorCode       = "INTERNAL_ERROR"
 )
 
