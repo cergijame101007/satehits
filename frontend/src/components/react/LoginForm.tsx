@@ -28,7 +28,7 @@ export default function LoginForm() {
       if (err instanceof AuthError) {
         if (err.code === 'UNAUTHORIZED') {
           setError('メールアドレスまたはパスワードが正しくありません');
-        } else if (err.code === 'VALIDATION_ERROR') {
+        } else if (err.code === 'VALIDATION_ERROR' || err.code === 'TOO_MANY_REQUESTS') {
           setError(err.message);
         } else {
           setError('ログインに失敗しました。時間をおいて再度お試しください。');
