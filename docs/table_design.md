@@ -62,6 +62,13 @@ erDiagram
         timestamp created_at "作成日時"
     }
 
+    login_attempts {
+        bigint id PK "試行ID"
+        string email_key "正規化メールキー"
+        string ip "クライアントIP"
+        timestamp attempted_at "試行日時"
+    }
+
     schema_migrations {
         bigint version PK "マイグレーション番号"
         timestamp applied_at "適用日時"
@@ -220,9 +227,30 @@ ALTER TABLE reservations ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ;
 - **ログアウト**: 該当 RT の `revoked_at` を設定
 - **再利用検知**: 既に `revoked_at` が設定された RT が再送された場合、当該 `admin_user_id` の全 RT を revoke（漏洩疑い）
 
-### 2.5 suppliers（お取り引き先）
+### 2.5 login_attempts（ログイン失敗試行）
+
+管理者ログインのブルートフォース対策用に、認証失敗を記録するテーブル。成功時は該当メールキーの行を削除する。
+
+| カラム名 | データ型 | NULL | デフォルト | 説明 |
+|----------|----------|------|------------|------|
+| id | BIGSERIAL | NO | auto | 試行ID（主キー） |
+| email_key | TEXT | NO | - | 正規化メールキー（trim + lower）。レートリミット集計用。実在しないメールの失敗も記録する |
+| ip | TEXT | NO | - | クライアント IP（Cloud Run では `X-Forwarded-For` の信頼できる右端など） |
+| attempted_at | TIMESTAMPTZ | NO | NOW() | 試行日時（アプリ側の時計で INSERT。窓判定と同一時計に揃える） |
+
+**インデックス:**
+- `idx_login_attempts_email`: `(email_key, attempted_at DESC)`
+- `idx_login_attempts_ip`: `(ip, attempted_at DESC)`
+
+**運用ルール（アプリケーション側）:**
+- **記録**: 認証失敗（未存在メール・パスワード不一致）時に INSERT。しきい値超過中は bcrypt 前に 429 とし、新たな行は増やさない
+- **クリア**: ログイン成功時に当該 `email_key` の行を DELETE（AT/RT 発行前）
+- **掃除**: `RecordFailure` 時に 24 時間より古い行を DELETE
+
+### 2.6 suppliers（お取り引き先）
 
 お取り引き先の情報を管理するテーブル。
+
 
 | カラム名 | データ型 | NULL | デフォルト | 説明 |
 |----------|----------|------|------------|------|
@@ -240,7 +268,7 @@ ALTER TABLE reservations ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ;
 - `idx_suppliers_display_order`: display_order（表示順ソート用）
 - `idx_suppliers_is_active`: is_active（表示フィルタ用）
 
-### 2.6 schema_migrations（スキーママイグレーション履歴）
+### 2.7 schema_migrations（スキーママイグレーション履歴）
 
 `backend/cmd/migrate` が `migrations/*.sql` を適用した際に、適用済みのバージョン番号を記録するテーブル。`ensureSchemaMigrationsTable` で `CREATE TABLE IF NOT EXISTS` により初回接続時に自動作成される。業務テーブルとは外部キーで結ばない。
 
@@ -252,9 +280,9 @@ ALTER TABLE reservations ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ;
 **備考:**
 - 1ファイルの SQL をトランザクションで実行し、成功後に `INSERT INTO schema_migrations (version) VALUES (...)` で記録する（実装は `applyMigration`）。
 
-### 2.7 マイグレーションファイル（`backend/migrations/`）
+### 2.8 マイグレーションファイル（`backend/migrations/`）
 
-`backend/cmd/migrate` が番号昇順で適用する SQL の一覧。`schema_migrations` は migrate 実行時に自動作成（2.6 参照）。
+`backend/cmd/migrate` が番号昇順で適用する SQL の一覧。`schema_migrations` は migrate 実行時に自動作成（2.7 参照）。
 
 | ファイル | version | 内容 |
 |----------|---------|------|
@@ -264,6 +292,8 @@ ALTER TABLE reservations ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ;
 | `000004_suppliers.sql` | 4 | `suppliers`、インデックス、トリガー |
 | `000005_admin_users.sql` | 5 | `admin_users`、`updated_at` トリガー |
 | `000006_refresh_tokens.sql` | 6 | `refresh_tokens`、インデックス |
+| `000007_external_event_schedule_type.sql` | 7 | `daily_schedules.schedule_type` に `external_event` を追加 |
+| `000008_login_attempts.sql` | 8 | `login_attempts`、インデックス |
 | （将来）`reservations.email_sent_at` | - | メール送信実装時に別マイグレーションで追加（2.1 参照） |
 
 ## 3. DDL
@@ -357,6 +387,19 @@ CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash
     ON refresh_tokens (token_hash) WHERE revoked_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user
     ON refresh_tokens (admin_user_id);
+
+-- ログイン失敗試行（ブルートフォース対策）
+CREATE TABLE IF NOT EXISTS login_attempts (
+    id             BIGSERIAL PRIMARY KEY,
+    email_key      TEXT NOT NULL,
+    ip             TEXT NOT NULL,
+    attempted_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_attempts_email
+    ON login_attempts (email_key, attempted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_ip
+    ON login_attempts (ip, attempted_at DESC);
 
 -- updated_at 自動更新用のトリガー関数
 CREATE OR REPLACE FUNCTION update_updated_at_column()

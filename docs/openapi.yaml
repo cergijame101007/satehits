@@ -254,6 +254,10 @@ paths:
         ### リフレッシュトークン Cookie
         - `HttpOnly; Secure; SameSite=None; Path=/api/v1/admin; Max-Age=2592000`（30日・ログイン時点から。refresh 成功時も同様に再設定）
         - `Domain` はサーバの `COOKIE_DOMAIN` 環境変数（開発時は未設定可）
+
+        ### レートリミット
+        認証失敗を DB に記録し、メール単位・IP 単位のしきい値超過で 429 を返します。
+        デフォルト: メール 5 回 / IP 20 回 / 窓 15 分（環境変数で変更可）。
       operationId: login
       requestBody:
         required: true
@@ -274,8 +278,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LoginResponse"
+        "400":
+          description: リクエスト形式不正またはバリデーションエラー
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ErrorResponse"
+                  - $ref: "#/components/schemas/ValidationErrorResponse"
         "401":
           description: 認証失敗
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: ログイン試行のレートリミット超過
+          headers:
+            Retry-After:
+              description: 再試行可能になるまでの秒数
+              schema:
+                type: integer
+                minimum: 1
+                example: 600
           content:
             application/json:
               schema:
