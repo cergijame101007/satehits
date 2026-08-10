@@ -6,6 +6,7 @@ import (
 	"log"
 	"mime"
 	"net/http"
+	"strconv"
 	"time"
 
 	authusecase "github.com/cergijame101007/satehits/internal/application/usecase/auth"
@@ -35,11 +36,12 @@ type loginResponse struct {
 // AuthHandler は管理者認証（login / refresh / logout）の HTTP ハンドラ
 // AT 検証は RequireAuth ミドルウェアの責務、Cookie・CSRF・レスポンス整形に集中
 type AuthHandler struct {
-	login        *authusecase.LoginUseCase
-	refresh      *authusecase.RefreshUseCase
-	logout       *authusecase.LogoutUseCase
-	corsOrigins  []string
-	cookieDomain string
+	login            *authusecase.LoginUseCase
+	refresh          *authusecase.RefreshUseCase
+	logout           *authusecase.LogoutUseCase
+	corsOrigins      []string
+	cookieDomain     string
+	trustedProxyHops int
 }
 
 // NewAuthHandler は AuthHandler 生成
@@ -49,13 +51,15 @@ func NewAuthHandler(
 	logout *authusecase.LogoutUseCase,
 	corsOrigins []string,
 	cookieDomain string,
+	trustedProxyHops int,
 ) *AuthHandler {
 	return &AuthHandler{
-		login:        login,
-		refresh:      refresh,
-		logout:       logout,
-		corsOrigins:  corsOrigins,
-		cookieDomain: cookieDomain,
+		login:            login,
+		refresh:          refresh,
+		logout:           logout,
+		corsOrigins:      corsOrigins,
+		cookieDomain:     cookieDomain,
+		trustedProxyHops: trustedProxyHops,
 	}
 }
 
@@ -81,6 +85,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	result, err := h.login.Execute(r.Context(), authusecase.LoginCommand{
 		Email:    req.Email,
 		Password: req.Password,
+		ClientIP: clientIP(r, h.trustedProxyHops),
 	})
 	if err != nil {
 		var vErr *authusecase.ValidationError
@@ -90,6 +95,16 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 				details[i] = ErrorDetail{Field: v.Field, Message: v.Message}
 			}
 			respondWithError(w, http.StatusBadRequest, ValidationErrorCode, "入力内容に誤りがあります", details)
+			return
+		}
+		var rateErr *authusecase.RateLimitedError
+		if errors.As(err, &rateErr) {
+			seconds := int(rateErr.RetryAfter.Seconds())
+			if seconds < 1 {
+				seconds = 1
+			}
+			w.Header().Set("Retry-After", strconv.Itoa(seconds))
+			respondWithError(w, http.StatusTooManyRequests, TooManyRequestsCode, rateErr.Error(), nil)
 			return
 		}
 		if errors.Is(err, domain.ErrAdminUserUnauthorized) {

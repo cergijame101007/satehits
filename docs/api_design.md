@@ -74,6 +74,7 @@
 | 403 | FORBIDDEN | アクセス権限がない |
 | 404 | NOT_FOUND | リソースが見つからない |
 | 409 | CAPACITY_EXCEEDED | 予約可能数を超過 |
+| 429 | TOO_MANY_REQUESTS | リクエスト過多（ログイン試行上限など） |
 | 500 | INTERNAL_ERROR | サーバー内部エラー |
 
 ---
@@ -400,6 +401,21 @@ Set-Cookie: refresh_token=<opaque>; HttpOnly; Secure; SameSite=None; Path=/api/v
   "error": {
     "code": "UNAUTHORIZED",
     "message": "メールアドレスまたはパスワードが正しくありません"
+  }
+}
+```
+
+**レートリミット超過時（429 Too Many Requests）**
+
+スライディングウィンドウ（デフォルト 15 分）内で、正規化メール単位（デフォルト 5 回）またはクライアント IP 単位（デフォルト 20 回）の認証失敗が上限に達した場合。制限中は bcrypt 前に拒否し、失敗行は増やさない。しきい値は `LOGIN_RATE_LIMIT_*` / `TRUSTED_PROXY_HOPS` で変更可能。
+
+レスポンスヘッダに `Retry-After`（秒）を付与する。待ち時間は `message` 本文にも含める。
+
+```json
+{
+  "error": {
+    "code": "TOO_MANY_REQUESTS",
+    "message": "ログイン試行回数が上限に達しました。10分後に再度お試しください"
   }
 }
 ```
