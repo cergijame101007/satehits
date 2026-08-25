@@ -46,6 +46,7 @@ type CreateReservationUseCase struct {
 	resolver     *service.ScheduleResolver
 	availability *service.AvailabilityService
 	txManager    application.TxManager
+	locker       application.VisitDateLocker
 	verifier     CaptchaVerifier
 	notifier     MailNotifier
 }
@@ -56,6 +57,7 @@ func NewCreateReservationUseCase(
 	resolver *service.ScheduleResolver,
 	availability *service.AvailabilityService,
 	txManager application.TxManager,
+	locker application.VisitDateLocker,
 	verifier CaptchaVerifier,
 	notifier MailNotifier,
 ) *CreateReservationUseCase {
@@ -67,6 +69,7 @@ func NewCreateReservationUseCase(
 		resolver:     resolver,
 		availability: availability,
 		txManager:    txManager,
+		locker:       locker,
 		verifier:     verifier,
 		notifier:     notifier,
 	}
@@ -123,6 +126,9 @@ func (u *CreateReservationUseCase) Execute(ctx context.Context, cmd CreateReserv
 
 	var created domain.Reservation
 	err = u.txManager.DoInTx(ctx, func(txCtx context.Context) error {
+		if err := u.locker.Lock(txCtx, cmd.VisitDate); err != nil {
+			return err
+		}
 		fresh, err := u.availability.ResolveForDate(txCtx, cmd.VisitDate)
 		if err != nil {
 			return err

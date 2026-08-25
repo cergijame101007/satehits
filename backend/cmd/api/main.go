@@ -158,8 +158,10 @@ func main() {
 		captchaVerifier = turnstile.NewVerifier(cfg.TurnstileSecret, nil)
 	}
 
+	visitDateLocker := repository.PostgresVisitDateLocker{}
 	createReservation := reservationusecase.NewCreateReservationUseCase(
-		reservationRepo, scheduleResolver, availabilityService, txManager, captchaVerifier, mailNotifier,
+		reservationRepo, scheduleResolver, availabilityService, txManager,
+		visitDateLocker, captchaVerifier, mailNotifier,
 	)
 	reservationHandler := handler.NewReservationHandler(createReservation, reservationsPath)
 

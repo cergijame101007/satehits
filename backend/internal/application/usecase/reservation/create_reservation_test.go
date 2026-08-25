@@ -22,6 +22,28 @@ func (passThroughTxManager) DoInTx(ctx context.Context, fn func(context.Context)
 
 var _ application.TxManager = passThroughTxManager{}
 
+type noOpVisitDateLocker struct{}
+
+func (noOpVisitDateLocker) Lock(context.Context, datetime.Date) error { return nil }
+
+var _ application.VisitDateLocker = noOpVisitDateLocker{}
+
+type recordingVisitDateLocker struct {
+	err   error
+	log   *[]string
+	dates []datetime.Date
+}
+
+func (r *recordingVisitDateLocker) Lock(_ context.Context, date datetime.Date) error {
+	if r.log != nil {
+		*r.log = append(*r.log, "Lock")
+	}
+	r.dates = append(r.dates, date)
+	return r.err
+}
+
+var _ application.VisitDateLocker = (*recordingVisitDateLocker)(nil)
+
 type createTestScheduleRepo struct {
 	byDate map[string]domain.Schedule
 }
@@ -46,9 +68,13 @@ func (r createTestScheduleRepo) DeleteByDate(context.Context, datetime.Date) err
 type createTestReservationRepo struct {
 	approvedByDate map[string]int
 	created        []domain.CreateReservationInput
+	callLog        *[]string
 }
 
 func (r *createTestReservationRepo) Create(_ context.Context, in domain.CreateReservationInput) (domain.Reservation, error) {
+	if r.callLog != nil {
+		*r.callLog = append(*r.callLog, "Create")
+	}
 	r.created = append(r.created, in)
 	return domain.Reservation{
 		ID:        uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
@@ -74,6 +100,9 @@ func (r *createTestReservationRepo) UpdateStatus(context.Context, uuid.UUID, str
 }
 
 func (r *createTestReservationRepo) SumReservedPeopleByDate(_ context.Context, date datetime.Date) (int, error) {
+	if r.callLog != nil {
+		*r.callLog = append(*r.callLog, "SumReservedPeopleByDate")
+	}
 	if r.approvedByDate == nil {
 		return 0, nil
 	}
@@ -98,7 +127,7 @@ func (r *createTestReservationRepo) SumReservedPeopleByDateRange(_ context.Conte
 func newCreateReservationUseCaseForTest(sched createTestScheduleRepo, repo *createTestReservationRepo) *CreateReservationUseCase {
 	resolver := service.NewScheduleResolver(sched)
 	avail := service.NewAvailabilityService(resolver, repo)
-	return NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, NoOpCaptchaVerifier{}, NoOpMailNotifier{})
+	return NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, noOpVisitDateLocker{}, NoOpCaptchaVerifier{}, NoOpMailNotifier{})
 }
 
 // firstBookableWeekday は JST 基準で翌日〜14日先の範囲内で最初の指定曜日を返す
@@ -400,7 +429,7 @@ func TestCreateReservationUseCase_Execute_captcha(t *testing.T) {
 	cmd := validCreateCommandForDate(sunday)
 
 	t.Run("creates reservation when captcha verification succeeds", func(t *testing.T) {
-		uc := NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, fakeCaptchaVerifier{}, NoOpMailNotifier{})
+		uc := NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, noOpVisitDateLocker{}, fakeCaptchaVerifier{}, NoOpMailNotifier{})
 		_, err := uc.Execute(context.Background(), cmd)
 		if err != nil {
 			t.Fatalf("Execute() err = %v, want nil", err)
@@ -408,10 +437,84 @@ func TestCreateReservationUseCase_Execute_captcha(t *testing.T) {
 	})
 
 	t.Run("returns captcha failed when verification fails", func(t *testing.T) {
-		uc := NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, fakeCaptchaVerifier{err: domain.ErrCaptchaFailed}, NoOpMailNotifier{})
+		uc := NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, noOpVisitDateLocker{}, fakeCaptchaVerifier{err: domain.ErrCaptchaFailed}, NoOpMailNotifier{})
 		_, err := uc.Execute(context.Background(), cmd)
 		if !errors.Is(err, domain.ErrCaptchaFailed) {
 			t.Fatalf("Execute() err = %v, want ErrCaptchaFailed", err)
+		}
+	})
+}
+
+func TestCreateReservationUseCase_Execute_visitDateLock(t *testing.T) {
+	now := time.Now().In(storeLocation)
+	sunday := firstBookableWeekday(t, now, time.Sunday)
+	sched := createTestScheduleRepo{
+		byDate: map[string]domain.Schedule{
+			sunday.String(): {Date: sunday, ScheduleType: domain.ScheduleTypeMorning, Capacity: 10},
+		},
+	}
+
+	t.Run("locks before recheck and create inside transaction", func(t *testing.T) {
+		var callLog []string
+		repo := &createTestReservationRepo{
+			approvedByDate: map[string]int{sunday.String(): 3},
+			callLog:        &callLog,
+		}
+		locker := &recordingVisitDateLocker{log: &callLog}
+		resolver := service.NewScheduleResolver(sched)
+		avail := service.NewAvailabilityService(resolver, repo)
+		uc := NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, locker, NoOpCaptchaVerifier{}, NoOpMailNotifier{})
+
+		cmd := validCreateCommandForDate(sunday)
+		cmd.People = 1
+		_, err := uc.Execute(context.Background(), cmd)
+		if err != nil {
+			t.Fatalf("Execute() err = %v, want nil", err)
+		}
+
+		want := []string{"SumReservedPeopleByDate", "Lock", "SumReservedPeopleByDate", "Create"}
+		if len(callLog) != len(want) {
+			t.Fatalf("call order = %v, want %v", callLog, want)
+		}
+		for i := range want {
+			if callLog[i] != want[i] {
+				t.Fatalf("call order = %v, want %v", callLog, want)
+			}
+		}
+		if len(locker.dates) != 1 || locker.dates[0] != sunday {
+			t.Fatalf("Lock dates = %v, want [%s]", locker.dates, sunday)
+		}
+	})
+
+	t.Run("does not create when lock fails", func(t *testing.T) {
+		var callLog []string
+		repo := &createTestReservationRepo{
+			approvedByDate: map[string]int{sunday.String(): 3},
+			callLog:        &callLog,
+		}
+		lockErr := errors.New("lock failed")
+		locker := &recordingVisitDateLocker{err: lockErr, log: &callLog}
+		resolver := service.NewScheduleResolver(sched)
+		avail := service.NewAvailabilityService(resolver, repo)
+		uc := NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, locker, NoOpCaptchaVerifier{}, NoOpMailNotifier{})
+
+		cmd := validCreateCommandForDate(sunday)
+		cmd.People = 1
+		_, err := uc.Execute(context.Background(), cmd)
+		if !errors.Is(err, lockErr) {
+			t.Fatalf("Execute() err = %v, want %v", err, lockErr)
+		}
+		if len(repo.created) != 0 {
+			t.Fatalf("created count = %d, want 0", len(repo.created))
+		}
+		want := []string{"SumReservedPeopleByDate", "Lock"}
+		if len(callLog) != len(want) {
+			t.Fatalf("call order = %v, want %v", callLog, want)
+		}
+		for i := range want {
+			if callLog[i] != want[i] {
+				t.Fatalf("call order = %v, want %v", callLog, want)
+			}
 		}
 	})
 }
