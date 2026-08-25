@@ -208,8 +208,11 @@ Q: そのロジックは「エンティティ1つ」で完結する？
 ├─────────────────────────────────────────────────────────────┤
 │  1. reCAPTCHA検証        → 外部API                         │
 │  2. 入力バリデーション    → DTO / Validator                │
-│  3. 空き確認             → AvailabilityService に委譲      │
-│  4. 予約作成             → ReservationRepository に委譲    │
+│  3. 空き確認（楽観）      → AvailabilityService に委譲      │
+│  4. トランザクション内:                                      │
+│     - 同一 visit_date の advisory lock（VisitDateLocker）  │
+│     - 空き再確認           → AvailabilityService           │
+│     - 予約作成             → ReservationRepository         │
 │  5. 受付メール送信        → MailService に委譲（非同期）    │
 │  6. レスポンス組み立て    → DTO                            │
 └─────────────────────────────────────────────────────────────┘
