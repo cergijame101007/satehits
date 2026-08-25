@@ -49,13 +49,14 @@ sequenceDiagram
     participant UseCase as CreateUseCase
     participant ReCaptcha as reCAPTCHA
     participant AvailService as AvailabilityService
+    participant Locker as VisitDateLocker
     participant ReservationRepo as ReservationRepository
     participant MailService as MailService
     participant DB as Supabase
     participant Resend as Resend
 
     Customer->>Frontend: 予約情報を入力して送信
-    Frontend->>Frontend: reCAPTCHA実行
+    Frontend->>Frontend: Turnstile実行
     Frontend->>Handler: POST /reservations {name, people, date, time, ...}
     
     Handler->>UseCase: Execute(request)
@@ -65,14 +66,23 @@ sequenceDiagram
     
     UseCase->>UseCase: バリデーション（人数、日付範囲、営業時間）
     
-    UseCase->>AvailService: CanReserve(date, people)
-    AvailService->>AvailService: 空き確認
+    UseCase->>AvailService: ResolveForDate(date) 楽観チェック
+    AvailService-->>UseCase: OK（空きあり）
+
+    Note over UseCase,DB: DoInTx（同一 visit_date を直列化）
+    UseCase->>Locker: Lock(visit_date)
+    Locker->>DB: SELECT pg_advisory_xact_lock(ns, YYYYMMDD)
+    DB-->>Locker: acquired
+    UseCase->>AvailService: ResolveForDate(date) 再確認
+    AvailService->>ReservationRepo: SumReservedPeopleByDate(date)
+    ReservationRepo->>DB: SELECT SUM(people) ...
+    DB-->>ReservationRepo: reserved
     AvailService-->>UseCase: OK（空きあり）
     
-    UseCase->>UseCase: Reservationエンティティ生成
     UseCase->>ReservationRepo: Create(reservation)
     ReservationRepo->>DB: INSERT INTO reservations
-    DB-->>ReservationRepo: OK (id=123)
+    DB-->>ReservationRepo: OK
+    Note right of DB: COMMIT で advisory lock 解放
     ReservationRepo-->>UseCase: reservation
     
     UseCase->>MailService: SendReservationReceived(reservation)
