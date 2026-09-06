@@ -341,7 +341,7 @@ PUBLIC_TURNSTILE_SITE_KEY=your-turnstile-site-key
 | [docs/setup.md](docs/setup.md) | 開発環境の構築手順 |
 | [docs/domain_knowledge.md](docs/domain_knowledge.md) | 店舗情報、営業ルール、用語集 |
 | [docs/architecture.md](docs/architecture.md) | レイヤー構成、責務分離、DI、エラーハンドリング戦略 |
-| [docs/architecture_decision_records.md](docs/architecture_decision_records.md) | ADR（技術選定理由：Astro、Go、Cloudflare 等） |
+| [docs/architecture_decision_records.md](docs/architecture_decision_records.md) | ADR（想定規模 ADR-000、FE/BE/DB/認証/CI、監視・個人情報は一部未決定） |
 | [docs/api_design.md](docs/api_design.md) | API 仕様の概要 |
 | [docs/openapi.yaml](docs/openapi.yaml) | OpenAPI 3.0 形式の API 仕様 |
 | [docs/sequence.md](docs/sequence.md) | 主要機能のシーケンス図 |
