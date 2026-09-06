@@ -127,7 +127,7 @@ func (r *createTestReservationRepo) SumReservedPeopleByDateRange(_ context.Conte
 func newCreateReservationUseCaseForTest(sched createTestScheduleRepo, repo *createTestReservationRepo) *CreateReservationUseCase {
 	resolver := service.NewScheduleResolver(sched)
 	avail := service.NewAvailabilityService(resolver, repo)
-	return NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, noOpVisitDateLocker{}, NoOpCaptchaVerifier{}, NoOpMailNotifier{})
+	return NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, noOpVisitDateLocker{}, NoOpCaptchaVerifier{}, NoOpMailEnqueuer{})
 }
 
 // firstBookableWeekday は JST 基準で翌日〜14日先の範囲内で最初の指定曜日を返す
@@ -429,7 +429,7 @@ func TestCreateReservationUseCase_Execute_captcha(t *testing.T) {
 	cmd := validCreateCommandForDate(sunday)
 
 	t.Run("creates reservation when captcha verification succeeds", func(t *testing.T) {
-		uc := NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, noOpVisitDateLocker{}, fakeCaptchaVerifier{}, NoOpMailNotifier{})
+		uc := NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, noOpVisitDateLocker{}, fakeCaptchaVerifier{}, NoOpMailEnqueuer{})
 		_, err := uc.Execute(context.Background(), cmd)
 		if err != nil {
 			t.Fatalf("Execute() err = %v, want nil", err)
@@ -437,7 +437,7 @@ func TestCreateReservationUseCase_Execute_captcha(t *testing.T) {
 	})
 
 	t.Run("returns captcha failed when verification fails", func(t *testing.T) {
-		uc := NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, noOpVisitDateLocker{}, fakeCaptchaVerifier{err: domain.ErrCaptchaFailed}, NoOpMailNotifier{})
+		uc := NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, noOpVisitDateLocker{}, fakeCaptchaVerifier{err: domain.ErrCaptchaFailed}, NoOpMailEnqueuer{})
 		_, err := uc.Execute(context.Background(), cmd)
 		if !errors.Is(err, domain.ErrCaptchaFailed) {
 			t.Fatalf("Execute() err = %v, want ErrCaptchaFailed", err)
@@ -463,7 +463,7 @@ func TestCreateReservationUseCase_Execute_visitDateLock(t *testing.T) {
 		locker := &recordingVisitDateLocker{log: &callLog}
 		resolver := service.NewScheduleResolver(sched)
 		avail := service.NewAvailabilityService(resolver, repo)
-		uc := NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, locker, NoOpCaptchaVerifier{}, NoOpMailNotifier{})
+		uc := NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, locker, NoOpCaptchaVerifier{}, NoOpMailEnqueuer{})
 
 		cmd := validCreateCommandForDate(sunday)
 		cmd.People = 1
@@ -496,7 +496,7 @@ func TestCreateReservationUseCase_Execute_visitDateLock(t *testing.T) {
 		locker := &recordingVisitDateLocker{err: lockErr, log: &callLog}
 		resolver := service.NewScheduleResolver(sched)
 		avail := service.NewAvailabilityService(resolver, repo)
-		uc := NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, locker, NoOpCaptchaVerifier{}, NoOpMailNotifier{})
+		uc := NewCreateReservationUseCase(repo, resolver, avail, passThroughTxManager{}, locker, NoOpCaptchaVerifier{}, NoOpMailEnqueuer{})
 
 		cmd := validCreateCommandForDate(sunday)
 		cmd.People = 1

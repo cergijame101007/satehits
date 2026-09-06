@@ -74,6 +74,8 @@ func main() {
 	listReservations := reservationusecase.NewListReservationsUseCase(reservationRepo)
 	createAdminReservation := reservationusecase.NewCreateAdminReservationUseCase(reservationRepo)
 
+	txManager := repository.NewTxManager(db)
+
 	var mailSender domain.MailSender = resend.NoOpSender{}
 	if cfg.ResendAPIKey != "" {
 		mailSender = resend.NewClient(cfg.ResendAPIKey, nil)
@@ -81,16 +83,11 @@ func main() {
 	} else {
 		log.Println("RESEND_API_KEY not set; mail sender runs in noop mode")
 	}
-	mailQueue := inframail.NewQueue(mailSender, cfg.MailQueueSize)
-	mailQueue.Start()
-	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		mailQueue.Shutdown(shutdownCtx)
-	}()
-	mailNotifier := inframail.NewReservationNotifier(mailQueue, cfg.MailFromAddress)
+	emailOutboxRepo := repository.NewPostgresEmailOutboxRepository(db)
+	mailEnqueuer := inframail.NewOutboxEnqueuer(emailOutboxRepo, cfg.MailFromAddress)
+	mailDispatcher := inframail.NewDispatcher(emailOutboxRepo, mailSender, txManager, cfg.OutboxBatchSize)
 
-	updateReservationStatus := reservationusecase.NewUpdateReservationStatusUseCase(reservationRepo, mailNotifier)
+	updateReservationStatus := reservationusecase.NewUpdateReservationStatusUseCase(reservationRepo, txManager, mailEnqueuer)
 	adminReservationsPath := adminBase + "/reservations"
 	adminReservationHandler := handler.NewAdminReservationHandler(
 		listReservations,
@@ -151,7 +148,6 @@ func main() {
 	jwtService := jwt.NewJWTService(cfg.JWTSecret, "satehits-api", "satehits-admin", time.Hour)
 	adminUserRepo := repository.NewPostgresAdminUserRepository(db)
 	refreshTokenRepo := repository.NewPostgresRefreshTokenRepository(db)
-	txManager := repository.NewTxManager(db)
 
 	var captchaVerifier reservationusecase.CaptchaVerifier = reservationusecase.NoOpCaptchaVerifier{}
 	if cfg.Environment != "development" {
@@ -161,7 +157,7 @@ func main() {
 	visitDateLocker := repository.PostgresVisitDateLocker{}
 	createReservation := reservationusecase.NewCreateReservationUseCase(
 		reservationRepo, scheduleResolver, availabilityService, txManager,
-		visitDateLocker, captchaVerifier, mailNotifier,
+		visitDateLocker, captchaVerifier, mailEnqueuer,
 	)
 	reservationHandler := handler.NewReservationHandler(createReservation, reservationsPath)
 
@@ -189,6 +185,12 @@ func main() {
 	http.HandleFunc(publicSchedulesPath, publicScheduleHandler.HandlePublicSchedules)
 	http.HandleFunc(reservationsPath, reservationHandler.HandleReservations)
 	http.HandleFunc(publicSuppliersPath, publicSupplierHandler.HandlePublicSuppliers)
+
+	if cfg.OutboxFlushEndpointEnabled {
+		outboxHandler := handler.NewOutboxHandler(mailDispatcher)
+		http.HandleFunc("/internal/outbox/flush", outboxHandler.HandleFlush)
+		log.Println("Outbox flush endpoint enabled at POST /internal/outbox/flush")
+	}
 
 	// 認証エンドポイント、login / refresh は AT 不要
 	http.HandleFunc(adminBase+"/login", authHandler.HandleLogin)

@@ -78,7 +78,7 @@ func TestUpdateReservationStatusUseCase(t *testing.T) {
 			repo := &fakeReservationRepo{
 				reservation: domain.Reservation{ID: reservationID, Status: tt.current},
 			}
-			uc := NewUpdateReservationStatusUseCase(repo, NoOpMailNotifier{})
+			uc := NewUpdateReservationStatusUseCase(repo, passThroughTxManager{}, NoOpMailEnqueuer{})
 
 			result, err := uc.Execute(context.Background(), UpdateReservationStatusCommand{
 				ID:     reservationID,
@@ -115,8 +115,8 @@ func TestUpdateReservationStatusUseCaseRejectsLongReason(t *testing.T) {
 	repo := &fakeReservationRepo{
 		reservation: domain.Reservation{ID: reservationID, Status: "pending"},
 	}
-	notifier := &fakeMailNotifier{}
-	uc := NewUpdateReservationStatusUseCase(repo, notifier)
+	enqueuer := &fakeMailEnqueuer{}
+	uc := NewUpdateReservationStatusUseCase(repo, passThroughTxManager{}, enqueuer)
 
 	_, err := uc.Execute(context.Background(), UpdateReservationStatusCommand{
 		ID:     reservationID,
@@ -134,7 +134,7 @@ func TestUpdateReservationStatusUseCaseRejectsLongReason(t *testing.T) {
 	if repo.lastStatus != "" {
 		t.Fatalf("repo.lastStatus = %q, want empty (no update)", repo.lastStatus)
 	}
-	if notifier.rejected != 0 {
-		t.Fatalf("rejected notifications = %d, want 0", notifier.rejected)
+	if enqueuer.rejected != 0 {
+		t.Fatalf("rejected enqueues = %d, want 0", enqueuer.rejected)
 	}
 }
