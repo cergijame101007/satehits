@@ -194,14 +194,14 @@ Presentation  →  Application  →  Domain  ←  Infrastructure
 | レイヤー | ディレクトリ | 責務 |
 |---------|------------|------|
 | Presentation | `internal/presentation/handler/` | HTTP リクエスト受付、レスポンス返却、ミドルウェア（JWT 認証・CORS・ロギング） |
-| Application | `internal/application/usecase/` | ユースケースのオーケストレーション（Turnstile 検証 → バリデーション → 空き確認 → 保存 → メール送信） |
+| Application | `internal/application/usecase/` | ユースケースのオーケストレーション（Turnstile 検証 → バリデーション → 空き確認 → 保存 → Outbox enqueue） |
 | Application | `internal/application/dto/` | リクエスト / レスポンスの変換 |
 | Domain | `internal/domain/entity/` | ビジネスエンティティ、バリデーション、ステータス遷移ルール（例: `CanTransitionTo()`） |
 | Domain | `internal/domain/repository/` | Repository インターフェース定義（DB に依存しない） |
 | Domain | `internal/domain/service/` | 複数エンティティにまたがるドメインロジック（空き状況計算、営業時間判定） |
 | Infrastructure | `internal/infrastructure/persistence/` | Repository 実装（Supabase / pgx） |
 | Infrastructure | `internal/infrastructure/external/` | 外部 API クライアント（Turnstile, Resend） |
-| Infrastructure | `internal/infrastructure/mail/` | メールテンプレート・非同期キュー・Notifier |
+| Infrastructure | `internal/infrastructure/mail/` | メールテンプレート・Outbox enqueue・Dispatcher |
 
 **依存ルール**
 - Domain 層は他のレイヤーに依存しない（最も安定）
@@ -260,6 +260,7 @@ Presentation  →  Application  →  Domain  ←  Infrastructure
 | `DELETE` | `/api/v1/admin/suppliers/:id` | 取引先削除 | 実装済み |
 | `PUT` | `/api/v1/admin/suppliers/order` | 取引先並び順更新 | 実装済み |
 | `POST` | `/api/v1/admin/suppliers/:id/image` | 取引先画像アップロード | 実装済み |
+| `POST` | `/internal/outbox/flush` | Outbox 送信処理（内部・IAM 保護） | 実装済み |
 
 ---
 
@@ -276,8 +277,10 @@ make prod         # 本番用 Docker 起動
 make build        # Go バイナリビルド（bin/api）
 make run          # Go サーバー直接起動
 make test         # バックエンドテスト実行
+make test-integration # Outbox 等の DB 結合テスト（postgres-test）
 make test-coverage # カバレッジ付きテスト
 make lint         # golangci-lint
+make outbox-flush # ローカルで Outbox flush を手動実行
 make tools-install # lint ツールのインストール
 make clean        # ビルド成果物の削除
 ```
@@ -311,7 +314,8 @@ TURNSTILE_SECRET_KEY=your-turnstile-secret-key
 ENVIRONMENT=development
 RESEND_API_KEY=
 MAIL_FROM_ADDRESS=さて、羊に戻るとしよう <noreply@satehits.com>
-MAIL_QUEUE_SIZE=100
+OUTBOX_BATCH_SIZE=20
+OUTBOX_FLUSH_ENDPOINT_ENABLED=true
 
 # フロントエンド（Astro: PUBLIC_ プレフィックスでクライアントに公開）
 PUBLIC_API_URL=http://localhost:8080

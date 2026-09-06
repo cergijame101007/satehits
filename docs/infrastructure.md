@@ -16,7 +16,9 @@ flowchart TB
     end
 
     subgraph Google[Google Cloud Platform]
-        CloudRun[Cloud Run<br>Go API Server]
+        CloudRun[Cloud Run<br>公開 API]
+        CloudRunInternal[Cloud Run<br>private flush]
+        Scheduler[Cloud Scheduler]
     end
 
     subgraph External[外部サービス]
@@ -37,6 +39,9 @@ flowchart TB
     CFPages -->|API Request| CloudRun
     CloudRun --> Supabase
     CloudRun --> Resend
+    Scheduler -->|OIDC| CloudRunInternal
+    CloudRunInternal --> Supabase
+    CloudRunInternal --> Resend
     CFPages -->|Client Side| ReCaptcha
     CloudRun -->|Verify| ReCaptcha
 
@@ -377,8 +382,10 @@ jobs:
 | DATABASE_URL | Supabase接続URL |
 | JWT_SECRET | JWT署名用シークレット |
 | RECAPTCHA_SECRET_KEY | reCAPTCHAシークレットキー |
-| RESEND_API_KEY | Resend APIキー |
+| RESEND_API_KEY | Resend APIキー（未設定時は NoOp Sender） |
 | MAIL_FROM_ADDRESS | メール送信元アドレス（例: noreply@satehits.com） |
+| OUTBOX_BATCH_SIZE | 1 回の flush で処理する最大件数（既定 20） |
+| OUTBOX_FLUSH_ENDPOINT_ENABLED | `true` のときだけ `POST /internal/outbox/flush` を登録（private サービスで true） |
 | ENVIRONMENT | 環境識別子（development/production） |
 | PORT | サーバーポート（Cloud Runは自動設定） |
 | STORAGE_ENDPOINT | S3 互換ストレージのエンドポイント（本番: Cloudflare R2、ローカル: MinIO） |
@@ -495,7 +502,9 @@ export default defineConfig({
 
 ### 概要
 
-Resend は開発者ファーストのメール配信サービス。シンプルなAPIで信頼性の高いメール送信が可能。
+Resend は顧客向けメールの配信先（`MailSender` 実装）。送信意図は PostgreSQL の `email_outbox` に永続化し、Cloud Scheduler が private Cloud Run の flush エンドポイントを 1 分ごとに呼ぶ（ADR-014 / ADR-015）。手順の冪等スクリプトは `scripts/setup-scheduler.sh`。
+
+コスト目安: 1 分間隔では約 43,200 回/月。Cloud Scheduler は実行回数ではなくジョブ数課金。Cloud Run のリクエスト数もこのジョブ単体では無料枠を十分下回るが、無料枠は billing account 単位で共有されるため「必ず無料」とは限らない。Cloud Run の「CPU always allocated」は有効にしない。
 
 ### 送信元ドメインの DNS 設定
 

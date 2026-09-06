@@ -490,8 +490,35 @@ Cookie の RT を revoke し、同名 Cookie を削除する。リクエスト�
 
 #### メール（実装状況）
 
-- **UC-S01〜S03（顧客向け）**: 実装済み。Resend + 非同期キュー。`RESEND_API_KEY` 未設定時は NoOp（ログのみ）
-- **UC-S04 pending 放置対策（オーナー向け・未実装）**: Web 申請で `status = pending` のまま来店日（`visit_date`）の **3日前** と **1日前** に、オーナーへ未対応リマインドを送る（重複送信防止・当日以降の扱いは要設計）。`reserved` に `pending` を含める方針（上記 NOTE 参照）のため、承認・拒否の遅延は空き表示と Web 申請可否に影響する。詳細は `use_case.md` UC-S04
+- **UC-S01〜S03（顧客向け）**: 実装済み。`email_outbox` + Resend（`MailSender`）。予約操作と同一トランザクションで enqueue。`RESEND_API_KEY` 未設定時は NoOp Sender（ログのみ）。flush は `POST /internal/outbox/flush`（ADR-014 / ADR-015）
+- **オーナー向け pending 催促**: 不採用。管理画面の pending 一覧を一次手段とする（ADR-016）。日付横断 UI の強化は別スコープ
+
+---
+
+### POST /internal/outbox/flush
+
+Outbox の pending 行を最大 `OUTBOX_BATCH_SIZE` 件まで送信する内部運用エンドポイント。**OpenAPI（公開 API 仕様）の対象外**。認証はアプリ側では行わず、Cloud Run IAM（private サービス）で保護する。
+
+#### リクエスト
+
+- Method: `POST`
+- Path: `/internal/outbox/flush`
+- Body: なし
+
+#### レスポンス
+
+**成功時（200 OK）**
+
+```json
+{
+  "processed": 3,
+  "sent": 2,
+  "retried": 1,
+  "failed": 0
+}
+```
+
+**メソッド不正（405）** — GET 等。
 
 ---
 

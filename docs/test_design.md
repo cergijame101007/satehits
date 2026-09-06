@@ -141,15 +141,18 @@
 | 10 | ログイン成功後 | 単体 | 当該メールの失敗試行がクリアされる |
 | 11 | 制限中の再試行 | 単体 | 失敗行が増えず、窓経過後に解除される |
 
-### 3.5 メール送信
+### 3.5 メール送信（Outbox）
 
 | # | テストケース | テスト種別 | 期待結果 |
 |---|-------------|-----------|----------|
-| 1 | 予約申請受付メールの送信 | 単体 | Resend API が正しいパラメータで呼ばれる |
-| 2 | 予約承認メールの送信 | 単体 | 件名・本文に予約情報が含まれる |
-| 3 | 予約拒否メールの送信 | 単体 | Instagram 誘導文が含まれる |
-| 4 | メール送信失敗時（API エラー） | 単体 | エラーログ出力、予約処理自体は成功 |
-| 5 | 送信元アドレスの検証 | 単体 | `MAIL_FROM_ADDRESS` 環境変数の値が使用される |
+| 1 | 受付メール enqueue | 単体 | Outbox に `reservation_received` が同一 Tx で記録される |
+| 2 | 承認・拒否メール enqueue | 単体 | 件名・本文・reason が Outbox に入る |
+| 3 | 重複 enqueue | 単体 / 結合 | `ErrMailAlreadyEnqueued`、予約操作は成功、警告ログ |
+| 4 | Dispatcher 成功 | 単体 | `sent`、Idempotency-Key = `mail_type/reservation_id` |
+| 5 | 一時失敗 | 単体 | `attempt_count` 増加と `next_attempt_at` 後退 |
+| 6 | 恒久失敗 / 上限 | 単体 | `failed` |
+| 7 | Claim 直列化 | 結合（PostgreSQL） | 同一 reservation の先行 pending ロック中は後続を取らない |
+| 8 | flush エンドポイント | 単体 | POST 200、GET 405 |
 
 ## 4. フロントエンドテストケース
 
