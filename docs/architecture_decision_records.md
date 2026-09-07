@@ -824,7 +824,7 @@ Go API のホスティング先を選定する必要があった。
 
 ---
 
-## ADR-015: 内部運用エンドポイントの分離
+## ADR-015: Outbox flush エンドポイントの配置
 
 ### ステータス
 
@@ -832,12 +832,13 @@ Go API のホスティング先を選定する必要があった。
 
 ### コンテキスト
 
-Outbox flush（`POST /internal/outbox/flush`）を定期実行する必要があった。公開予約 API と同じ Cloud Run サービスに置くと、無認証公開設定の影響を受ける。
+Outbox の送信処理は HTTP の `POST /internal/outbox/flush` として公開し、**定期起動は Cloud Scheduler が行う**（間隔・再送方針は ADR-014）。問題は、この flush エンドポイントを顧客向け公開 API と同じ Cloud Run サービスに置くと、`--allow-unauthenticated`（または同等）の影響で外部から到達可能になること。
 
 ### 前提
 
 - 公開 API は顧客ブラウザから叩くため `--allow-unauthenticated`（または同等）が必要（ADR-008）
 - アプリケーションコードでの OIDC 検証は行わない方針
+- 定期実行の主体は Cloud Scheduler（ADR-014）。本 ADR の対象は flush の**配置と保護**のみ
 
 ### 検討した選択肢
 
@@ -849,13 +850,13 @@ Outbox flush（`POST /internal/outbox/flush`）を定期実行する必要があ
 
 ### 決定
 
-同一コンテナイメージを **公開サービス**と **private サービス**（`--no-allow-unauthenticated`）の 2 つとしてデプロイする。flush ルートは env `OUTBOX_FLUSH_ENDPOINT_ENABLED=true` のときだけ登録する。Cloud Scheduler は private 側を OIDC で呼び、`roles/run.invoker` を付与する。
+同一コンテナイメージを **公開サービス**と **private サービス**（`--no-allow-unauthenticated`）の 2 つとしてデプロイする。flush ルートは env `OUTBOX_FLUSH_ENDPOINT_ENABLED=true` のときだけ登録する（private 側のみ true）。Cloud Scheduler は private 側を OIDC で呼び、`roles/run.invoker` を付与する。
 
 OIDC audience は Cloud Run のサービス URL（例 `https://xxx.run.app`）とし、endpoint の path / query は含めない。
 
 ### 理由
 
-- 公開 API と内部運用 API の認証境界を分離し、設定ミスによる内部エンドポイント公開の blast radius を小さくする
+- 公開 API と内部運用エンドポイントの認証境界を分離し、設定ミスによる flush 公開の blast radius を小さくする
 - Cloud Run IAM Conditions は `request.path` / `request.host` を条件にできるが、公開サービスで invoker チェックを無効化（または `allUsers`）している構成にパス条件付き IAM を重ねると壊れやすい
 
 ### Consequences
@@ -908,7 +909,8 @@ Web 予約の `pending` 滞留にオーナーが気づく手段が必要だっ�
 
 | 日付 | ADR | 内容 |
 | --- | --- | --- |
-| 2026-09-07 | ADR-014〜016 | メール Outbox、内部エンドポイント分離、オーナー通知チャネルを追加 |
+| 2026-09-07 | ADR-015 | タイトル・文脈を「flush の配置と保護」に明確化（定期実行主体は Scheduler / ADR-014） |
+| 2026-09-07 | ADR-014〜016 | メール Outbox、flush 配置、オーナー通知チャネルを追加 |
 | 2026-09-06 | ADR-001〜013 | 既存 ADR を前提・Consequences・再検討トリガー付きに改訂。007〜013 を追加 |
 | 2026-09-06 | ADR-000 | 想定規模の前提を追加・domain_knowledge と整合・依存参照を更新 |
 | 2026-02-16 | ADR-001〜006 | 初版作成 |

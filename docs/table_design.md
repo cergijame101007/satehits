@@ -123,9 +123,9 @@ erDiagram
 
 オーナーが拒否時に任意入力できる理由は **DB カラムとしては保存しない**。PATCH `/admin/reservations/{id}/status` の任意 `reason` をメール本文生成にのみ使用する（Outbox 行の `body_*` にレンダリング済みで保存）。
 
-**不採用: `email_sent_at`:**
+**送信状態:**
 
-送信状態は `email_outbox`（2.x 節）で管理する。`reservations.email_sent_at` は追加しない。
+送信状態は `email_outbox`（2.1a 節）で管理する。`reservations` に送信済み日時カラムは持たない。
 
 **sourceの値:**
 | 値 | 説明 |

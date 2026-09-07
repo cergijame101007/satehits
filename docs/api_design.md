@@ -490,8 +490,7 @@ Cookie の RT を revoke し、同名 Cookie を削除する。リクエスト�
 
 #### メール（実装状況）
 
-- **UC-S01〜S03（顧客向け）**: 実装済み。`email_outbox` + Resend（`MailSender`）。予約操作と同一トランザクションで enqueue。`RESEND_API_KEY` 未設定時は NoOp Sender（ログのみ）。flush は `POST /internal/outbox/flush`（ADR-014 / ADR-015）
-- **オーナー向け pending 催促**: 不採用。管理画面の pending 一覧を一次手段とする（ADR-016）。日付横断 UI の強化は別スコープ
+- **UC-S01〜S03（顧客向け）**: 実装済み。`email_outbox` + Resend（`MailSender`）。予約操作と同一トランザクションで enqueue。`RESEND_API_KEY` 未設定時は NoOp Sender（ログのみ）。送信処理は Cloud Scheduler が `POST /internal/outbox/flush` を呼ぶ（ADR-014 / ADR-015）
 
 ---
 
