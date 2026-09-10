@@ -82,11 +82,15 @@ func (c *Client) Send(ctx context.Context, msg domain.MailMessage) error {
 
 // classifyResendStatus は HTTP ステータスと本文から再送可否を分類する。
 // 5xx / 429 / 409 concurrent_idempotent_requests → 一時失敗（再送）。
+// 401 / 403 → ErrMailAuth（設定起因。行の試行を消費せずバッチ中断）。
 // それ以外の 4xx（invalid_idempotent_request 含む）→ ErrMailPermanent。
 func classifyResendStatus(statusCode int, bodyText string) error {
 	base := fmt.Errorf("resend status %d: %s", statusCode, bodyText)
 	if statusCode >= 500 || statusCode == http.StatusTooManyRequests {
 		return base
+	}
+	if statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden {
+		return fmt.Errorf("%w: %w", domain.ErrMailAuth, base)
 	}
 	if statusCode == http.StatusConflict && strings.Contains(bodyText, "concurrent_idempotent_requests") {
 		return base

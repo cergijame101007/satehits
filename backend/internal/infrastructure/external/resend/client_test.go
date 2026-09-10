@@ -67,13 +67,16 @@ func TestClassifyResendStatus(t *testing.T) {
 		statusCode int
 		body       string
 		wantPerm   bool
+		wantAuth   bool
 	}{
-		{name: "500 is transient", statusCode: 500, body: "oops", wantPerm: false},
-		{name: "429 is transient", statusCode: 429, body: "rate", wantPerm: false},
-		{name: "409 concurrent is transient", statusCode: 409, body: `{"name":"concurrent_idempotent_requests"}`, wantPerm: false},
+		{name: "500 is transient", statusCode: 500, body: "oops"},
+		{name: "429 is transient", statusCode: 429, body: "rate"},
+		{name: "409 concurrent is transient", statusCode: 409, body: `{"name":"concurrent_idempotent_requests"}`},
 		{name: "409 invalid idempotent is permanent", statusCode: 409, body: `{"name":"invalid_idempotent_request"}`, wantPerm: true},
 		{name: "400 is permanent", statusCode: 400, body: "bad", wantPerm: true},
 		{name: "422 is permanent", statusCode: 422, body: "invalid", wantPerm: true},
+		{name: "401 is auth error", statusCode: 401, body: `{"name":"missing_api_key"}`, wantAuth: true},
+		{name: "403 is auth error", statusCode: 403, body: `{"name":"restricted_api_key"}`, wantAuth: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -81,9 +84,11 @@ func TestClassifyResendStatus(t *testing.T) {
 			if err == nil {
 				t.Fatal("err = nil")
 			}
-			isPerm := errors.Is(err, domain.ErrMailPermanent)
-			if isPerm != tt.wantPerm {
+			if isPerm := errors.Is(err, domain.ErrMailPermanent); isPerm != tt.wantPerm {
 				t.Fatalf("permanent = %v, want %v; err=%v", isPerm, tt.wantPerm, err)
+			}
+			if isAuth := errors.Is(err, domain.ErrMailAuth); isAuth != tt.wantAuth {
+				t.Fatalf("auth = %v, want %v; err=%v", isAuth, tt.wantAuth, err)
 			}
 		})
 	}
