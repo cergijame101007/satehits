@@ -10,6 +10,8 @@ PRIVATE_SERVICE="${PRIVATE_SERVICE:-satehits-api-internal}"
 SA_NAME="${SA_NAME:-scheduler-sa}"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 JOB_NAME="${JOB_NAME:-outbox-flush}"
+# アプリ側の OUTBOX_FLUSH_TIME_BUDGET_SECONDS（既定 120）より長く、Cloud Run request timeout より短くする
+ATTEMPT_DEADLINE="${ATTEMPT_DEADLINE:-180s}"
 
 PRIVATE_SERVICE_URL="${PRIVATE_SERVICE_URL:-}"
 if [[ -z "${PRIVATE_SERVICE_URL}" ]]; then
@@ -44,6 +46,7 @@ if gcloud scheduler jobs describe "${JOB_NAME}" --project="${PROJECT_ID}" --loca
     --project="${PROJECT_ID}" \
     --location="${REGION}" \
     --schedule="* * * * *" \
+    --attempt-deadline="${ATTEMPT_DEADLINE}" \
     --uri="${FLUSH_URI}" \
     --http-method=POST \
     --oidc-service-account-email="${SA_EMAIL}" \
@@ -53,6 +56,7 @@ else
     --project="${PROJECT_ID}" \
     --location="${REGION}" \
     --schedule="* * * * *" \
+    --attempt-deadline="${ATTEMPT_DEADLINE}" \
     --uri="${FLUSH_URI}" \
     --http-method=POST \
     --oidc-service-account-email="${SA_EMAIL}" \

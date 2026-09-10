@@ -86,7 +86,8 @@ func main() {
 	emailOutboxRepo := repository.NewPostgresEmailOutboxRepository(db)
 	mailEnqueuer := inframail.NewOutboxEnqueuer(emailOutboxRepo, cfg.MailFromAddress)
 	mailDispatcher := inframail.NewDispatcher(emailOutboxRepo, mailSender, inframail.Config{
-		BatchSize: cfg.OutboxBatchSize,
+		BatchSize:  cfg.OutboxBatchSize,
+		TimeBudget: time.Duration(cfg.OutboxFlushTimeBudgetSeconds) * time.Second,
 	})
 
 	updateReservationStatus := reservationusecase.NewUpdateReservationStatusUseCase(reservationRepo, txManager, mailEnqueuer)
