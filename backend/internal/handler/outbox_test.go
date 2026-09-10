@@ -10,37 +10,31 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/cergijame101007/satehits/internal/application"
 	"github.com/cergijame101007/satehits/internal/domain"
 	inframail "github.com/cergijame101007/satehits/internal/infrastructure/mail"
 )
 
-type outboxPassThroughTx struct{}
-
-func (outboxPassThroughTx) DoInTx(ctx context.Context, fn func(context.Context) error) error {
-	return fn(ctx)
-}
-
-var _ application.TxManager = outboxPassThroughTx{}
-
 type emptyOutboxRepo struct{}
 
 func (emptyOutboxRepo) Enqueue(context.Context, domain.EnqueueEmailInput) error { return nil }
-func (emptyOutboxRepo) ClaimNextPending(context.Context) (*domain.EmailOutboxMessage, error) {
+func (emptyOutboxRepo) ClaimNextPending(context.Context, time.Time) (*domain.EmailOutboxMessage, error) {
 	return nil, nil
 }
 func (emptyOutboxRepo) MarkSent(context.Context, uuid.UUID) error { return nil }
-func (emptyOutboxRepo) MarkRetry(context.Context, uuid.UUID, int, time.Time, string) error {
+func (emptyOutboxRepo) MarkRetry(context.Context, uuid.UUID, time.Time, string) error {
 	return nil
 }
-func (emptyOutboxRepo) MarkFailed(context.Context, uuid.UUID, int, string) error { return nil }
+func (emptyOutboxRepo) MarkFailed(context.Context, uuid.UUID, string) error { return nil }
+func (emptyOutboxRepo) ReleaseClaim(context.Context, uuid.UUID, time.Time, string) error {
+	return nil
+}
 
 type noopMailSender struct{}
 
 func (noopMailSender) Send(context.Context, domain.MailMessage) error { return nil }
 
 func TestOutboxHandlerFlushAcceptsPost(t *testing.T) {
-	d := inframail.NewDispatcher(emptyOutboxRepo{}, noopMailSender{}, outboxPassThroughTx{}, 5)
+	d := inframail.NewDispatcher(emptyOutboxRepo{}, noopMailSender{}, inframail.Config{BatchSize: 5})
 	h := NewOutboxHandler(d)
 
 	req := httptest.NewRequest(http.MethodPost, "/internal/outbox/flush", nil)
@@ -60,7 +54,7 @@ func TestOutboxHandlerFlushAcceptsPost(t *testing.T) {
 }
 
 func TestOutboxHandlerFlushRejectsGet(t *testing.T) {
-	d := inframail.NewDispatcher(emptyOutboxRepo{}, noopMailSender{}, outboxPassThroughTx{}, 5)
+	d := inframail.NewDispatcher(emptyOutboxRepo{}, noopMailSender{}, inframail.Config{BatchSize: 5})
 	h := NewOutboxHandler(d)
 
 	req := httptest.NewRequest(http.MethodGet, "/internal/outbox/flush", nil)

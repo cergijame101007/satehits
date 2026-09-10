@@ -22,17 +22,21 @@ func (f *fakeOutboxRepoForEnqueuer) Enqueue(_ context.Context, in domain.Enqueue
 	return f.err
 }
 
-func (f *fakeOutboxRepoForEnqueuer) ClaimNextPending(context.Context) (*domain.EmailOutboxMessage, error) {
+func (f *fakeOutboxRepoForEnqueuer) ClaimNextPending(context.Context, time.Time) (*domain.EmailOutboxMessage, error) {
 	return nil, nil
 }
 
 func (f *fakeOutboxRepoForEnqueuer) MarkSent(context.Context, uuid.UUID) error { return nil }
 
-func (f *fakeOutboxRepoForEnqueuer) MarkRetry(context.Context, uuid.UUID, int, time.Time, string) error {
+func (f *fakeOutboxRepoForEnqueuer) MarkRetry(context.Context, uuid.UUID, time.Time, string) error {
 	return nil
 }
 
-func (f *fakeOutboxRepoForEnqueuer) MarkFailed(context.Context, uuid.UUID, int, string) error {
+func (f *fakeOutboxRepoForEnqueuer) MarkFailed(context.Context, uuid.UUID, string) error {
+	return nil
+}
+
+func (f *fakeOutboxRepoForEnqueuer) ReleaseClaim(context.Context, uuid.UUID, time.Time, string) error {
 	return nil
 }
 
