@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -117,6 +118,49 @@ describe('Modal', () => {
 
     await user.tab({ shift: true });
     expect(last).toHaveFocus();
+  });
+
+  it('onClose の参照が毎レンダー変わっても、入力中のフォーカスを奪わない', async () => {
+    const user = userEvent.setup();
+
+    function Wrapper() {
+      const [value, setValue] = useState('');
+      // 親の再レンダーごとに新しい onClose を渡す（ReservationTable 等と同じ状況）
+      return (
+        <Modal open title="タイトル" onClose={() => {}}>
+          <textarea aria-label="理由" value={value} onChange={(e) => setValue(e.target.value)} />
+        </Modal>
+      );
+    }
+
+    render(<Wrapper />);
+    const textarea = screen.getByRole('textbox', { name: '理由' });
+    await user.click(textarea);
+    await user.type(textarea, '定員超過のため');
+
+    expect(textarea).toHaveValue('定員超過のため');
+    expect(textarea).toHaveFocus();
+  });
+
+  it('再レンダー後も最新の onClose が Escape で呼ばれる', async () => {
+    const user = userEvent.setup();
+    const first = vi.fn();
+    const second = vi.fn();
+    const { rerender } = render(
+      <Modal open title="タイトル" onClose={first}>
+        <p>本文</p>
+      </Modal>,
+    );
+
+    rerender(
+      <Modal open title="タイトル" onClose={second}>
+        <p>本文</p>
+      </Modal>,
+    );
+    await user.keyboard('{Escape}');
+
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledTimes(1);
   });
 
   it('size="lg" で幅の大きいダイアログになる', () => {
