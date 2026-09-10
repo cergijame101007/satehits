@@ -119,21 +119,13 @@ erDiagram
 | cancelled | メール連絡を受け、オーナーが手動でキャンセルに更新 |
 | no_show | 当日来店なし |
 
-**将来追加（メール送信実装時）:**
-
-非同期メール送信の送信済み判定・再送用。初回実装（インプロセス非同期キュー + Resend）では **追加しない**。Cloud Tasks ワーカー等で再送・監査が必要になったタイミングで別マイグレーションで追加する。
-
 **拒否理由（reject_reason）:**
 
-オーナーが拒否時に任意入力できる理由は **DB カラムとしては保存しない**。PATCH `/admin/reservations/{id}/status` の任意 `reason` をメール本文生成にのみ使用する。
+オーナーが拒否時に任意入力できる理由は **DB カラムとしては保存しない**。PATCH `/admin/reservations/{id}/status` の任意 `reason` をメール本文生成にのみ使用する（Outbox 行の `body_*` にレンダリング済みで保存）。
 
-```sql
-ALTER TABLE reservations ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ;
-```
+**送信状態:**
 
-- `NULL` = 未送信
-- 値あり = 送信済み（ワーカーが送信成功時に `NOW()` をセット）
-- 顧客向け API レスポンスには含めない（内部用）
+送信状態は `email_outbox`（2.1a 節）で管理する。`reservations` に送信済み日時カラムは持たない。
 
 **sourceの値:**
 | 値 | 説明 |
@@ -143,6 +135,47 @@ ALTER TABLE reservations ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ;
 | phone | 電話からの予約（オーナー登録） |
 | walk_in | 飛び込み・直接来店（オーナー登録） |
 | other | その他（知人など、オーナー登録） |
+
+### 2.1a email_outbox（メール送信 Outbox）
+
+予約関連メールの送信意図を永続化する。予約 INSERT / ステータス更新と同一トランザクションで行を追加する（ADR-014）。
+
+| カラム名 | データ型 | NULL | デフォルト | 説明 |
+|----------|----------|------|------------|------|
+| id | UUID | NO | `gen_random_uuid()` | Outbox ID |
+| reservation_id | UUID | NO | - | 予約 ID（FK → reservations） |
+| mail_type | TEXT | NO | - | 論理メール種別 |
+| from_address | TEXT | NO | - | From |
+| to_address | TEXT | NO | - | To |
+| subject | TEXT | NO | - | 件名 |
+| body_html | TEXT | NO | - | HTML 本文（enqueue 時にレンダリング済み） |
+| body_text | TEXT | NO | - | テキスト本文 |
+| status | TEXT | NO | `pending` | `pending` / `sent` / `failed` |
+| attempt_count | INTEGER | NO | 0 | claim した回数（claim 時に +1。送信結果に関わらず消費される） |
+| next_attempt_at | TIMESTAMPTZ | NO | NOW() | 次回送信試行時刻。claim 中は lease 期限（claim + 5 分）を兼ねる |
+| last_error | TEXT | YES | NULL | 直近のエラーメッセージ |
+| sent_at | TIMESTAMPTZ | YES | NULL | 送信成功時刻 |
+| created_at | TIMESTAMPTZ | NO | NOW() | 作成日時 |
+| updated_at | TIMESTAMPTZ | NO | NOW() | 更新日時 |
+
+**制約:**
+- `mail_type`: CHECK IN (`reservation_received`, `reservation_approved`, `reservation_rejected`)
+- `status`: CHECK IN (`pending`, `sent`, `failed`)
+- `UNIQUE (reservation_id, mail_type)`（防御的不変条件。遷移表上は各種別最大 1 回）
+
+**インデックス:**
+- `idx_email_outbox_dispatch`: `(next_attempt_at) WHERE status = 'pending'`
+
+**状態遷移:**
+- `pending → sent`（送信成功）、`pending → failed`（恒久エラーまたは 6 回目の失敗）。`sent` / `failed` は終端で自動復帰しない
+- `pending` のまま `next_attempt_at` を先送りするのが再送待ちと lease。`status = 'processing'` のような中間状態は持たない
+- `failed` の手動復帰は `docs/infrastructure.md` の Outbox 運用を参照
+
+**備考:**
+- Idempotency key はカラムではなく `mail_type + "/" + reservation_id` で導出する
+- 顧客向け API レスポンスには含めない
+- `reservation_id` は `ON DELETE CASCADE`。予約が削除されれば未送信行も消える（意図どおり）
+- `last_error` には Resend のレスポンス本文（宛先アドレスを含みうる）が入る。`sent` 行の保持期間は個人情報方針とあわせて未決定
 
 ### 2.2 daily_schedules（日別スケジュール）
 
@@ -294,7 +327,7 @@ ALTER TABLE reservations ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ;
 | `000006_refresh_tokens.sql` | 6 | `refresh_tokens`、インデックス |
 | `000007_external_event_schedule_type.sql` | 7 | `daily_schedules.schedule_type` に `external_event` を追加 |
 | `000008_login_attempts.sql` | 8 | `login_attempts`、インデックス |
-| （将来）`reservations.email_sent_at` | - | メール送信実装時に別マイグレーションで追加（2.1 参照） |
+| `000009_email_outbox.sql` | 9 | `email_outbox`、dispatch 部分インデックス、`updated_at` トリガー |
 
 ## 3. DDL
 

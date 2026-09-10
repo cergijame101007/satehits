@@ -768,10 +768,162 @@ Go API のホスティング先を選定する必要があった。
 
 ---
 
+## ADR-014: メール送信の Outbox パターン
+
+### ステータス
+
+採用
+
+### コンテキスト
+
+予約受付・承認・拒否の顧客向けメールを、予約成立と分離して確実に再送できるようにする必要があった。インプロセスの揮発キューではプロセス終了や満杯時ドロップで送信意図が失われる。
+
+### 前提
+
+- メール送信サービスは Resend（ADR-004）
+- 予約整合性は PostgreSQL トランザクション（ADR-009）
+- ステータス遷移は `pending → approved | rejected` のみ（逆向き・相互遷移不可）
+
+### 検討した選択肢
+
+| 選択肢 | メリット | デメリット |
+| --- | --- | --- |
+| インプロセス channel キュー | 実装が単純 | プロセス終了で消失、再送なし |
+| `reservations.email_sent_at` | カラム 1 本で済む | 論理メール種別ごとの状態を表現しにくい |
+| `email_outbox` + ワーカー | 送信意図が永続化され再送可能 | テーブル・flush 運用が増える |
+
+### 決定
+
+- 予約は DB コミット時点で成立とする。メール送信は予約成立の必須条件としない
+- 予約 INSERT / ステータス更新と同一トランザクションで `email_outbox` に送信意図（本文レンダリング済み）を記録する。**送信意図の記録は予約操作の必須条件**とし、Tx 外には出さない（enqueue の DB エラーは予約操作ごとロールバック。通知されない予約を作らないため）
+- Cloud Scheduler（1 分ごと）が private Cloud Run の `POST /internal/outbox/flush` を叩き、Dispatcher が指数バックオフで送信する
+- Dispatcher は **lease 方式**（claim → 送信 → mark をそれぞれ独立してコミット）:
+  - claim は単一 UPDATE（`FOR UPDATE SKIP LOCKED` サブクエリ）で `attempt_count + 1` と `next_attempt_at = 今 + lease（5 分）` を確定させる
+  - 送信は DB トランザクションの外で行い、1 通ごとに送信タイムアウト（30 秒）を掛ける
+  - 送信結果の記録（`MarkSent` / `MarkRetry` / `MarkFailed`）は呼び出し元の cancel から切り離した独立コンテキストで行う
+  - 送信中にクラッシュ・cancel されても試行は消費済みなので、ポイズンメッセージは lease 切れごとに 1 回ずつ試行され最大 6 回で `failed` になる
+  - 行ごとの mark 失敗はレスポンスの `errors` に数えて次の行へ進む。claim 自体の失敗（DB 断）だけ 500 を返す
+- 1 回の flush は `OUTBOX_BATCH_SIZE`（既定 20）件かつ `OUTBOX_FLUSH_TIME_BUDGET_SECONDS`（既定 120 秒）以内。残り予算が送信タイムアウト未満なら次の claim をしない。時間予算は Cloud Scheduler の attempt-deadline（180 秒）より短く保つ
+- Resend の 401 / 403（認証・認可）はメッセージ起因ではないので、行の試行を消費させず（`ReleaseClaim`）に **バッチを中断**し、ERROR ログを残す。設定修正後は次の flush で自動再開する
+- `ENVIRONMENT=production` かつ flush 有効のサービスでは `RESEND_API_KEY` を必須にし、未設定なら起動失敗させる（NoOp Sender が未送信のまま `sent` を記録することを防ぐ）
+- 二重送信対策は二段構え:
+  - DB: `UNIQUE (reservation_id, mail_type)`（防御的不変条件。通常フローでは衝突しない）
+  - Resend: `Idempotency-Key` = `mail_type/reservation_id`（24 時間有効）。`outbox.id` は使わない
+- 衝突検出は `ON CONFLICT DO NOTHING RETURNING id`（UNIQUE 違反で Tx を aborted にしない）。検出時は警告ログを残し、予約操作自体は成功させる
+- 順序保証は「未処理（`pending`）同士の追い越し防止」。先行が `failed` なら後続は送信される。先行がバックオフ待ち（最大 4 時間）や lease 中でも後続は待つ（**順序 > 即時性**。承認メールが受付メールを追い越さない）
+- `attempt_count` は claim した回数（今回の試行を含む）。最大 6 回試行、初回失敗から最終再試行まで約 5 時間 21 分
+- `failed` からの自動復帰は無い。復帰は運用手順（`docs/infrastructure.md` の Outbox 運用）による手動 SQL。Resend の Idempotency-Key は 24 時間保持され、失敗レスポンスがキャッシュされるかは公式に明記されていないため、手動再送は最終試行から 24 時間以上経ってから行う
+- `reservations` 削除時は `ON DELETE CASCADE` で未送信行も消える（意図どおり。予約が無いメールは送らない）
+- Domain の `MailSender` 抽象により UseCase / Outbox は Resend に依存しない
+
+### 理由
+
+- 送信成功直後にプロセスが落ちて `MarkSent` できないケースが典型的な二重送信源であり、論理イベントキーでの idempotency が必要
+- 遷移表により各 `mail_type` は予約あたり最大 1 回なので `UNIQUE (reservation_id, mail_type)` がドメイン上も成立する
+
+### Consequences
+
+- (+) Resend 障害時の劣化はメール遅延に限定され、予約受付・承認は継続可能
+- (+) 同一行の再送と同一論理イベントの重複 enqueue の両方を防げる
+- (-) `failed` 行の滞留監視は別チャネルが必要。**監視・アラートは未決定**（当面は SQL で目視。候補は flush 内から Slack Incoming Webhook へ `failed` 行ごとに 1 回通知 + Cloud Monitoring の Scheduler ジョブ失敗アラートで「flush が動いていない」も検知する）
+- (-) flush 用の private サービスと Scheduler 運用が増える
+- (-) 順序保証のため、先行メールが再送待ちの間は同一予約の後続メールも遅延する
+
+### 再検討トリガー
+
+- Outbox `failed` が定常的に発生する場合
+- メール以外の通知チャネル（ADR-016）を導入し送信経路が分岐する場合
+
+---
+
+## ADR-015: Outbox flush エンドポイントの配置
+
+### ステータス
+
+採用
+
+### コンテキスト
+
+Outbox の送信処理は HTTP の `POST /internal/outbox/flush` として公開し、**定期起動は Cloud Scheduler が行う**（間隔・再送方針は ADR-014）。問題は、この flush エンドポイントを顧客向け公開 API と同じ Cloud Run サービスに置くと、`--allow-unauthenticated`（または同等）の影響で外部から到達可能になること。
+
+### 前提
+
+- 公開 API は顧客ブラウザから叩くため `--allow-unauthenticated`（または同等）が必要（ADR-008）
+- アプリケーションコードでの OIDC 検証は行わない方針
+- 定期実行の主体は Cloud Scheduler（ADR-014）。本 ADR の対象は flush の**配置と保護**のみ
+
+### 検討した選択肢
+
+| 選択肢 | メリット | デメリット |
+| --- | --- | --- |
+| 同一サービス + アプリ内 OIDC 検証 | デプロイ 1 本 | 依存・実装が増える |
+| 同一サービス + 共有シークレット | 実装が軽い | 秘密の配布・ローテーションが必要 |
+| 同一イメージの private 別サービス + IAM | 認証境界が明確 | デプロイ対象が 2 つ |
+
+### 決定
+
+同一コンテナイメージを **公開サービス**と **private サービス**（`--no-allow-unauthenticated`）の 2 つとしてデプロイする。flush ルートは env `OUTBOX_FLUSH_ENDPOINT_ENABLED=true` のときだけ登録する（private 側のみ true）。Cloud Scheduler は private 側を OIDC で呼び、`roles/run.invoker` を付与する。
+
+OIDC audience は Cloud Run のサービス URL（例 `https://xxx.run.app`）とし、endpoint の path / query は含めない。
+
+### 理由
+
+- 公開 API と内部運用エンドポイントの認証境界を分離し、設定ミスによる flush 公開の blast radius を小さくする
+- Cloud Run IAM Conditions は `request.path` / `request.host` を条件にできるが、公開サービスで invoker チェックを無効化（または `allUsers`）している構成にパス条件付き IAM を重ねると壊れやすい
+
+### Consequences
+
+- (+) アプリ側にトークン検証コードがない
+- (+) 公開サービスの設定を変えても private flush の保護は独立
+- (-) CI / 運用でデプロイ手順が 1 本増える
+- (-) Scheduler は稀に重複実行しうるため、handler は idempotent である必要がある（`FOR UPDATE SKIP LOCKED` + Resend Idempotency-Key で満たす）
+
+### 再検討トリガー
+
+- 内部エンドポイントが増え、サービス分割や Gateway が必要になった場合
+- Cloud Run の認証モデル変更により単一サービスでも安全に分離できると判断した場合
+
+---
+
+## ADR-016: オーナーへの予約通知チャネル
+
+### ステータス
+
+一部採用（管理画面を一次手段。メール催促・LINE は未実装）
+
+### コンテキスト
+
+Web 予約の `pending` 滞留にオーナーが気づく手段が必要だった。かつてはメール催促や LINE Notify が候補だった。
+
+### 前提
+
+- 顧客向け受付・承認・拒否メールは Outbox で実装する（ADR-014）
+- LINE Notify はサービス終了済み
+
+### 決定
+
+- オーナー向けの pending 催促メールは**実装しない**
+- オーナーが新規予約に気づく一次手段は**管理画面の pending 一覧**とする（現状 UI は日付横断の pending ビューが弱く、改善は別スコープ）
+- メール以外のプッシュ通知として **LINE Messaging API** を将来検討する（今回は実装しない）
+
+### 未解決の課題
+
+メール以外の能動通知がないため、オーナーの気づきは管理画面の能動的確認に依存する。Resend 障害時も顧客メールは遅延するが、オーナー通知チャネルは増えない。
+
+### 再検討トリガー
+
+- オーナーから通知の見落としが報告された場合
+- pending 滞留（2 時間超）が月 1 回以上発生した場合
+
+---
+
 ## 更新履歴
 
 | 日付 | ADR | 内容 |
 | --- | --- | --- |
+| 2026-09-11 | ADR-014 | lease 方式（Tx 分割）、時間予算、認証エラー中断、本番キー必須、順序・復帰・監視の方針を追記 |
+| 2026-09-07 | ADR-015 | タイトル・文脈を「flush の配置と保護」に明確化（定期実行主体は Scheduler / ADR-014） |
+| 2026-09-07 | ADR-014〜016 | メール Outbox、flush 配置、オーナー通知チャネルを追加 |
 | 2026-09-06 | ADR-001〜013 | 既存 ADR を前提・Consequences・再検討トリガー付きに改訂。007〜013 を追加 |
 | 2026-09-06 | ADR-000 | 想定規模の前提を追加・domain_knowledge と整合・依存参照を更新 |
 | 2026-02-16 | ADR-001〜006 | 初版作成 |

@@ -8,9 +8,11 @@ import (
 )
 
 const (
-	minJWTSecretBytes    = 32
-	defaultMailFrom      = "さて、羊に戻るとしよう <noreply@satehits.com>"
-	defaultMailQueueSize = 100
+	minJWTSecretBytes      = 32
+	defaultMailFrom        = "さて、羊に戻るとしよう <noreply@satehits.com>"
+	defaultOutboxBatchSize = 20
+	// Cloud Scheduler の attempt-deadline（180 秒）より短くする
+	defaultOutboxFlushTimeBudgetSeconds = 120
 
 	defaultLoginRateLimitEmailMax      = 5
 	defaultLoginRateLimitIPMax         = 20
@@ -20,19 +22,21 @@ const (
 
 // Config はバックエンドが起動時に必要とする環境変数を集約する
 type Config struct {
-	DatabaseURL      string
-	JWTSecret        []byte
-	CORSOrigins      []string
-	CookieDomain     string
-	TurnstileSecret  string
-	Environment      string
-	MigrationsDir    string
-	ResendAPIKey     string
-	MailFromAddress  string
-	MailQueueSize    int
-	TrustedProxyHops int
-	LoginRateLimit   LoginRateLimitConfig
-	Storage          StorageConfig
+	DatabaseURL                  string
+	JWTSecret                    []byte
+	CORSOrigins                  []string
+	CookieDomain                 string
+	TurnstileSecret              string
+	Environment                  string
+	MigrationsDir                string
+	ResendAPIKey                 string
+	MailFromAddress              string
+	OutboxBatchSize              int
+	OutboxFlushTimeBudgetSeconds int
+	OutboxFlushEndpointEnabled   bool
+	TrustedProxyHops             int
+	LoginRateLimit               LoginRateLimitConfig
+	Storage                      StorageConfig
 }
 
 // LoginRateLimitConfig はログイン失敗のレートリミットしきい値
@@ -87,27 +91,27 @@ func Load() Config {
 		mailFrom = defaultMailFrom
 	}
 
-	mailQueueSize := defaultMailQueueSize
-	if raw := strings.TrimSpace(os.Getenv("MAIL_QUEUE_SIZE")); raw != "" {
-		n, err := strconv.Atoi(raw)
-		if err != nil || n <= 0 {
-			log.Fatalf("MAIL_QUEUE_SIZE must be a positive integer, got %q", raw)
-		}
-		mailQueueSize = n
+	resendAPIKey := strings.TrimSpace(os.Getenv("RESEND_API_KEY"))
+	outboxFlushEnabled := boolEnv("OUTBOX_FLUSH_ENDPOINT_ENABLED", false)
+	// 本番の flush サービスでキー未設定だと NoOp Sender が未送信のまま sent を記録してしまうため起動を止める
+	if environment == "production" && outboxFlushEnabled && resendAPIKey == "" {
+		log.Fatal("RESEND_API_KEY is required when ENVIRONMENT=production and OUTBOX_FLUSH_ENDPOINT_ENABLED=true")
 	}
 
 	return Config{
-		DatabaseURL:      dbURL,
-		JWTSecret:        []byte(jwtSecret),
-		CORSOrigins:      corsOrigins,
-		CookieDomain:     os.Getenv("COOKIE_DOMAIN"),
-		TurnstileSecret:  turnstileSecret,
-		Environment:      environment,
-		MigrationsDir:    migrationsDir,
-		ResendAPIKey:     strings.TrimSpace(os.Getenv("RESEND_API_KEY")),
-		MailFromAddress:  mailFrom,
-		MailQueueSize:    mailQueueSize,
-		TrustedProxyHops: positiveIntEnv("TRUSTED_PROXY_HOPS", defaultTrustedProxyHops),
+		DatabaseURL:                  dbURL,
+		JWTSecret:                    []byte(jwtSecret),
+		CORSOrigins:                  corsOrigins,
+		CookieDomain:                 os.Getenv("COOKIE_DOMAIN"),
+		TurnstileSecret:              turnstileSecret,
+		Environment:                  environment,
+		MigrationsDir:                migrationsDir,
+		ResendAPIKey:                 resendAPIKey,
+		MailFromAddress:              mailFrom,
+		OutboxBatchSize:              positiveIntEnv("OUTBOX_BATCH_SIZE", defaultOutboxBatchSize),
+		OutboxFlushTimeBudgetSeconds: positiveIntEnv("OUTBOX_FLUSH_TIME_BUDGET_SECONDS", defaultOutboxFlushTimeBudgetSeconds),
+		OutboxFlushEndpointEnabled:   outboxFlushEnabled,
+		TrustedProxyHops:             positiveIntEnv("TRUSTED_PROXY_HOPS", defaultTrustedProxyHops),
 		LoginRateLimit: LoginRateLimitConfig{
 			EmailMax:      positiveIntEnv("LOGIN_RATE_LIMIT_EMAIL_MAX", defaultLoginRateLimitEmailMax),
 			IPMax:         positiveIntEnv("LOGIN_RATE_LIMIT_IP_MAX", defaultLoginRateLimitIPMax),
@@ -127,6 +131,18 @@ func positiveIntEnv(key string, defaultValue int) int {
 		log.Fatalf("%s must be a positive integer, got %q", key, raw)
 	}
 	return n
+}
+
+func boolEnv(key string, defaultValue bool) bool {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return defaultValue
+	}
+	v, err := strconv.ParseBool(raw)
+	if err != nil {
+		log.Fatalf("%s must be a boolean, got %q", key, raw)
+	}
+	return v
 }
 
 // loadStorageConfig は STORAGE_* 環境変数を読み込む。

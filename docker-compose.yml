@@ -42,6 +42,21 @@ services:
       exit 0;
       "
 
+  # Outbox 等の repository integration test 用（ボリュームなし・使い捨て）
+  postgres-test:
+    image: postgres:16-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: satehits
+      POSTGRES_PASSWORD: satehits
+      POSTGRES_DB: satehits_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U satehits -d satehits_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
 volumes:
   go-mod-cache:
   minio-data:

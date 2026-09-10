@@ -2,6 +2,8 @@ package usecase
 
 import (
 	"context"
+	"errors"
+	"log"
 	"strings"
 	"time"
 
@@ -40,7 +42,6 @@ type CreateReservationCommand struct {
 }
 
 // CreateReservationUseCase は顧客向け予約作成
-// TODO: メール機能実装時（またはその前）に pending 未対応のまま来店日3日前・1日前にオーナーへ通知する pending 放置対策メールを実装する
 type CreateReservationUseCase struct {
 	repo         domain.ReservationRepository
 	resolver     *service.ScheduleResolver
@@ -48,7 +49,7 @@ type CreateReservationUseCase struct {
 	txManager    application.TxManager
 	locker       application.VisitDateLocker
 	verifier     CaptchaVerifier
-	notifier     MailNotifier
+	enqueuer     MailEnqueuer
 }
 
 // NewCreateReservationUseCase は CreateReservationUseCase の生成
@@ -59,10 +60,10 @@ func NewCreateReservationUseCase(
 	txManager application.TxManager,
 	locker application.VisitDateLocker,
 	verifier CaptchaVerifier,
-	notifier MailNotifier,
+	enqueuer MailEnqueuer,
 ) *CreateReservationUseCase {
-	if notifier == nil {
-		notifier = NoOpMailNotifier{}
+	if enqueuer == nil {
+		enqueuer = NoOpMailEnqueuer{}
 	}
 	return &CreateReservationUseCase{
 		repo:         repo,
@@ -71,7 +72,7 @@ func NewCreateReservationUseCase(
 		txManager:    txManager,
 		locker:       locker,
 		verifier:     verifier,
-		notifier:     notifier,
+		enqueuer:     enqueuer,
 	}
 }
 
@@ -126,22 +127,7 @@ func (u *CreateReservationUseCase) Execute(ctx context.Context, cmd CreateReserv
 
 	var created domain.Reservation
 	err = u.txManager.DoInTx(ctx, func(txCtx context.Context) error {
-		if err := u.locker.Lock(txCtx, cmd.VisitDate); err != nil {
-			return err
-		}
-		fresh, err := u.availability.ResolveForDate(txCtx, cmd.VisitDate)
-		if err != nil {
-			return err
-		}
-		if fresh.IsHoliday {
-			return &ValidationError{Violations: []FieldViolation{
-				{Field: "visit_date", Message: "この日は予約できません"},
-			}}
-		}
-		if cmd.People > fresh.Available {
-			return domain.ErrCapacityExceeded
-		}
-		res, err := u.repo.Create(txCtx, in)
+		res, err := u.createAndEnqueue(txCtx, cmd, in)
 		if err != nil {
 			return err
 		}
@@ -151,6 +137,46 @@ func (u *CreateReservationUseCase) Execute(ctx context.Context, cmd CreateReserv
 	if err != nil {
 		return nil, err
 	}
-	u.notifier.ReservationReceived(created)
 	return &created, nil
+}
+
+func (u *CreateReservationUseCase) createAndEnqueue(
+	ctx context.Context,
+	cmd CreateReservationCommand,
+	in domain.CreateReservationInput,
+) (domain.Reservation, error) {
+	if err := u.locker.Lock(ctx, cmd.VisitDate); err != nil {
+		return domain.Reservation{}, err
+	}
+	fresh, err := u.availability.ResolveForDate(ctx, cmd.VisitDate)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+	if fresh.IsHoliday {
+		return domain.Reservation{}, &ValidationError{Violations: []FieldViolation{
+			{Field: "visit_date", Message: "この日は予約できません"},
+		}}
+	}
+	if cmd.People > fresh.Available {
+		return domain.Reservation{}, domain.ErrCapacityExceeded
+	}
+	created, err := u.repo.Create(ctx, in)
+	if err != nil {
+		return domain.Reservation{}, err
+	}
+	if err := u.enqueuer.EnqueueReservationReceived(ctx, created); err != nil {
+		if err := ignoreAlreadyEnqueued(err, created.ID, "reservation_received"); err != nil {
+			return domain.Reservation{}, err
+		}
+	}
+	return created, nil
+}
+
+// ignoreAlreadyEnqueued は防御的 UNIQUE 衝突を警告ログにして継続する（Tx は生きたまま）
+func ignoreAlreadyEnqueued(err error, reservationID interface{}, mailType string) error {
+	if errors.Is(err, domain.ErrMailAlreadyEnqueued) {
+		log.Printf("WARN: mail already enqueued (unexpected duplicate): reservation_id=%v mail_type=%s", reservationID, mailType)
+		return nil
+	}
+	return err
 }

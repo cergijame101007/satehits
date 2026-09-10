@@ -346,10 +346,14 @@ backend/
 │       │       ├── supplier.go
 │       │       └── admin_user.go
 │       └── external/
-│           ├── recaptcha/
-│           │   └── client.go       # reCAPTCHA検証
+│           ├── turnstile/
+│           │   └── verifier.go
 │           └── resend/
-│               └── client.go       # Resendメール送信クライアント
+│               └── client.go       # Resend API client (MailSender)
+│       └── mail/
+│           ├── outbox_enqueuer.go
+│           ├── dispatcher.go
+│           └── templates.go
 │
 ├── pkg/
 │   ├── config/
@@ -440,20 +444,20 @@ Presentation 層の `HandleError` 関数で、`DomainError` の `Code` に応じ
 | サービス | 用途 | 連携レイヤー |
 |----------|------|-------------|
 | Supabase (PostgreSQL) | データベース | Infrastructure Layer（Repository実装） |
-| Google reCAPTCHA v3 | Bot対策 | Infrastructure Layer（External API Client） |
-| Resend | メール配信（予約受付・承認・拒否通知） | Infrastructure Layer（Mail Client） |
+| Google reCAPTCHA v3 / Turnstile | Bot対策 | Infrastructure Layer（External API Client） |
+| Resend | メール配信（予約受付・承認・拒否通知） | Infrastructure Layer（Mail Sender 実装） |
 
-### Resend（メール配信）
+### メール送信（Mail Sender + Outbox）
 
-バックエンドの Infrastructure Layer に `resend/client.go` を配置し、Domain Layer の `repository/mail.go` インターフェースを実装する。UseCase からはインターフェース経由で呼び出すため、テスト時にはモックに差し替え可能。
+UseCase は Domain の `MailEnqueuer` / `EmailOutboxRepository` 経由で送信意図を `email_outbox` に記録する（予約操作と同一トランザクション。記録は予約操作の必須条件）。`MailSender` 抽象の実装として Infrastructure の `resend/client.go` が Resend API を呼び、HTTP ステータスを一時失敗 / 恒久失敗（`ErrMailPermanent`）/ 認証エラー（`ErrMailAuth`）に分類する。Dispatcher は Cloud Scheduler → `POST /internal/outbox/flush` で起動し、lease 方式（claim → 送信 → 記録を独立コミット）で指数バックオフ再送する。Dispatcher は TxManager に依存しない（ADR-014 / ADR-015）。
 
 送信するメールの種類:
 
-| メール種別 | トリガー | 宛先 |
-|-----------|----------|------|
-| 予約申請受付メール | 顧客がWebから予約申請した直後 | 顧客 |
-| 予約承認メール | オーナーが予約を承認した時 | 顧客 |
-| 予約拒否メール | オーナーが予約を拒否した時 | 顧客 |
+| メール種別 | トリガー | 宛先 | mail_type |
+|-----------|----------|------|-----------|
+| 予約申請受付メール | 顧客が Web から予約申請した直後 | 顧客 | `reservation_received` |
+| 予約承認メール | オーナーが予約を承認した時 | 顧客 | `reservation_approved` |
+| 予約拒否メール | オーナーが予約を拒否した時 | 顧客 | `reservation_rejected` |
 
 ## 11. テスト戦略
 

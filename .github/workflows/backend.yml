@@ -38,6 +38,20 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: satehits
+          POSTGRES_PASSWORD: satehits
+          POSTGRES_DB: satehits_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U satehits -d satehits_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -46,6 +60,8 @@ jobs:
           go-version: "1.24"
 
       - name: Run tests
+        env:
+          TEST_DATABASE_URL: postgres://satehits:satehits@localhost:5432/satehits_test?sslmode=disable
         run: go test -v -race -coverprofile=coverage.out ./...
 
       - name: Upload coverage

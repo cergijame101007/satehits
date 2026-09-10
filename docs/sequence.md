@@ -378,73 +378,59 @@ sequenceDiagram
 
 ## 8. メール送信シーケンス
 
-予約に関する各種メール通知は、バックエンドの UseCase から MailNotifier（Infrastructure）を経由して**インプロセス非同期キュー**に投入され、ワーカー goroutine が Resend API へ送信する。HTTP レスポンスは DB 更新成功後に即返却し、メール送信失敗時も予約・ステータス更新は有効（エラーはログのみ）。
+予約関連メールは、予約 INSERT / ステータス更新と**同一トランザクション**で `email_outbox` に送信意図を記録する（送信意図の記録は予約操作の必須条件）。HTTP レスポンスは DB コミット後に返却し、メール送信自体は予約成立の必須条件としない。Cloud Scheduler（1 分ごと）が private Cloud Run の `POST /internal/outbox/flush` を呼び、Dispatcher が `MailSender`（本番は Resend）へ送信する。
+
+Dispatcher は lease 方式で、claim（`attempt_count + 1`、`next_attempt_at = 今 + 5 分` を単一 UPDATE で確定）→ 送信（DB Tx 外、30 秒タイムアウト）→ 結果記録（独立コンテキスト）の順に進める。失敗時は指数バックオフで再送し、上限到達または恒久エラーで `failed` にする。Resend の 401 / 403 は行の試行を戻してバッチを中断する（ADR-014）。
 
 ### 8.1 予約申請受付メール（顧客へ）
 
-顧客がWebから予約を申請した直後に送信される。
-
 ```mermaid
 sequenceDiagram
-    participant UseCase as CreateUseCase
-    participant MailService as MailService
+    participant UseCase as CreateReservationUseCase
+    participant DB as PostgreSQL
+    participant Flush as OutboxFlush
+    participant Sender as MailSender
     participant Resend as Resend API
 
-    UseCase->>MailService: SendReservationReceived(reservation)
-    
-    MailService->>MailService: メールテンプレート組み立て
-    Note right of MailService: 件名: 【さて、羊に戻るとしよう】<br>ご予約を受け付けました
-    Note right of MailService: 本文:<br>・予約申請を受け付けた旨<br>・来店日時・人数<br>・オーナー確認後に連絡する旨
-    
-    MailService->>Resend: POST /emails
-    Note right of Resend: From: noreply@satehits.com<br>To: 顧客メールアドレス
-    Resend-->>MailService: 200 OK (email_id)
-    MailService-->>UseCase: OK
+    UseCase->>DB: BEGIN
+    UseCase->>DB: INSERT reservations
+    UseCase->>DB: INSERT email_outbox (reservation_received)
+    UseCase->>DB: COMMIT
+    Note over Flush: Cloud Scheduler → POST /internal/outbox/flush
+    Flush->>DB: ClaimNextPending (UPDATE attempt_count+1, next_attempt_at=lease / SKIP LOCKED)
+    Note right of DB: ここでコミット（試行は消費済み）
+    Flush->>Sender: Send (Idempotency-Key=mail_type/reservation_id, 30s timeout)
+    Sender->>Resend: POST /emails
+    Resend-->>Sender: 200 OK
+    Flush->>DB: MarkSent（独立コンテキスト）
 ```
 
 ### 8.2 予約承認メール（顧客へ）
 
-オーナーが予約を承認した時に送信される。
-
 ```mermaid
 sequenceDiagram
     participant UseCase as UpdateStatusUseCase
-    participant MailService as MailService
+    participant DB as PostgreSQL
+    participant Flush as OutboxFlush
+    participant Sender as MailSender
     participant Resend as Resend API
 
-    UseCase->>MailService: SendReservationApproved(reservation)
-    
-    MailService->>MailService: メールテンプレート組み立て
-    Note right of MailService: 件名: 【さて、羊に戻るとしよう】<br>ご予約が確定しました
-    Note right of MailService: 本文:<br>・予約確定の通知<br>・来店日時・人数<br>・キャンセルポリシー<br>・変更はInstagramへ
-    
-    MailService->>Resend: POST /emails
-    Note right of Resend: From: noreply@satehits.com<br>To: 顧客メールアドレス
-    Resend-->>MailService: 200 OK (email_id)
-    MailService-->>UseCase: OK
+    UseCase->>DB: BEGIN
+    UseCase->>DB: UPDATE reservations status=approved
+    UseCase->>DB: INSERT email_outbox (reservation_approved)
+    UseCase->>DB: COMMIT
+    Note over Flush: Cloud Scheduler → POST /internal/outbox/flush
+    Flush->>DB: ClaimNextPending
+    Note right of Flush: 同一 reservation に先行 pending（lease 中・再送待ち含む）があればスキップ
+    Flush->>Sender: Send (Idempotency-Key)
+    Sender->>Resend: POST /emails
+    Resend-->>Sender: 200 OK
+    Flush->>DB: MarkSent
 ```
 
 ### 8.3 予約拒否メール（顧客へ）
 
-オーナーが予約を拒否した時に送信される。
-
-```mermaid
-sequenceDiagram
-    participant UseCase as UpdateStatusUseCase
-    participant MailService as MailService
-    participant Resend as Resend API
-
-    UseCase->>MailService: SendReservationRejected(reservation)
-    
-    MailService->>MailService: メールテンプレート組み立て
-    Note right of MailService: 件名: 【さて、羊に戻るとしよう】<br>ご予約についてのお知らせ
-    Note right of MailService: 本文:<br>・予約できなかった旨<br>・理由（オーナー入力時のみ）<br>・別日程のご案内<br>・Instagramへの誘導
-    
-    MailService->>Resend: POST /emails
-    Note right of Resend: From: noreply@satehits.com<br>To: 顧客メールアドレス
-    Resend-->>MailService: 200 OK (email_id)
-    MailService-->>UseCase: OK
-```
+拒否理由 `reason` は DB カラムに残さず、enqueue 時に本文へ埋め込んで Outbox に保存する。フローは 8.2 と同様（`mail_type=reservation_rejected`）。
 
 ## 9. スケジュール設定（オーナー）
 

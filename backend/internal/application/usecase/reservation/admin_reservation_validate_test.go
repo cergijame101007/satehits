@@ -29,7 +29,7 @@ func TestValidateCreateAdminReservation(t *testing.T) {
 		{name: "rejects empty source", mutate: func(cmd *CreateAdminReservationCommand) { cmd.Source = "" }, wantField: "source"},
 		{name: "rejects invalid source", mutate: func(cmd *CreateAdminReservationCommand) { cmd.Source = "invalid" }, wantField: "source"},
 		{name: "rejects invalid status", mutate: func(cmd *CreateAdminReservationCommand) { cmd.Status = "invalid" }, wantField: "status"},
-		{name: "accepts explicit approved status", mutate: func(cmd *CreateAdminReservationCommand) { cmd.Status = "approved" }},
+		{name: "accepts explicit approved status", mutate: func(cmd *CreateAdminReservationCommand) { cmd.Status = defaultAdminReservationStatus }},
 		// 公開予約ポリシーを課さないことの回帰テスト（リードタイム・定休日・営業時間）
 		{name: "accepts closed weekday (Thursday)", mutate: func(cmd *CreateAdminReservationCommand) {
 			cmd.VisitDate = datetime.MustParseDate("2026-05-14")

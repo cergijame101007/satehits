@@ -1,4 +1,4 @@
-.PHONY: dev dev-build dev-down dev-front prod prod-build prod-down build run test test-coverage lint tools-install clean migrate seed
+.PHONY: dev dev-build dev-down dev-front prod prod-build prod-down build run test test-coverage test-integration outbox-flush lint tools-install clean migrate seed
 
 # ===== 開発ツール =====
 TOOLS_DIR := $(CURDIR)/tools
@@ -60,6 +60,16 @@ test:
 test-coverage:
 	cd backend && go test -v -race -coverprofile=coverage.out ./...
 	cd backend && go tool cover -html=coverage.out -o coverage.html
+
+# Outbox 等の repository integration test（postgres-test が必要）
+TEST_DATABASE_URL ?= postgres://satehits:satehits@localhost:5433/satehits_test?sslmode=disable
+test-integration:
+	docker compose up -d --wait postgres-test
+	cd backend && TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test -v -count=1 ./internal/repository/ -run 'TestEmailOutbox'
+
+# ローカルで Outbox flush を手動実行（OUTBOX_FLUSH_ENDPOINT_ENABLED=true が必要）
+outbox-flush:
+	curl -sS -X POST http://localhost:8080/internal/outbox/flush
 
 # ===== Lint =====
 # 版は tools/golangci-lint.version（CI と同期）

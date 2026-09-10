@@ -141,15 +141,25 @@
 | 10 | ログイン成功後 | 単体 | 当該メールの失敗試行がクリアされる |
 | 11 | 制限中の再試行 | 単体 | 失敗行が増えず、窓経過後に解除される |
 
-### 3.5 メール送信
+### 3.5 メール送信（Outbox）
 
 | # | テストケース | テスト種別 | 期待結果 |
 |---|-------------|-----------|----------|
-| 1 | 予約申請受付メールの送信 | 単体 | Resend API が正しいパラメータで呼ばれる |
-| 2 | 予約承認メールの送信 | 単体 | 件名・本文に予約情報が含まれる |
-| 3 | 予約拒否メールの送信 | 単体 | Instagram 誘導文が含まれる |
-| 4 | メール送信失敗時（API エラー） | 単体 | エラーログ出力、予約処理自体は成功 |
-| 5 | 送信元アドレスの検証 | 単体 | `MAIL_FROM_ADDRESS` 環境変数の値が使用される |
+| 1 | 受付メール enqueue | 単体 | Outbox に `reservation_received` が同一 Tx で記録される |
+| 2 | 承認・拒否メール enqueue | 単体 | 件名・本文・reason が Outbox に入る |
+| 3 | 重複 enqueue | 単体 / 結合 | `ErrMailAlreadyEnqueued`、予約操作は成功、警告ログ |
+| 4 | Dispatcher 成功 | 単体 | `sent`、Idempotency-Key = `mail_type/reservation_id`、送信 ctx にタイムアウト、claim に lease 期限 |
+| 5 | 一時失敗 | 単体 | claim 時の `attempt_count` に応じた `next_attempt_at` 後退（1m/5m/15m/1h/4h） |
+| 6 | 恒久失敗 / 上限 | 単体 | `failed`（6 回目の失敗、または `ErrMailPermanent`） |
+| 7 | 認証エラー | 単体 | `ReleaseClaim` で試行を戻し、`halted=auth_error` で残りの行を claim しない |
+| 8 | 記録失敗の継続 | 単体 | mark の DB エラーは `errors` に数え、次の行を処理する |
+| 9 | 時間予算 | 単体 | 残り予算 < 送信タイムアウトで `halted=time_budget`、次の claim をしない |
+| 10 | claim 失敗 | 単体 | DB エラーはそのまま返す（flush は 500） |
+| 11 | Claim と lease | 結合（PostgreSQL） | claim で `attempt_count + 1`、lease 中は再 claim されない、lease 切れで attempt 2 として再 claim |
+| 12 | Claim 直列化 | 結合（PostgreSQL） | 同一 reservation の先行 pending（lease 中）がある間は後続を取らない。先行が `sent` / `failed` なら取る |
+| 13 | mark 系 | 結合（PostgreSQL） | `MarkRetry` は attempt を増やさない、`ReleaseClaim` は attempt を戻す、`sent` 後の mark はエラー |
+| 14 | Resend ステータス分類 | 単体 | 5xx/429/409 concurrent は一時、401/403 は `ErrMailAuth`、他 4xx は `ErrMailPermanent` |
+| 15 | flush エンドポイント | 単体 | POST 200、GET 405 |
 
 ## 4. フロントエンドテストケース
 
