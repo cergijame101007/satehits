@@ -151,8 +151,8 @@ erDiagram
 | body_html | TEXT | NO | - | HTML 本文（enqueue 時にレンダリング済み） |
 | body_text | TEXT | NO | - | テキスト本文 |
 | status | TEXT | NO | `pending` | `pending` / `sent` / `failed` |
-| attempt_count | INTEGER | NO | 0 | 送信を試行して失敗した回数 |
-| next_attempt_at | TIMESTAMPTZ | NO | NOW() | 次回送信試行時刻 |
+| attempt_count | INTEGER | NO | 0 | claim した回数（claim 時に +1。送信結果に関わらず消費される） |
+| next_attempt_at | TIMESTAMPTZ | NO | NOW() | 次回送信試行時刻。claim 中は lease 期限（claim + 5 分）を兼ねる |
 | last_error | TEXT | YES | NULL | 直近のエラーメッセージ |
 | sent_at | TIMESTAMPTZ | YES | NULL | 送信成功時刻 |
 | created_at | TIMESTAMPTZ | NO | NOW() | 作成日時 |
@@ -166,9 +166,16 @@ erDiagram
 **インデックス:**
 - `idx_email_outbox_dispatch`: `(next_attempt_at) WHERE status = 'pending'`
 
+**状態遷移:**
+- `pending → sent`（送信成功）、`pending → failed`（恒久エラーまたは 6 回目の失敗）。`sent` / `failed` は終端で自動復帰しない
+- `pending` のまま `next_attempt_at` を先送りするのが再送待ちと lease。`status = 'processing'` のような中間状態は持たない
+- `failed` の手動復帰は `docs/infrastructure.md` の Outbox 運用を参照
+
 **備考:**
 - Idempotency key はカラムではなく `mail_type + "/" + reservation_id` で導出する
 - 顧客向け API レスポンスには含めない
+- `reservation_id` は `ON DELETE CASCADE`。予約が削除されれば未送信行も消える（意図どおり）
+- `last_error` には Resend のレスポンス本文（宛先アドレスを含みうる）が入る。`sent` 行の保持期間は個人情報方針とあわせて未決定
 
 ### 2.2 daily_schedules（日別スケジュール）
 

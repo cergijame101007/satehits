@@ -449,7 +449,7 @@ Presentation 層の `HandleError` 関数で、`DomainError` の `Code` に応じ
 
 ### メール送信（Mail Sender + Outbox）
 
-UseCase は Domain の `MailEnqueuer` / `EmailOutboxRepository` 経由で送信意図を `email_outbox` に記録する（予約操作と同一トランザクション）。`MailSender` 抽象の実装として Infrastructure の `resend/client.go` が Resend API を呼ぶ。Dispatcher は Cloud Scheduler → `POST /internal/outbox/flush` で起動し、指数バックオフで再送する（ADR-014 / ADR-015）。
+UseCase は Domain の `MailEnqueuer` / `EmailOutboxRepository` 経由で送信意図を `email_outbox` に記録する（予約操作と同一トランザクション。記録は予約操作の必須条件）。`MailSender` 抽象の実装として Infrastructure の `resend/client.go` が Resend API を呼び、HTTP ステータスを一時失敗 / 恒久失敗（`ErrMailPermanent`）/ 認証エラー（`ErrMailAuth`）に分類する。Dispatcher は Cloud Scheduler → `POST /internal/outbox/flush` で起動し、lease 方式（claim → 送信 → 記録を独立コミット）で指数バックオフ再送する。Dispatcher は TxManager に依存しない（ADR-014 / ADR-015）。
 
 送信するメールの種類:
 

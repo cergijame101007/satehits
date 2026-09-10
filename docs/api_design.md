@@ -496,7 +496,7 @@ Cookie の RT を revoke し、同名 Cookie を削除する。リクエスト�
 
 ### POST /internal/outbox/flush
 
-Outbox の pending 行を最大 `OUTBOX_BATCH_SIZE` 件まで送信する内部運用エンドポイント。**OpenAPI（公開 API 仕様）の対象外**。認証はアプリ側では行わず、Cloud Run IAM（private サービス）で保護する。
+Outbox の pending 行を最大 `OUTBOX_BATCH_SIZE` 件・`OUTBOX_FLUSH_TIME_BUDGET_SECONDS` 秒以内で送信する内部運用エンドポイント。**OpenAPI（公開 API 仕様）の対象外**。認証はアプリ側では行わず、Cloud Run IAM（private サービス）で保護する。冪等（`FOR UPDATE SKIP LOCKED` + Resend Idempotency-Key）なので Scheduler の重複実行や手動実行が並行しても安全。
 
 #### リクエスト
 
@@ -513,11 +513,24 @@ Outbox の pending 行を最大 `OUTBOX_BATCH_SIZE` 件まで送信する内部�
   "processed": 3,
   "sent": 2,
   "retried": 1,
-  "failed": 0
+  "failed": 0,
+  "errors": 0,
+  "halted": "auth_error"
 }
 ```
 
+| フィールド | 説明 |
+|-----------|------|
+| processed | claim した件数 |
+| sent | 送信成功して `sent` にした件数 |
+| retried | 一時失敗で `next_attempt_at` を後退させた件数 |
+| failed | 恒久失敗または上限到達で `failed` にした件数 |
+| errors | 送信結果の記録（DB 更新）に失敗した件数。行は lease 中のまま残り、lease 切れ後に再 claim される |
+| halted | バッチを途中で打ち切った理由。`auth_error`（Resend 401/403。行の試行は消費しない）/ `time_budget`（時間予算切れ）。打ち切りが無ければ省略 |
+
 **メソッド不正（405）** — GET 等。
+
+**内部エラー（500）** — claim（DB）自体に失敗した場合のみ。行ごとの送信失敗・記録失敗は 200 で `failed` / `errors` に数える。
 
 ---
 

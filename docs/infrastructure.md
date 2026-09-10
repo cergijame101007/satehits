@@ -382,10 +382,11 @@ jobs:
 | DATABASE_URL | Supabase接続URL |
 | JWT_SECRET | JWT署名用シークレット |
 | RECAPTCHA_SECRET_KEY | reCAPTCHAシークレットキー |
-| RESEND_API_KEY | Resend APIキー（未設定時は NoOp Sender） |
+| RESEND_API_KEY | Resend APIキー（未設定時は NoOp Sender）。`ENVIRONMENT=production` かつ `OUTBOX_FLUSH_ENDPOINT_ENABLED=true` では必須（未設定なら起動失敗） |
 | MAIL_FROM_ADDRESS | メール送信元アドレス（例: noreply@satehits.com） |
 | OUTBOX_BATCH_SIZE | 1 回の flush で処理する最大件数（既定 20） |
-| OUTBOX_FLUSH_ENDPOINT_ENABLED | `true` のときだけ `POST /internal/outbox/flush` を登録（private サービスで true） |
+| OUTBOX_FLUSH_TIME_BUDGET_SECONDS | 1 回の flush の時間予算（既定 120）。Cloud Scheduler の attempt-deadline（180 秒）より短くする |
+| OUTBOX_FLUSH_ENDPOINT_ENABLED | `true` のときだけ `POST /internal/outbox/flush` を登録（private サービスで true、公開サービスで false。デプロイ設定で固定する） |
 | ENVIRONMENT | 環境識別子（development/production） |
 | PORT | サーバーポート（Cloud Runは自動設定） |
 | STORAGE_ENDPOINT | S3 互換ストレージのエンドポイント（本番: Cloudflare R2、ローカル: MinIO） |
@@ -502,7 +503,42 @@ export default defineConfig({
 
 ### 概要
 
-Resend は顧客向けメールの配信先（`MailSender` 実装）。送信意図は PostgreSQL の `email_outbox` に永続化し、Cloud Scheduler が private Cloud Run の flush エンドポイントを 1 分ごとに呼ぶ（ADR-014 / ADR-015）。手順の冪等スクリプトは `scripts/setup-scheduler.sh`。
+Resend は顧客向けメールの配信先（`MailSender` 実装）。送信意図は PostgreSQL の `email_outbox` に永続化し、Cloud Scheduler が private Cloud Run の flush エンドポイントを 1 分ごとに呼ぶ（ADR-014 / ADR-015）。手順の冪等スクリプトは `scripts/setup-scheduler.sh`（attempt-deadline 180 秒）。
+
+### 2 サービスのデプロイ設定
+
+同一イメージを 2 つの Cloud Run サービスとしてデプロイし、flush の有効・無効は**デプロイ設定（`--set-env-vars`）で固定**する。手動で env を変えない。
+
+| サービス | 認証 | OUTBOX_FLUSH_ENDPOINT_ENABLED | RESEND_API_KEY |
+|---------|------|-------------------------------|----------------|
+| `satehits-api`（公開） | `--allow-unauthenticated` | `false` | 不要（enqueue のみ） |
+| `satehits-api-internal`（private flush） | `--no-allow-unauthenticated` | `true` | 必須（production では未設定なら起動失敗） |
+
+時間の制約は `送信タイムアウト 30 秒 ≤ OUTBOX_FLUSH_TIME_BUDGET_SECONDS 120 秒 < Scheduler attempt-deadline 180 秒 < Cloud Run request timeout（既定 300 秒）` を保つ。
+
+### Outbox 運用（failed 行の復帰）
+
+`failed` は自動復帰しない。`last_error` で原因を確認して潰してから、手動で `pending` に戻す。
+
+```sql
+-- 対象確認
+SELECT id, reservation_id, mail_type, attempt_count, last_error, updated_at
+FROM email_outbox WHERE status = 'failed' ORDER BY updated_at;
+
+-- 復帰（1 行ずつ）
+UPDATE email_outbox
+SET status = 'pending', attempt_count = 0, next_attempt_at = NOW(), last_error = NULL
+WHERE id = '<outbox id>' AND status = 'failed';
+```
+
+注意:
+
+- Resend の Idempotency-Key は 24 時間保持される。失敗レスポンスがキャッシュされるかは公式に明記されていないため、**最終試行（`updated_at`）から 24 時間以上経ってから**戻す
+- 宛先不正など恒久エラーは戻しても同じ結果になる。顧客に連絡して宛先を直す運用（別途）
+- 同一予約の後続メールは先行が `pending` に戻ると順序どおり待つ（受付 → 承認の順）
+- `halted=auth_error` が続く場合は `RESEND_API_KEY` を確認する。該当行の試行は消費されていないので、キー修正後は次の flush で自動再開する
+
+監視・アラートは未決定（ADR-014）。当面は上の SELECT で目視する。
 
 コスト目安: 1 分間隔では約 43,200 回/月。Cloud Scheduler は実行回数ではなくジョブ数課金。Cloud Run のリクエスト数もこのジョブ単体では無料枠を十分下回るが、無料枠は billing account 単位で共有されるため「必ず無料」とは限らない。Cloud Run の「CPU always allocated」は有効にしない。
 

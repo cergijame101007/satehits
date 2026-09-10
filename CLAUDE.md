@@ -57,6 +57,7 @@ Copilot 等の自動レビュー指摘は**仮説**とする。上表の docs �
 **バックエンド再発防止（docs 確認済みのみ追記）**
 
 - `schedule_type` とイベント欄（正は `docs/api_design.md` の表）: `normal` / `morning` / `closed` はイベント欄を送らない・保存前にクリア。`event` / `external_event` は名称必須・説明任意。`external_event` は capacity 0 固定・時刻 NULL。`special_menu` は任意（Copilot が「必須」と言っても docs 優先）
+- Outbox Dispatcher（正は ADR-014）: claim → 送信 → 記録は lease 方式で**独立コミット**。送信を DB Tx の中に戻さない。`attempt_count` は claim 時に +1（失敗回数ではない）。401/403 は `ReleaseClaim` でバッチ中断
 
 ---
 
@@ -315,6 +316,7 @@ ENVIRONMENT=development
 RESEND_API_KEY=
 MAIL_FROM_ADDRESS=さて、羊に戻るとしよう <noreply@satehits.com>
 OUTBOX_BATCH_SIZE=20
+OUTBOX_FLUSH_TIME_BUDGET_SECONDS=120
 OUTBOX_FLUSH_ENDPOINT_ENABLED=true
 
 # フロントエンド（Astro: PUBLIC_ プレフィックスでクライアントに公開）

@@ -795,14 +795,25 @@ Go API のホスティング先を選定する必要があった。
 ### 決定
 
 - 予約は DB コミット時点で成立とする。メール送信は予約成立の必須条件としない
-- 予約 INSERT / ステータス更新と同一トランザクションで `email_outbox` に送信意図（本文レンダリング済み）を記録する
+- 予約 INSERT / ステータス更新と同一トランザクションで `email_outbox` に送信意図（本文レンダリング済み）を記録する。**送信意図の記録は予約操作の必須条件**とし、Tx 外には出さない（enqueue の DB エラーは予約操作ごとロールバック。通知されない予約を作らないため）
 - Cloud Scheduler（1 分ごと）が private Cloud Run の `POST /internal/outbox/flush` を叩き、Dispatcher が指数バックオフで送信する
+- Dispatcher は **lease 方式**（claim → 送信 → mark をそれぞれ独立してコミット）:
+  - claim は単一 UPDATE（`FOR UPDATE SKIP LOCKED` サブクエリ）で `attempt_count + 1` と `next_attempt_at = 今 + lease（5 分）` を確定させる
+  - 送信は DB トランザクションの外で行い、1 通ごとに送信タイムアウト（30 秒）を掛ける
+  - 送信結果の記録（`MarkSent` / `MarkRetry` / `MarkFailed`）は呼び出し元の cancel から切り離した独立コンテキストで行う
+  - 送信中にクラッシュ・cancel されても試行は消費済みなので、ポイズンメッセージは lease 切れごとに 1 回ずつ試行され最大 6 回で `failed` になる
+  - 行ごとの mark 失敗はレスポンスの `errors` に数えて次の行へ進む。claim 自体の失敗（DB 断）だけ 500 を返す
+- 1 回の flush は `OUTBOX_BATCH_SIZE`（既定 20）件かつ `OUTBOX_FLUSH_TIME_BUDGET_SECONDS`（既定 120 秒）以内。残り予算が送信タイムアウト未満なら次の claim をしない。時間予算は Cloud Scheduler の attempt-deadline（180 秒）より短く保つ
+- Resend の 401 / 403（認証・認可）はメッセージ起因ではないので、行の試行を消費させず（`ReleaseClaim`）に **バッチを中断**し、ERROR ログを残す。設定修正後は次の flush で自動再開する
+- `ENVIRONMENT=production` かつ flush 有効のサービスでは `RESEND_API_KEY` を必須にし、未設定なら起動失敗させる（NoOp Sender が未送信のまま `sent` を記録することを防ぐ）
 - 二重送信対策は二段構え:
   - DB: `UNIQUE (reservation_id, mail_type)`（防御的不変条件。通常フローでは衝突しない）
   - Resend: `Idempotency-Key` = `mail_type/reservation_id`（24 時間有効）。`outbox.id` は使わない
 - 衝突検出は `ON CONFLICT DO NOTHING RETURNING id`（UNIQUE 違反で Tx を aborted にしない）。検出時は警告ログを残し、予約操作自体は成功させる
-- 順序保証は「未処理（`pending`）同士の追い越し防止」。先行が `failed` なら後続は送信される
-- `attempt_count` は送信失敗回数。最大 6 回試行、初回失敗から最終再試行まで約 5 時間 21 分
+- 順序保証は「未処理（`pending`）同士の追い越し防止」。先行が `failed` なら後続は送信される。先行がバックオフ待ち（最大 4 時間）や lease 中でも後続は待つ（**順序 > 即時性**。承認メールが受付メールを追い越さない）
+- `attempt_count` は claim した回数（今回の試行を含む）。最大 6 回試行、初回失敗から最終再試行まで約 5 時間 21 分
+- `failed` からの自動復帰は無い。復帰は運用手順（`docs/infrastructure.md` の Outbox 運用）による手動 SQL。Resend の Idempotency-Key は 24 時間保持され、失敗レスポンスがキャッシュされるかは公式に明記されていないため、手動再送は最終試行から 24 時間以上経ってから行う
+- `reservations` 削除時は `ON DELETE CASCADE` で未送信行も消える（意図どおり。予約が無いメールは送らない）
 - Domain の `MailSender` 抽象により UseCase / Outbox は Resend に依存しない
 
 ### 理由
@@ -814,8 +825,9 @@ Go API のホスティング先を選定する必要があった。
 
 - (+) Resend 障害時の劣化はメール遅延に限定され、予約受付・承認は継続可能
 - (+) 同一行の再送と同一論理イベントの重複 enqueue の両方を防げる
-- (-) `failed` 行の滞留監視は別チャネルが必要
+- (-) `failed` 行の滞留監視は別チャネルが必要。**監視・アラートは未決定**（当面は SQL で目視。候補は flush 内から Slack Incoming Webhook へ `failed` 行ごとに 1 回通知 + Cloud Monitoring の Scheduler ジョブ失敗アラートで「flush が動いていない」も検知する）
 - (-) flush 用の private サービスと Scheduler 運用が増える
+- (-) 順序保証のため、先行メールが再送待ちの間は同一予約の後続メールも遅延する
 
 ### 再検討トリガー
 
@@ -909,6 +921,7 @@ Web 予約の `pending` 滞留にオーナーが気づく手段が必要だっ�
 
 | 日付 | ADR | 内容 |
 | --- | --- | --- |
+| 2026-09-11 | ADR-014 | lease 方式（Tx 分割）、時間予算、認証エラー中断、本番キー必須、順序・復帰・監視の方針を追記 |
 | 2026-09-07 | ADR-015 | タイトル・文脈を「flush の配置と保護」に明確化（定期実行主体は Scheduler / ADR-014） |
 | 2026-09-07 | ADR-014〜016 | メール Outbox、flush 配置、オーナー通知チャネルを追加 |
 | 2026-09-06 | ADR-001〜013 | 既存 ADR を前提・Consequences・再検討トリガー付きに改訂。007〜013 を追加 |
