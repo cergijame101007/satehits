@@ -36,10 +36,21 @@
 
 | ツール | 用途 |
 |--------|------|
-| Vitest | テストランナー・アサーション |
-| Testing Library（`@testing-library/react`） | React コンポーネントのレンダリング・操作テスト |
+| Vitest（jsdom） | テストランナー・アサーション |
+| Testing Library（`@testing-library/react` / `jest-dom`） | React コンポーネントのレンダリング・DOM アサーション |
 | `@testing-library/user-event` | ユーザー操作のシミュレーション |
-| `msw`（Mock Service Worker） | API モック（フロントエンド結合テスト） |
+| `vi.mock` | `src/lib/*.ts` の API 層をモック（実 HTTP は叩かない） |
+
+#### React コンポーネントテストの方針
+
+- **配置**: 対象コンポーネントと同じディレクトリに `Foo.test.tsx` を置く（`src/components/react/`、`src/components/react/ui/`）。`src/lib` のロジックは `foo.test.ts`
+- **セットアップ**: `vitest.config.ts`（`environment: jsdom`、`globals: true`、`passWithNoTests: false`）と `src/test/setup.ts`（`@testing-library/jest-dom/vitest` と `afterEach(cleanup)`）
+- **API モック**: `vi.mock('@/lib/xxx', async (importOriginal) => ({ ...(await importOriginal()), listXxx: vi.fn() }))` の形で関数だけ差し替え、`XxxApiError` などのクラスは実物を使う（`instanceof` 分岐を検証するため）。`fetch` を直接使う箇所は `vi.stubGlobal('fetch', ...)`
+- **子コンポーネント**: 単体でテスト済みの重い子（`DatePickerField`、`TurnstileWidget`）は親のテストでは最小限のスタブに差し替えてよい
+- **ブラウザ API**: `window.location` は `vi.stubGlobal('location', { href })`、`window.confirm` は `vi.spyOn`、日付は `vi.useFakeTimers({ toFake: ['Date'] })` + `vi.setSystemTime` で固定する（`setTimeout` は偽装しないので `user-event` / `waitFor` がそのまま動く）
+- **検証する観点**: 表示（取得中 → 表示 / 空 / エラー）、バリデーション、API 呼び出し引数、成功時の遷移・表示、送信中の二重送信防止、確認モーダルの経路。スナップショットは使わず、`describe` / `it` は日本語で「何を検証するか」を書く
+- **送信中の検証**: `src/test/deferred.ts` の `createDeferred()` で API の Promise を保留し、ボタンの無効化を確認してから resolve する
+- **注意**: jsdom はフォーム送信時に `required` / `type="email"` の制約検証を行うため、コンポーネント側のバリデーションを検証するときは `fireEvent.submit` を使うか、ブラウザ検証は通る値を入力する
 
 ## 3. テストケース一覧
 
@@ -179,6 +190,15 @@
 | 9 | ReservationTable | 拒否ボタンクリック | ステータスが更新される |
 | 10 | ScheduleCalendar | 月間スケジュールが表示される | 各日のスケジュールタイプが描画される |
 | 11 | SupplierManager | 取引先の追加・編集・削除 | CRUD 操作が正常に動作する |
+| 12 | SupplierManager | ドラッグ＆ドロップで並び替え | 新しい順序で並び順更新 API が呼ばれる。失敗時は一覧を取り直す |
+| 13 | ReservationCreateForm | 提供数超過の登録 | `window.confirm` で確認し、キャンセルなら登録しない（空き取得失敗時の挙動は別途決定中のため未固定） |
+| 14 | ScheduleCalendar | 保存・定例に戻す | `PUT` / `DELETE` が呼ばれ、外部イベントは capacity 0、戻り先の定例をプレビュー表示 |
+| 15 | DashboardSummary | 今日・明日のサマリー | 残り提供数・承認待ち／承認済み件数・直近 3 件。片方の API 失敗でも他方は表示 |
+| 16 | PublicScheduleCalendar / SupplierList | 公開ページの表示 | 取得中 → 表示 / 空 / エラーの切り替え、休・Event バー・Event Info |
+| 17 | TurnstileWidget | `window.turnstile` をモック | `render` に siteKey が渡り、callback のトークンが `onToken` に伝播、unmount で `remove` |
+| 18 | ui/* | Alert / Button / ButtonLink / Card / ConfirmModal / Modal / Textarea | props に応じた描画、`onClick` / `onClose` / `disabled`、Modal のフォーカストラップ・Escape・入力中にフォーカスを奪わない |
+
+実装済みのテストファイルは各コンポーネントと同じディレクトリの `*.test.tsx` を参照（`cd frontend && bun run test:run` で全件実行）。
 
 ## 5. E2E テストシナリオ
 
@@ -266,14 +286,11 @@ cd backend && go test -v ./...
 ### フロントエンド
 
 ```bash
-# 全テスト実行
-cd frontend && bun run test
+# 全テスト実行（単発）
+cd frontend && bun run test:run
 
 # ウォッチモード（開発中）
-cd frontend && bun run test:watch
-
-# カバレッジレポート
-cd frontend && bun run test:coverage
+cd frontend && bun run test
 
 # 特定ファイルのテスト
 cd frontend && bunx vitest run src/components/react/ReservationForm.test.tsx
