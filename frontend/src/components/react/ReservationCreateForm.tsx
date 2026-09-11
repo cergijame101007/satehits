@@ -9,8 +9,11 @@ import ButtonLink from '@/components/react/ui/ButtonLink';
 import Textarea from '@/components/react/ui/Textarea';
 import { inputClassName } from '@/lib/ui/inputStyles';
 
-/** pending / approved は reserved 集計対象。超過時は登録前に確認する */
-async function confirmIfCapacityExceeded(
+/**
+ * pending / approved は reserved 集計対象。超過時は登録前に確認する。
+ * 空き状況を取得できなかった場合も黙って通さず、超過の可能性を確認する。
+ */
+export async function confirmIfCapacityExceeded(
   visitDate: string,
   people: number,
   status: string,
@@ -35,7 +38,9 @@ async function confirmIfCapacityExceeded(
       `提供可能数（${capacity}食）を超えて登録されます（予約済み ${reserved}食 + 今回 ${people}食 = ${total}食）。このまま登録しますか？`,
     );
   } catch {
-    return true;
+    return window.confirm(
+      '空き状況を確認できませんでした。提供可能数を超える可能性があります。このまま登録しますか？',
+    );
   }
 }
 
