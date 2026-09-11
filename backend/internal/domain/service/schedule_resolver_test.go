@@ -97,8 +97,15 @@ func TestSynthesizeFromStoreCalendar_weekdayDefaults(t *testing.T) {
 	}{
 		{name: "monday is normal", date: "2026-05-18", wantType: "normal", wantCapacity: 10},
 		{name: "thursday is closed", date: "2026-05-21", wantType: "closed", wantCapacity: 0},
+		{name: "friday is closed", date: "2026-05-22", wantType: "closed", wantCapacity: 0},
 		{name: "saturday is normal", date: "2026-05-16", wantType: "normal", wantCapacity: 10},
 		{name: "sunday is morning", date: "2026-05-17", wantType: "morning", wantCapacity: 10},
+		// 祝日ケースは同梱の内閣府 CSV（internal/domain/holiday/syukujitsu.csv）に依存する
+		{name: "thursday holiday is normal instead of closed", date: "2026-01-01", wantType: "normal", wantCapacity: 10},
+		{name: "friday holiday is normal instead of closed", date: "2026-03-20", wantType: "normal", wantCapacity: 10},
+		{name: "sunday holiday is normal without morning hours", date: "2026-05-03", wantType: "normal", wantCapacity: 10},
+		{name: "wednesday substitute holiday stays normal", date: "2026-05-06", wantType: "normal", wantCapacity: 10},
+		{name: "thursday beyond bundled years falls back to closed", date: "2099-01-01", wantType: "closed", wantCapacity: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -117,13 +124,58 @@ func TestSynthesizeFromStoreCalendar_weekdayDefaults(t *testing.T) {
 	}
 }
 
-func TestSynthesizeFromStoreCalendar_appliesBusinessHoursForNormal(t *testing.T) {
-	d := datetime.MustParseDate("2026-05-18")
-	if d.Weekday() != time.Monday {
-		t.Fatalf("test date weekday = %v, want Monday", d.Weekday())
+func TestSynthesizeFromStoreCalendar_appliesBusinessHours(t *testing.T) {
+	tests := []struct {
+		name        string
+		date        string
+		wantWeekday time.Weekday
+		wantOpen    string
+	}{
+		{name: "monday opens at lunch", date: "2026-05-18", wantWeekday: time.Monday, wantOpen: "11:30"},
+		{name: "sunday opens with morning hours", date: "2026-05-17", wantWeekday: time.Sunday, wantOpen: "08:30"},
+		{name: "sunday holiday opens at lunch without morning hours", date: "2026-05-03", wantWeekday: time.Sunday, wantOpen: "11:30"},
+		{name: "thursday holiday opens at lunch", date: "2026-01-01", wantWeekday: time.Thursday, wantOpen: "11:30"},
 	}
-	got := synthesizeFromStoreCalendar(d)
-	if got.OpenTime.String() != "11:30" {
-		t.Fatalf("OpenTime = %s, want 11:30", got.OpenTime)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := datetime.MustParseDate(tt.date)
+			if d.Weekday() != tt.wantWeekday {
+				t.Fatalf("test date weekday = %v, want %v", d.Weekday(), tt.wantWeekday)
+			}
+			got := synthesizeFromStoreCalendar(d)
+			if got.OpenTime.String() != tt.wantOpen {
+				t.Fatalf("OpenTime = %s, want %s", got.OpenTime, tt.wantOpen)
+			}
+		})
+	}
+}
+
+type resolveHolidayOverrideRepo struct {
+	resolveMonthStubRepo
+	stored domain.Schedule
+}
+
+func (r resolveHolidayOverrideRepo) FindByDate(_ context.Context, d datetime.Date) (domain.Schedule, bool, error) {
+	if d.String() == r.stored.Date.String() {
+		return r.stored, true, nil
+	}
+	return domain.Schedule{}, false, nil
+}
+
+func TestScheduleResolver_ResolveForDate_storedRowWinsOverHolidayDefault(t *testing.T) {
+	// 祝日でも daily_schedules 行があればそちらが優先（行優先は祝日対応後も変えない）
+	holidayDate := datetime.MustParseDate("2026-01-01")
+	stored := domain.Schedule{Date: holidayDate, ScheduleType: "closed", Capacity: 0}
+	r := NewScheduleResolver(resolveHolidayOverrideRepo{stored: stored})
+
+	got, err := r.ResolveForDate(context.Background(), holidayDate)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if got.IsDefault {
+		t.Fatal("IsDefault = true, want false")
+	}
+	if got.Schedule.ScheduleType != "closed" {
+		t.Fatalf("ScheduleType = %q, want closed", got.Schedule.ScheduleType)
 	}
 }

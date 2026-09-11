@@ -105,6 +105,22 @@ func TestApplyEventDefaultBusinessHours(t *testing.T) {
 			wantLast:  "13:30",
 			wantClose: "15:00",
 		},
+		{
+			// 2026-05-03（憲法記念日・日曜）。祝日は朝営業なし（docs/domain_knowledge.md §4）
+			name:      "fills sunday holiday event with normal hours",
+			date:      "2026-05-03",
+			wantOpen:  "11:30",
+			wantLast:  "13:30",
+			wantClose: "15:00",
+		},
+		{
+			// 2026-01-01（元日・木曜）。定例の休業曜日でも event は営業日として通常営業を当てる
+			name:      "fills thursday holiday event with normal hours",
+			date:      "2026-01-01",
+			wantOpen:  "11:30",
+			wantLast:  "13:30",
+			wantClose: "15:00",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -149,6 +165,13 @@ func TestBookingWindowMinutes(t *testing.T) {
 		{
 			name:     "event on saturday uses normal booking window",
 			schedule: domain.Schedule{Date: datetime.MustParseDate("2026-05-23"), ScheduleType: domain.ScheduleTypeEvent},
+			wantOpen: 11*60 + 30,
+			wantLast: 13*60 + 30,
+			wantOK:   true,
+		},
+		{
+			name:     "event on sunday holiday uses normal booking window",
+			schedule: domain.Schedule{Date: datetime.MustParseDate("2026-05-03"), ScheduleType: domain.ScheduleTypeEvent},
 			wantOpen: 11*60 + 30,
 			wantLast: 13*60 + 30,
 			wantOK:   true,

@@ -5,11 +5,12 @@ import (
 
 	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
+	"github.com/cergijame101007/satehits/internal/domain/holiday"
 )
 
 // 営業時刻のデフォルト（docs/domain_knowledge.md §6 / table_design.md）
 // normal・special_menu は通常営業、morning は朝営業
-// event は未指定時に暦日の曜日で通常/朝を選んで補完。closed は休業のためデフォルトなし
+// event は未指定時に暦日（祝日・曜日）で通常/朝を選んで補完。closed は休業のためデフォルトなし
 var (
 	defaultNormalOpenTime      = datetime.MustParseTime("11:30")
 	defaultNormalLastOrderTime = datetime.MustParseTime("13:30")
@@ -39,14 +40,15 @@ func ApplyDefaultBusinessHours(scheduleType string, openTime, lastOrder, closeTi
 	return openTime, lastOrder, closeTime
 }
 
-// ApplyEventDefaultBusinessHours は event で未指定の時刻に、その日の曜日に応じた店舗デフォルトを当てる
-// 日曜のみ朝営業、それ以外は通常営業（店内イベント想定。定例の木金休業は event 行で上書き）
+// ApplyEventDefaultBusinessHours は event で未指定の時刻に、その日の暦日に応じた店舗デフォルトを当てる
+// 祝日でない日曜のみ朝営業、それ以外は通常営業（店内イベント想定。定例の木金休業は event 行で上書き）
+// 祝日は日曜と重なっても朝営業なし（docs/domain_knowledge.md §4）
 func ApplyEventDefaultBusinessHours(date datetime.Date, openTime, lastOrder, closeTime datetime.Time) (datetime.Time, datetime.Time, datetime.Time) {
 	return ApplyDefaultBusinessHours(defaultBusinessHoursTypeForEventDate(date), openTime, lastOrder, closeTime)
 }
 
 func defaultBusinessHoursTypeForEventDate(date datetime.Date) string {
-	if date.Weekday() == time.Sunday {
+	if date.Weekday() == time.Sunday && !holiday.IsHoliday(date) {
 		return domain.ScheduleTypeMorning
 	}
 	return domain.ScheduleTypeNormal

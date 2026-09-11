@@ -18,6 +18,7 @@ import (
 	scheduleusecase "github.com/cergijame101007/satehits/internal/application/usecase/schedule"
 	supplierusecase "github.com/cergijame101007/satehits/internal/application/usecase/supplier"
 	"github.com/cergijame101007/satehits/internal/domain"
+	"github.com/cergijame101007/satehits/internal/domain/holiday"
 	"github.com/cergijame101007/satehits/internal/domain/service"
 	"github.com/cergijame101007/satehits/internal/handler"
 	"github.com/cergijame101007/satehits/internal/infrastructure/external/resend"
@@ -41,6 +42,11 @@ func main() {
 	}
 
 	cfg := config.Load()
+
+	// 同梱の祝日データ（内閣府 CSV）の鮮度チェック。翌年分は例年 2 月頃公開 → make update-holidays（docs/holidays.md）
+	if holidays := holiday.Embedded(); holidays.NeedsUpdate(time.Now()) {
+		log.Printf("WARNING: bundled holiday data ends at %d; run `make update-holidays` to bundle next year's holidays (docs/holidays.md)", holidays.LastYear())
+	}
 
 	// DB接続を開く
 	db, err := sql.Open("pgx", cfg.DatabaseURL)

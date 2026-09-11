@@ -7,6 +7,7 @@ import (
 
 	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
+	"github.com/cergijame101007/satehits/internal/domain/holiday"
 )
 
 const (
@@ -140,9 +141,10 @@ func daysInMonth(year int, month time.Month) int {
 }
 
 // synthesizeFromStoreCalendar — daily_schedules 行なし日の店舗定例合成
-// 木金 closed、日曜 morning、月〜水土 normal（祝日未考慮・TODO。祝日は daily_schedules で上書き）
+// 祝日は曜日にかかわらず normal（日曜と重なっても朝営業なし）、それ以外は木金 closed・日曜 morning・月〜水土 normal
+// （docs/domain_knowledge.md §3・§4・§6）。祝日判定は同梱の内閣府 CSV（internal/domain/holiday）に基づく
 func synthesizeFromStoreCalendar(d datetime.Date) domain.Schedule {
-	scheduleType, capacity := defaultScheduleTypeAndCapacity(d.Weekday())
+	scheduleType, capacity := defaultScheduleTypeAndCapacity(d)
 	openTime, lastOrder, closeTime := ApplyDefaultBusinessHours(scheduleType, datetime.Time{}, datetime.Time{}, datetime.Time{})
 	return domain.Schedule{
 		Date:          d,
@@ -154,13 +156,17 @@ func synthesizeFromStoreCalendar(d datetime.Date) domain.Schedule {
 	}
 }
 
-func defaultScheduleTypeAndCapacity(wd time.Weekday) (scheduleType string, capacity int) {
-	switch wd {
+// defaultScheduleTypeAndCapacity は店舗定例のタイプ・提供数。祝日が最優先、次に曜日
+func defaultScheduleTypeAndCapacity(d datetime.Date) (scheduleType string, capacity int) {
+	if holiday.IsHoliday(d) {
+		return domain.ScheduleTypeNormal, defaultScheduleCapacity
+	}
+	switch d.Weekday() {
 	case time.Thursday, time.Friday:
-		return "closed", 0
+		return domain.ScheduleTypeClosed, 0
 	case time.Sunday:
-		return "morning", defaultScheduleCapacity
+		return domain.ScheduleTypeMorning, defaultScheduleCapacity
 	default:
-		return "normal", defaultScheduleCapacity
+		return domain.ScheduleTypeNormal, defaultScheduleCapacity
 	}
 }
