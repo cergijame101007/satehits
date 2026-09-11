@@ -34,4 +34,7 @@ type RefreshTokenRepository interface {
 	Revoke(ctx context.Context, id int64) error
 	RevokeIfActive(ctx context.Context, id int64) (bool, error)
 	RevokeAllByUser(ctx context.Context, adminUserID int64) error
+	// DeleteExpired は expires_at < now の行（revoke 済みかどうかを問わない）を削除し、削除件数を返す
+	// 期限切れ RT は再利用検知にも使えないため安全に消せる。未期限の revoke 済み行は再利用検知のため残す
+	DeleteExpired(ctx context.Context, now time.Time) (int64, error)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/cergijame101007/satehits/internal/domain"
 )
@@ -93,4 +94,19 @@ func (r *PostgresRefreshTokenRepository) RevokeAllByUser(ctx context.Context, ad
 		return err
 	}
 	return nil
+}
+
+// DeleteExpired は有効期限を過ぎたリフレッシュトークン行を削除し、削除件数を返す
+// revoke 済みでも未期限の行は再利用検知（docs/table_design.md §2.4）のため残す
+func (r *PostgresRefreshTokenRepository) DeleteExpired(ctx context.Context, now time.Time) (int64, error) {
+	query := `DELETE FROM refresh_tokens WHERE expires_at < $1`
+	res, err := r.getDB(ctx).ExecContext(ctx, query, now)
+	if err != nil {
+		return 0, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return n, nil
 }

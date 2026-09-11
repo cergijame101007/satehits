@@ -51,6 +51,10 @@ func (f *fakeAdminUserRepo) FindByID(context.Context, int64) (domain.AdminUser, 
 type fakeRefreshTokenRepo struct {
 	issueInput *domain.CreateRefreshTokenInput
 	issueErr   error
+
+	deleteExpiredCalls int
+	deleteExpiredErr   error
+	deleteExpiredNow   time.Time
 }
 
 func (f *fakeRefreshTokenRepo) Issue(_ context.Context, input domain.CreateRefreshTokenInput) (domain.RefreshToken, error) {
@@ -81,6 +85,15 @@ func (f *fakeRefreshTokenRepo) RevokeIfActive(context.Context, int64) (bool, err
 
 func (f *fakeRefreshTokenRepo) RevokeAllByUser(context.Context, int64) error {
 	return errors.New("not implemented")
+}
+
+func (f *fakeRefreshTokenRepo) DeleteExpired(_ context.Context, now time.Time) (int64, error) {
+	f.deleteExpiredCalls++
+	f.deleteExpiredNow = now
+	if f.deleteExpiredErr != nil {
+		return 0, f.deleteExpiredErr
+	}
+	return 2, nil
 }
 
 type fakeLoginAttemptRepo struct {
@@ -276,6 +289,65 @@ func TestLoginUseCase_Execute(t *testing.T) {
 			adminRepo:       &fakeAdminUserRepo{user: owner},
 			refresh:         &fakeRefreshTokenRepo{issueErr: errors.New("insert failed")},
 			wantErrContains: "insert failed",
+			checkResult: func(t *testing.T, _ *fakeAdminUserRepo, refresh *fakeRefreshTokenRepo, _ *fakeLoginAttemptRepo, _ *LoginResult) {
+				t.Helper()
+				// 掃除は RT 発行成功後のみ（失敗したログインでは走らせない）
+				if refresh.deleteExpiredCalls != 0 {
+					t.Fatalf("DeleteExpired calls = %d, want 0", refresh.deleteExpiredCalls)
+				}
+			},
+		},
+		{
+			name:      "does not cleanup expired tokens when password does not match",
+			cmd:       LoginCommand{Email: owner.Email, Password: "wrong-password", ClientIP: testClientIP},
+			adminRepo: &fakeAdminUserRepo{user: owner},
+			refresh:   &fakeRefreshTokenRepo{},
+			attempts:  &fakeLoginAttemptRepo{},
+			wantErrIs: domain.ErrAdminUserUnauthorized,
+			checkResult: func(t *testing.T, _ *fakeAdminUserRepo, refresh *fakeRefreshTokenRepo, _ *fakeLoginAttemptRepo, _ *LoginResult) {
+				t.Helper()
+				if refresh.deleteExpiredCalls != 0 {
+					t.Fatalf("DeleteExpired calls = %d, want 0", refresh.deleteExpiredCalls)
+				}
+			},
+		},
+		{
+			name:      "cleans up expired refresh tokens once after successful login",
+			cmd:       validLoginCommand(),
+			adminRepo: &fakeAdminUserRepo{user: owner},
+			refresh:   &fakeRefreshTokenRepo{},
+			attempts:  &fakeLoginAttemptRepo{},
+			checkResult: func(t *testing.T, _ *fakeAdminUserRepo, refresh *fakeRefreshTokenRepo, _ *fakeLoginAttemptRepo, result *LoginResult) {
+				t.Helper()
+				if result == nil {
+					t.Fatal("result is nil, want LoginResult")
+				}
+				if refresh.deleteExpiredCalls != 1 {
+					t.Fatalf("DeleteExpired calls = %d, want 1", refresh.deleteExpiredCalls)
+				}
+				if sinceNow := time.Since(refresh.deleteExpiredNow); sinceNow < 0 || sinceNow > time.Minute {
+					t.Fatalf("DeleteExpired now = %v, want about current time", refresh.deleteExpiredNow)
+				}
+			},
+		},
+		{
+			name:      "still succeeds when expired token cleanup fails",
+			cmd:       validLoginCommand(),
+			adminRepo: &fakeAdminUserRepo{user: owner},
+			refresh:   &fakeRefreshTokenRepo{deleteExpiredErr: errors.New("delete failed")},
+			attempts:  &fakeLoginAttemptRepo{},
+			checkResult: func(t *testing.T, _ *fakeAdminUserRepo, refresh *fakeRefreshTokenRepo, _ *fakeLoginAttemptRepo, result *LoginResult) {
+				t.Helper()
+				if result == nil {
+					t.Fatal("result is nil, want LoginResult despite cleanup failure")
+				}
+				if result.RefreshToken == "" {
+					t.Fatal("RefreshToken is empty")
+				}
+				if refresh.deleteExpiredCalls != 1 {
+					t.Fatalf("DeleteExpired calls = %d, want 1", refresh.deleteExpiredCalls)
+				}
+			},
 		},
 		{
 			name:      "returns rate limited when email attempts exceed threshold without FindByEmail",

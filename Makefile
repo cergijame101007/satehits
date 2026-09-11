@@ -65,7 +65,7 @@ test-coverage:
 TEST_DATABASE_URL ?= postgres://satehits:satehits@localhost:5433/satehits_test?sslmode=disable
 test-integration:
 	docker compose up -d --wait postgres-test
-	cd backend && TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test -v -count=1 ./internal/repository/ -run 'TestEmailOutbox'
+	cd backend && TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test -v -count=1 ./internal/repository/ -run 'TestEmailOutbox|TestRefreshTokenRepository'
 
 # ローカルで Outbox flush を手動実行（OUTBOX_FLUSH_ENDPOINT_ENABLED=true が必要）
 outbox-flush:
