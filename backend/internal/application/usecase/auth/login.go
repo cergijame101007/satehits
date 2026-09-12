@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -140,6 +141,8 @@ func (u *LoginUseCase) Execute(ctx context.Context, cmd LoginCommand) (*LoginRes
 		return nil, fmt.Errorf("failed to issue refresh token: %w", err)
 	}
 
+	u.cleanupExpiredRefreshTokens(ctx, now)
+
 	return &LoginResult{
 		AccessToken:  accessToken,
 		ExpiresAt:    expiresAt,
@@ -170,6 +173,19 @@ func (u *LoginUseCase) checkRateLimit(counts domain.LoginAttemptCounts, now time
 		}
 	}
 	return &RateLimitedError{RetryAfter: retryAfter}
+}
+
+// cleanupExpiredRefreshTokens は期限切れ RT をベストエフォートで削除する（ADR-017）
+// 管理者は数人規模のためログイン成功時の掃除で十分。失敗してもログインは成功させる
+func (u *LoginUseCase) cleanupExpiredRefreshTokens(ctx context.Context, now time.Time) {
+	deleted, err := u.refreshTokenRepo.DeleteExpired(ctx, now)
+	if err != nil {
+		log.Printf("refresh token cleanup failed: %v", err)
+		return
+	}
+	if deleted > 0 {
+		log.Printf("refresh token cleanup: deleted %d expired rows", deleted)
+	}
 }
 
 // generateRefreshToken はリフレッシュトークンを生成する

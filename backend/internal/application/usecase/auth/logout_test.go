@@ -170,3 +170,7 @@ func TestLogoutUseCase_Execute(t *testing.T) {
 		})
 	}
 }
+
+func (f *logoutFakeRefreshTokenRepo) DeleteExpired(context.Context, time.Time) (int64, error) {
+	return 0, errors.New("not implemented")
+}

@@ -390,3 +390,7 @@ func TestRefreshUseCase_Execute(t *testing.T) {
 		})
 	}
 }
+
+func (f *refreshFakeTokenRepo) DeleteExpired(context.Context, time.Time) (int64, error) {
+	return 0, errors.New("not implemented")
+}

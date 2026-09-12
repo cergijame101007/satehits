@@ -156,6 +156,8 @@ sequenceDiagram
     RefreshRepo->>DB: INSERT INTO refresh_tokens
     DB-->>RefreshRepo: OK
     RefreshRepo-->>UseCase: OK
+    UseCase->>RefreshRepo: DeleteExpired(now) ※ベストエフォート。失敗してもログインは成功
+    RefreshRepo->>DB: DELETE FROM refresh_tokens WHERE expires_at < now
     
     UseCase-->>Handler: LoginResult{access_token, refresh_token, user}
     Handler-->>Frontend: 200 OK JSON {token, expires_at, user}<br/>Set-Cookie: refresh_token (HttpOnly)

@@ -255,3 +255,5 @@ func TestAuthHandler_HandleLogin(t *testing.T) {
 		assertAuthErrorCode(t, rec, InvalidRequestCode)
 	})
 }
+
+func (r *authTestRefreshRepo) DeleteExpired(context.Context, time.Time) (int64, error) { return 0, nil }

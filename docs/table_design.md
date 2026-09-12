@@ -253,12 +253,14 @@ erDiagram
 **インデックス:**
 - `idx_refresh_tokens_hash`: `token_hash`（`revoked_at IS NULL` の部分インデックス。有効トークン検索用）
 - `idx_refresh_tokens_user`: `admin_user_id`（ユーザー単位の revoke 用）
+- `idx_refresh_tokens_expires_at`: `expires_at`（期限切れ行の掃除用）
 
 **運用ルール（アプリケーション側）:**
 - **発行**: ログイン・`POST /admin/refresh` 成功時に新規 RT を INSERT
 - **ローテーション**: refresh 成功時に旧行の `revoked_at` を設定し、新行を INSERT
 - **ログアウト**: 該当 RT の `revoked_at` を設定
 - **再利用検知**: 既に `revoked_at` が設定された RT が再送された場合、当該 `admin_user_id` の全 RT を revoke（漏洩疑い）
+- **掃除（保持ポリシー）**: ログイン成功時（RT 発行後）に `expires_at < NOW()` の行を DELETE（ADR-017）。revoke 済みでも未期限の行は再利用検知のため残し、期限を迎えた時点で消える。掃除はベストエフォートで、失敗してもログインは成功する
 
 ### 2.5 login_attempts（ログイン失敗試行）
 
@@ -328,6 +330,7 @@ erDiagram
 | `000007_external_event_schedule_type.sql` | 7 | `daily_schedules.schedule_type` に `external_event` を追加 |
 | `000008_login_attempts.sql` | 8 | `login_attempts`、インデックス |
 | `000009_email_outbox.sql` | 9 | `email_outbox`、dispatch 部分インデックス、`updated_at` トリガー |
+| `000010_refresh_tokens_expires_at_index.sql` | 10 | `refresh_tokens.expires_at` インデックス（期限切れ掃除用） |
 
 ## 3. DDL
 
@@ -420,6 +423,8 @@ CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash
     ON refresh_tokens (token_hash) WHERE revoked_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user
     ON refresh_tokens (admin_user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at
+    ON refresh_tokens (expires_at);
 
 -- ログイン失敗試行（ブルートフォース対策）
 CREATE TABLE IF NOT EXISTS login_attempts (
