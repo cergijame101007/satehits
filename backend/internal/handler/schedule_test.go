@@ -60,9 +60,10 @@ func (r *mutableHandlerTestScheduleRepo) DeleteByDate(_ context.Context, date da
 }
 
 func newScheduleHandlerForTest(repo *mutableHandlerTestScheduleRepo) *ScheduleHandler {
-	resolver := service.NewScheduleResolver(repo)
+	calendar := testStoreCalendar()
+	resolver := service.NewScheduleResolver(repo, calendar)
 	return NewScheduleHandler(
-		usecase.NewSetScheduleUseCase(repo),
+		usecase.NewSetScheduleUseCase(repo, calendar),
 		usecase.NewListSchedulesUseCase(resolver),
 		usecase.NewGetScheduleUseCase(resolver),
 		usecase.NewDeleteScheduleUseCase(repo),

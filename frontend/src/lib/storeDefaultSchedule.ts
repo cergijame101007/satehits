@@ -2,13 +2,15 @@
  * 店舗定例スケジュールのプレビュー（暫定・フロント定数）
  *
  * NOTE:
- * - 現状は backend の schedule_resolver.synthesizeFromStoreCalendar と同じ曜日ルールを FE で再実装している
+ * - 現状は backend の service.StoreCalendar.DefaultSchedule と同じ祝日・曜日ルールを FE で再実装している
+ *   （祝日データも backend と同一ソース。docs/holidays.md）
  * - 今後オーナーが店舗定例を DB 登録できる機能追加時は、API（Resolver 経由）取得に差し替える
  * - DELETE /admin/schedules/{date} 自体は override 行削除のため変更不要
  */
 
 import type { ScheduleType } from '@/types/reservation';
 import { scheduleTypeLabels } from '@/lib/calendarTheme';
+import { isNationalHoliday } from '@/lib/holidays';
 
 const DEFAULT_CAPACITY = 10;
 
@@ -23,6 +25,11 @@ export interface StoreDefaultSchedulePreview {
 
 /** YYYY-MM-DD から店舗定例のタイプ・提供数を算出する */
 export function getStoreDefaultSchedule(dateStr: string): { type: ScheduleType; capacity: number } {
+  // 祝日は曜日にかかわらず通常営業（日曜と重なっても朝営業なし。docs/domain_knowledge.md §4）
+  if (isNationalHoliday(dateStr)) {
+    return { type: 'normal', capacity: DEFAULT_CAPACITY };
+  }
+
   const [y, m, d] = dateStr.split('-').map(Number);
   const weekday = new Date(y, m - 1, d).getDay(); // 0=日 … 6=土
 

@@ -49,13 +49,15 @@ func (e *DateValidationError) Error() string {
 }
 
 // ScheduleResolver — DB 保存行と店舗定例の合成（docs/data_flow.md §3）
+// 行が無い日の合成は StoreCalendar（祝日 → 曜日）に委譲する
 type ScheduleResolver struct {
-	repo domain.ScheduleRepository
+	repo     domain.ScheduleRepository
+	calendar *StoreCalendar
 }
 
 // NewScheduleResolver は ScheduleResolver を生成する
-func NewScheduleResolver(repo domain.ScheduleRepository) *ScheduleResolver {
-	return &ScheduleResolver{repo: repo}
+func NewScheduleResolver(repo domain.ScheduleRepository, calendar *StoreCalendar) *ScheduleResolver {
+	return &ScheduleResolver{repo: repo, calendar: calendar}
 }
 
 // ResolveForDate — 指定日の有効スケジュール（行優先、無ければ定例合成）
@@ -70,7 +72,7 @@ func (r *ScheduleResolver) ResolveForDate(ctx context.Context, date datetime.Dat
 	if found {
 		return EffectiveSchedule{Schedule: stored, IsDefault: false}, nil
 	}
-	return EffectiveSchedule{Schedule: synthesizeFromStoreCalendar(date), IsDefault: true}, nil
+	return EffectiveSchedule{Schedule: r.calendar.DefaultSchedule(date), IsDefault: true}, nil
 }
 
 // ResolveMonth — 指定年月の各暦日の有効スケジュール（日付昇順）
@@ -96,7 +98,7 @@ func (r *ScheduleResolver) ResolveMonth(ctx context.Context, year, month int) ([
 			items = append(items, EffectiveSchedule{Schedule: s, IsDefault: false})
 			continue
 		}
-		items = append(items, EffectiveSchedule{Schedule: synthesizeFromStoreCalendar(d), IsDefault: true})
+		items = append(items, EffectiveSchedule{Schedule: r.calendar.DefaultSchedule(d), IsDefault: true})
 	}
 	return items, nil
 }
@@ -137,30 +139,4 @@ func validateYearMonth(year, month int) []ScheduleFieldViolation {
 
 func daysInMonth(year int, month time.Month) int {
 	return time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
-}
-
-// synthesizeFromStoreCalendar — daily_schedules 行なし日の店舗定例合成
-// 木金 closed、日曜 morning、月〜水土 normal（祝日未考慮・TODO。祝日は daily_schedules で上書き）
-func synthesizeFromStoreCalendar(d datetime.Date) domain.Schedule {
-	scheduleType, capacity := defaultScheduleTypeAndCapacity(d.Weekday())
-	openTime, lastOrder, closeTime := ApplyDefaultBusinessHours(scheduleType, datetime.Time{}, datetime.Time{}, datetime.Time{})
-	return domain.Schedule{
-		Date:          d,
-		ScheduleType:  scheduleType,
-		Capacity:      capacity,
-		OpenTime:      openTime,
-		LastOrderTime: lastOrder,
-		CloseTime:     closeTime,
-	}
-}
-
-func defaultScheduleTypeAndCapacity(wd time.Weekday) (scheduleType string, capacity int) {
-	switch wd {
-	case time.Thursday, time.Friday:
-		return "closed", 0
-	case time.Sunday:
-		return "morning", defaultScheduleCapacity
-	default:
-		return "normal", defaultScheduleCapacity
-	}
 }

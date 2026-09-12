@@ -6,7 +6,14 @@ import (
 
 	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
+	"github.com/cergijame101007/satehits/internal/domain/holiday"
+	"github.com/cergijame101007/satehits/internal/domain/service"
 )
+
+// testStoreCalendar は同梱の祝日データを使う StoreCalendar（このパッケージのテストは祝日の有無に依存しない）
+func testStoreCalendar() *service.StoreCalendar {
+	return service.NewStoreCalendar(holiday.Embedded())
+}
 
 // stubScheduleRepo は Upsert の記録用
 type stubScheduleRepo struct {
@@ -42,7 +49,7 @@ func (s *stubScheduleRepo) DeleteByDate(ctx context.Context, date datetime.Date)
 
 func TestSetScheduleUseCase_Execute_appliesDefaultBusinessHours(t *testing.T) {
 	repo := &stubScheduleRepo{inserted: true}
-	uc := NewSetScheduleUseCase(repo)
+	uc := NewSetScheduleUseCase(repo, testStoreCalendar())
 
 	_, err := uc.Execute(context.Background(), SetScheduleCommand{
 		Date:         datetime.MustParseDate("2026-05-20"),
@@ -65,7 +72,7 @@ func TestSetScheduleUseCase_Execute_appliesDefaultBusinessHours(t *testing.T) {
 
 func TestSetScheduleUseCase_Execute_appliesWeekdayDefaultsForEvent(t *testing.T) {
 	repo := &stubScheduleRepo{inserted: true}
-	uc := NewSetScheduleUseCase(repo)
+	uc := NewSetScheduleUseCase(repo, testStoreCalendar())
 
 	_, err := uc.Execute(context.Background(), SetScheduleCommand{
 		Date:             datetime.MustParseDate("2026-05-20"),
@@ -90,7 +97,7 @@ func TestSetScheduleUseCase_Execute_appliesWeekdayDefaultsForEvent(t *testing.T)
 
 func TestSetScheduleUseCase_Execute_clearsTimesForClosed(t *testing.T) {
 	repo := &stubScheduleRepo{inserted: true}
-	uc := NewSetScheduleUseCase(repo)
+	uc := NewSetScheduleUseCase(repo, testStoreCalendar())
 
 	_, err := uc.Execute(context.Background(), SetScheduleCommand{
 		Date:          datetime.MustParseDate("2026-05-21"),
@@ -112,7 +119,7 @@ func TestSetScheduleUseCase_Execute_clearsTimesForClosed(t *testing.T) {
 func TestSetScheduleUseCase_Execute_clearsEventTextForNormalAndClosed(t *testing.T) {
 	t.Run("clears omitted event text on closed", func(t *testing.T) {
 		repo := &stubScheduleRepo{inserted: true}
-		uc := NewSetScheduleUseCase(repo)
+		uc := NewSetScheduleUseCase(repo, testStoreCalendar())
 
 		_, err := uc.Execute(context.Background(), SetScheduleCommand{
 			Date:         datetime.MustParseDate("2026-05-21"),
@@ -130,7 +137,7 @@ func TestSetScheduleUseCase_Execute_clearsEventTextForNormalAndClosed(t *testing
 
 	t.Run("clears omitted event text on normal", func(t *testing.T) {
 		repo := &stubScheduleRepo{inserted: true}
-		uc := NewSetScheduleUseCase(repo)
+		uc := NewSetScheduleUseCase(repo, testStoreCalendar())
 
 		_, err := uc.Execute(context.Background(), SetScheduleCommand{
 			Date:         datetime.MustParseDate("2026-05-20"),
@@ -150,7 +157,7 @@ func TestSetScheduleUseCase_Execute_clearsEventTextForNormalAndClosed(t *testing
 func TestSetScheduleUseCase_Execute_externalEvent(t *testing.T) {
 	t.Run("clears business hours for external_event", func(t *testing.T) {
 		repo := &stubScheduleRepo{inserted: true}
-		uc := NewSetScheduleUseCase(repo)
+		uc := NewSetScheduleUseCase(repo, testStoreCalendar())
 
 		_, err := uc.Execute(context.Background(), SetScheduleCommand{
 			Date:          datetime.MustParseDate("2026-02-11"),
@@ -172,7 +179,7 @@ func TestSetScheduleUseCase_Execute_externalEvent(t *testing.T) {
 
 	t.Run("forces capacity zero for external_event", func(t *testing.T) {
 		repo := &stubScheduleRepo{inserted: true}
-		uc := NewSetScheduleUseCase(repo)
+		uc := NewSetScheduleUseCase(repo, testStoreCalendar())
 
 		_, err := uc.Execute(context.Background(), SetScheduleCommand{
 			Date:         datetime.MustParseDate("2026-02-11"),
@@ -190,7 +197,7 @@ func TestSetScheduleUseCase_Execute_externalEvent(t *testing.T) {
 
 	t.Run("persists event name and optional description for external_event", func(t *testing.T) {
 		repo := &stubScheduleRepo{inserted: true}
-		uc := NewSetScheduleUseCase(repo)
+		uc := NewSetScheduleUseCase(repo, testStoreCalendar())
 
 		_, err := uc.Execute(context.Background(), SetScheduleCommand{
 			Date:         datetime.MustParseDate("2026-02-11"),

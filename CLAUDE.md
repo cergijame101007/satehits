@@ -58,6 +58,7 @@ Copilot 等の自動レビュー指摘は**仮説**とする。上表の docs �
 
 - `schedule_type` とイベント欄（正は `docs/api_design.md` の表）: `normal` / `morning` / `closed` はイベント欄を送らない・保存前にクリア。`event` / `external_event` は名称必須・説明任意。`external_event` は capacity 0 固定・時刻 NULL。`special_menu` は任意（Copilot が「必須」と言っても docs 優先）
 - Outbox Dispatcher（正は ADR-014）: claim → 送信 → 記録は lease 方式で**独立コミット**。送信を DB Tx の中に戻さない。`attempt_count` は claim 時に +1（失敗回数ではない）。401/403 は `ReleaseClaim` でバッチ中断
+- 店舗定例の合成（正は `docs/domain_knowledge.md` §6 / `docs/holidays.md`）: `daily_schedules` 行なし日は **祝日 → 曜日** の順。祝日は曜日にかかわらず `normal`（日曜祝日も朝営業なし）。祝日データは同梱 CSV（`internal/domain/holiday`）で、外部へ取りに行かない。FE の `storeDefaultSchedule.ts` も同じデータ（`src/data/holidays.json`）で整合させる
 
 ---
 
@@ -101,6 +102,11 @@ satehits/
 │       │       ├── reservations/new.astro
 │       │       ├── schedules.astro
 │       │       └── suppliers.astro
+│       ├── lib/
+│       │   ├── holidays.ts      # 祝日判定（data/holidays.json）
+│       │   └── storeDefaultSchedule.ts # 店舗定例プレビュー（祝日 → 曜日）
+│       ├── data/
+│       │   └── holidays.json    # 祝日データ（make update-holidays で生成。docs/holidays.md）
 │       ├── types/
 │       │   └── reservation.ts   # 型定義（フロント・バック共通）
 │       ├── styles/
@@ -115,7 +121,11 @@ satehits/
 │   ├── internal/
 │   │   ├── datetime/            # Date / Time（JSON・SQL 対応）
 │   │   ├── domain/
-│   │   │   └── reservation.go   # エンティティ + Repository インターフェース
+│   │   │   ├── reservation.go   # エンティティ + Repository インターフェース
+│   │   │   ├── holiday/         # 祝日判定（内閣府 CSV を go:embed。docs/holidays.md）
+│   │   │   │   ├── holiday.go
+│   │   │   │   └── syukujitsu.csv
+│   │   │   └── service/         # 店舗定例の合成・営業時刻・空き状況
 │   │   ├── handler/
 │   │   │   ├── reservation.go   # HTTP ハンドラー
 │   │   │   └── response.go      # JSON レスポンスヘルパー
@@ -126,6 +136,9 @@ satehits/
 │   │   └── Dockerfile.dev       # 開発用（Air ホットリロード）
 │   └── schema.sql               # DB スキーマ
 ├── docs/                        # 設計ドキュメント（日本語）
+├── scripts/
+│   ├── setup-scheduler.sh       # Cloud Scheduler（Outbox flush）セットアップ
+│   └── update-holidays.sh       # 祝日データの年次更新（make update-holidays）
 ├── .github/workflows/           # CI/CD
 ├── .cursor/rules/               # Cursor AI ルール
 ├── docker-compose.yml           # 開発用 Docker
@@ -287,6 +300,7 @@ make test-coverage # カバレッジ付きテスト
 make lint         # golangci-lint
 make outbox-flush # ローカルで Outbox flush を手動実行
 make tools-install # lint ツールのインストール
+make update-holidays # 祝日データ（内閣府 CSV）を取得し backend/frontend の同梱データを再生成（年 1 回・docs/holidays.md）
 make clean        # ビルド成果物の削除
 ```
 
@@ -361,3 +375,4 @@ PUBLIC_TURNSTILE_SITE_KEY=your-turnstile-site-key
 | [docs/test_design.md](docs/test_design.md) | テスト方針・テストケース一覧 |
 | [docs/use_case.md](docs/use_case.md) | ユースケース一覧 |
 | [docs/data_flow.md](docs/data_flow.md) | データフロー図 |
+| [docs/holidays.md](docs/holidays.md) | 祝日データの出典・合成ルール・年次更新手順（毎年 2 月頃に `make update-holidays`） |

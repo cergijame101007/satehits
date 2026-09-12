@@ -83,7 +83,7 @@ func newGetAvailabilityUseCaseForTestWithSchedule(
 	sched getAvailScheduleRepo,
 	res getAvailReservationRepo,
 ) *GetAvailabilityUseCase {
-	resolver := service.NewScheduleResolver(sched)
+	resolver := service.NewScheduleResolver(sched, testStoreCalendar())
 	avail := service.NewAvailabilityService(resolver, res)
 	return NewGetAvailabilityUseCase(avail)
 }

@@ -159,7 +159,7 @@ GET /api/v1/reservations/availability?year=2026&month=2
 
 - `reserved`: その日付の、ステータスが `pending` または `approved` の予約の人数合計（NOTE: ローンチ前に要確認 pending を reserved に含める仮方針）
 - `available`: `capacity - reserved`（負にならないようクリップする等の詳細は実装・OpenAPIの例に従う）。
-- `is_holiday` / `schedule_type` / `capacity`: **`daily_schedules` の該当日行を正**とし、行が無い日はドメイン既定で合成した**その日の営業設定（有効なスケジュール）**に基づく（[docs/domain_knowledge.md](domain_knowledge.md) も参照）。
+- `is_holiday` / `schedule_type` / `capacity`: **`daily_schedules` の該当日行を正**とし、行が無い日はドメイン既定で合成した**その日の営業設定（有効なスケジュール）**に基づく（[docs/domain_knowledge.md](domain_knowledge.md) も参照）。既定は **国民の祝日なら曜日にかかわらず `normal`**、それ以外は曜日（木・金 `closed`、日 `morning`、月火水土 `normal`）。祝日は同梱の内閣府 CSV で判定する（[docs/holidays.md](holidays.md)）。
 
 ---
 
@@ -733,7 +733,7 @@ PUT /api/v1/admin/schedules/2025-02-11
 | `schedule_type` | `event_name` / `event_description` | 時刻（`open_time` 等） |
 |-----------------|-------------------------------------|-------------------------|
 | `normal` / `morning` / `special_menu` | 任意（`special_menu` はメニュー名など） | 省略時は店舗デフォルトを適用 |
-| `event` | 名称**必須** / 説明**任意** | **任意**（省略時は曜日別の店舗デフォルトを適用） |
+| `event` | 名称**必須** / 説明**任意** | **任意**（省略時は暦日別の店舗デフォルトを適用: 祝日でない日曜=朝営業、それ以外=通常営業） |
 | `external_event` | 名称**必須** / 説明**任意** | 保存しない（常に NULL）。`capacity` は 0 固定 |
 | `closed` | 不要 | 送信しても保存しない（常に NULL） |
 

@@ -75,7 +75,7 @@ func (r availabilityReservationRepo) SumReservedPeopleByDateRange(_ context.Cont
 }
 
 func newAvailabilityService(sched availabilityScheduleRepo, res availabilityReservationRepo) *AvailabilityService {
-	return NewAvailabilityService(NewScheduleResolver(sched), res)
+	return NewAvailabilityService(NewScheduleResolver(sched, testStoreCalendar()), res)
 }
 
 func TestAvailabilityService_ResolveForDate_normalDay(t *testing.T) {

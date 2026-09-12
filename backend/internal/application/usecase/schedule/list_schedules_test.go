@@ -49,7 +49,7 @@ func TestListSchedulesUseCase_Execute_mergesStoredAndDefaults(t *testing.T) {
 			},
 		},
 	}
-	uc := NewListSchedulesUseCase(service.NewScheduleResolver(repo))
+	uc := NewListSchedulesUseCase(service.NewScheduleResolver(repo, testStoreCalendar()))
 
 	res, err := uc.Execute(context.Background(), 2026, 2)
 	if err != nil {

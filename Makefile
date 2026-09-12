@@ -1,4 +1,4 @@
-.PHONY: dev dev-build dev-down dev-front prod prod-build prod-down build run test test-coverage test-integration outbox-flush lint tools-install clean migrate seed
+.PHONY: dev dev-build dev-down dev-front prod prod-build prod-down build run test test-coverage test-integration outbox-flush lint tools-install clean migrate seed update-holidays
 
 # ===== 開発ツール =====
 TOOLS_DIR := $(CURDIR)/tools
@@ -70,6 +70,11 @@ test-integration:
 # ローカルで Outbox flush を手動実行（OUTBOX_FLUSH_ENDPOINT_ENABLED=true が必要）
 outbox-flush:
 	curl -sS -X POST http://localhost:8080/internal/outbox/flush
+
+# ===== 祝日データの年次更新 =====
+# 内閣府 CSV → backend の embed 用 CSV と frontend の JSON を再生成（docs/holidays.md）
+update-holidays:
+	./scripts/update-holidays.sh
 
 # ===== Lint =====
 # 版は tools/golangci-lint.version（CI と同期）

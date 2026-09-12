@@ -93,6 +93,7 @@ make seed
 | `make build` | バイナリをビルド |
 | `make test` | テスト実行 |
 | `make lint` | golangci-lint 実行 |
+| `make update-holidays` | 祝日データ（内閣府 CSV）を取得して backend / frontend の同梱データを再生成（年 1 回。[`holidays.md`](./holidays.md)） |
 | `make clean` | ビルド成果物の削除 |
 
 ## ローカル開発（Docker なし）

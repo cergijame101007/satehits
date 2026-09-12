@@ -12,10 +12,16 @@ import (
 	usecase "github.com/cergijame101007/satehits/internal/application/usecase/reservation"
 	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
+	"github.com/cergijame101007/satehits/internal/domain/holiday"
 	"github.com/cergijame101007/satehits/internal/domain/service"
 )
 
 const testAvailabilityPath = "/api/v1/reservations/availability"
+
+// testStoreCalendar は同梱の祝日データを使う StoreCalendar（handler テストは祝日の有無に依存しない）
+func testStoreCalendar() *service.StoreCalendar {
+	return service.NewStoreCalendar(holiday.Embedded())
+}
 
 type handlerTestScheduleRepo struct {
 	byDate map[string]domain.Schedule
@@ -81,7 +87,7 @@ func (r handlerTestReservationRepo) SumReservedPeopleByDateRange(_ context.Conte
 }
 
 func newAvailabilityHandlerForTest(sched handlerTestScheduleRepo, res handlerTestReservationRepo) *AvailabilityHandler {
-	resolver := service.NewScheduleResolver(sched)
+	resolver := service.NewScheduleResolver(sched, testStoreCalendar())
 	avail := service.NewAvailabilityService(resolver, res)
 	getUC := usecase.NewGetAvailabilityUseCase(avail)
 	return NewAvailabilityHandler(getUC, testAvailabilityPath)

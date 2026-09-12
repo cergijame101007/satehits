@@ -76,7 +76,7 @@ func TestApplyDefaultBusinessHours(t *testing.T) {
 	}
 }
 
-func TestApplyEventDefaultBusinessHours(t *testing.T) {
+func TestStoreCalendar_ApplyEventDefaultBusinessHours(t *testing.T) {
 	tests := []struct {
 		name      string
 		date      string
@@ -105,11 +105,27 @@ func TestApplyEventDefaultBusinessHours(t *testing.T) {
 			wantLast:  "13:30",
 			wantClose: "15:00",
 		},
+		{
+			// 2026-05-03（憲法記念日・日曜。testStoreCalendar の stub 祝日）。祝日は朝営業なし（docs/domain_knowledge.md §4）
+			name:      "fills sunday holiday event with normal hours",
+			date:      "2026-05-03",
+			wantOpen:  "11:30",
+			wantLast:  "13:30",
+			wantClose: "15:00",
+		},
+		{
+			// 2026-01-01（元日・木曜）。定例の休業曜日でも event は営業日として通常営業を当てる
+			name:      "fills thursday holiday event with normal hours",
+			date:      "2026-01-01",
+			wantOpen:  "11:30",
+			wantLast:  "13:30",
+			wantClose: "15:00",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := datetime.MustParseDate(tt.date)
-			gotOpen, gotLast, gotClose := ApplyEventDefaultBusinessHours(d, datetime.Time{}, datetime.Time{}, datetime.Time{})
+			gotOpen, gotLast, gotClose := testStoreCalendar().ApplyEventDefaultBusinessHours(d, datetime.Time{}, datetime.Time{}, datetime.Time{})
 			assertTimeString(t, "open", gotOpen, tt.wantOpen)
 			assertTimeString(t, "last_order", gotLast, tt.wantLast)
 			assertTimeString(t, "close", gotClose, tt.wantClose)
@@ -117,7 +133,7 @@ func TestApplyEventDefaultBusinessHours(t *testing.T) {
 	}
 }
 
-func TestBookingWindowMinutes(t *testing.T) {
+func TestStoreCalendar_BookingWindowMinutes(t *testing.T) {
 	tests := []struct {
 		name     string
 		schedule domain.Schedule
@@ -154,6 +170,13 @@ func TestBookingWindowMinutes(t *testing.T) {
 			wantOK:   true,
 		},
 		{
+			name:     "event on sunday holiday uses normal booking window",
+			schedule: domain.Schedule{Date: datetime.MustParseDate("2026-05-03"), ScheduleType: domain.ScheduleTypeEvent},
+			wantOpen: 11*60 + 30,
+			wantLast: 13*60 + 30,
+			wantOK:   true,
+		},
+		{
 			name:     "event on sunday books from lunch open not morning store open",
 			schedule: domain.Schedule{Date: datetime.MustParseDate("2026-05-24"), ScheduleType: domain.ScheduleTypeEvent},
 			wantOpen: 11*60 + 30,
@@ -173,7 +196,7 @@ func TestBookingWindowMinutes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			open, last, ok := BookingWindowMinutes(tt.schedule)
+			open, last, ok := testStoreCalendar().BookingWindowMinutes(tt.schedule)
 			if ok != tt.wantOK {
 				t.Fatalf("ok = %v, want %v", ok, tt.wantOK)
 			}

@@ -18,6 +18,7 @@ import (
 	scheduleusecase "github.com/cergijame101007/satehits/internal/application/usecase/schedule"
 	supplierusecase "github.com/cergijame101007/satehits/internal/application/usecase/supplier"
 	"github.com/cergijame101007/satehits/internal/domain"
+	"github.com/cergijame101007/satehits/internal/domain/holiday"
 	"github.com/cergijame101007/satehits/internal/domain/service"
 	"github.com/cergijame101007/satehits/internal/handler"
 	"github.com/cergijame101007/satehits/internal/infrastructure/external/resend"
@@ -42,6 +43,13 @@ func main() {
 
 	cfg := config.Load()
 
+	// 同梱の祝日データ（内閣府 CSV）。店舗定例の合成（StoreCalendar）に注入する
+	// 鮮度チェック: 翌年分は例年 2 月頃公開なので 3 月以降に警告 → make update-holidays（docs/holidays.md）
+	holidays := holiday.Embedded()
+	if holidays.NeedsUpdate(time.Now()) {
+		log.Printf("WARNING: bundled holiday data ends at %d; run `make update-holidays` to bundle next year's holidays (docs/holidays.md)", holidays.LastYear())
+	}
+
 	// DB接続を開く
 	db, err := sql.Open("pgx", cfg.DatabaseURL)
 	if err != nil {
@@ -61,7 +69,8 @@ func main() {
 
 	reservationRepo := repository.NewPostgresReservationRepository(db)
 	scheduleRepo := repository.NewPostgresScheduleRepository(db)
-	scheduleResolver := service.NewScheduleResolver(scheduleRepo)
+	storeCalendar := service.NewStoreCalendar(holidays)
+	scheduleResolver := service.NewScheduleResolver(scheduleRepo, storeCalendar)
 	availabilityService := service.NewAvailabilityService(scheduleResolver, reservationRepo)
 
 	getAvailability := reservationusecase.NewGetAvailabilityUseCase(availabilityService)
@@ -99,7 +108,7 @@ func main() {
 		adminReservationsPath,
 	)
 
-	setSchedule := scheduleusecase.NewSetScheduleUseCase(scheduleRepo)
+	setSchedule := scheduleusecase.NewSetScheduleUseCase(scheduleRepo, storeCalendar)
 	listSchedules := scheduleusecase.NewListSchedulesUseCase(scheduleResolver)
 	getSchedule := scheduleusecase.NewGetScheduleUseCase(scheduleResolver)
 	deleteSchedule := scheduleusecase.NewDeleteScheduleUseCase(scheduleRepo)
@@ -159,7 +168,7 @@ func main() {
 
 	visitDateLocker := repository.PostgresVisitDateLocker{}
 	createReservation := reservationusecase.NewCreateReservationUseCase(
-		reservationRepo, scheduleResolver, availabilityService, txManager,
+		reservationRepo, scheduleResolver, availabilityService, storeCalendar, txManager,
 		visitDateLocker, captchaVerifier, mailEnqueuer,
 	)
 	reservationHandler := handler.NewReservationHandler(createReservation, reservationsPath)

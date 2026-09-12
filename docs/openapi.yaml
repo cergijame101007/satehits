@@ -1035,7 +1035,7 @@ components:
         スケジュールタイプ
         - `normal`: 通常営業（月火水）
         - `morning`: 朝営業（日曜）
-        - `event`: 店内イベント等（`event_name` 必須、`event_description` 任意。営業時刻省略時は曜日別デフォルト）
+        - `event`: 店内イベント等（`event_name` 必須、`event_description` 任意。営業時刻省略時は暦日別デフォルト: 祝日でない日曜=朝営業、それ以外=通常営業）
         - `external_event`: 外部イベント（店舗休業。`event_name` 必須、`event_description` 任意。`capacity` 0 固定。営業時刻は保存しない）
         - `special_menu`: 特別メニュー
         - `closed`: 臨時休業（営業時刻は保存しない）
@@ -1459,7 +1459,7 @@ components:
           pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
           description: |
             `normal` / `morning` / `special_menu` で省略時は店舗デフォルトを適用。
-            `event` で省略時は曜日別デフォルト（日曜=朝、それ以外=通常）。
+            `event` で省略時は暦日別デフォルト（祝日でない日曜=朝、それ以外=通常。祝日は日曜と重なっても朝営業なし）。
             `closed` / `external_event` では無視（常に NULL）。
         last_order_time:
           type: string

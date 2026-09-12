@@ -89,7 +89,7 @@ flowchart LR
 
 ## 3. 残り食数の計算フロー
 
-`daily_schedules` に該当日の行がある場合はその行を正とし、**行がない場合**はドメイン既定（店の定例に基づく曜日別の既定など）で**その日の営業設定（有効なスケジュール）**を合成する。`AvailabilityService` はその内容から `capacity`・休業相当かどうかを決め、`reservations` の承認済人数と組み合わせて残りを算出する。
+`daily_schedules` に該当日の行がある場合はその行を正とし、**行がない場合**はドメイン既定（店の定例に基づく祝日・曜日別の既定。祝日は同梱の内閣府 CSV で判定。[holidays.md](./holidays.md)）で**その日の営業設定（有効なスケジュール）**を合成する。`AvailabilityService` はその内容から `capacity`・休業相当かどうかを決め、`reservations` の承認済人数と組み合わせて残りを算出する。
 
 ```mermaid
 flowchart TB
