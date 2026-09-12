@@ -103,8 +103,11 @@ satehits/
 │       │       └── suppliers.astro
 │       ├── types/
 │       │   └── reservation.ts   # 型定義（フロント・バック共通）
-│       └── styles/
-│           └── global.css       # Tailwind v4 カスタムテーマ
+│       ├── styles/
+│       │   └── global.css       # Tailwind v4 カスタムテーマ
+│       └── test/
+│           ├── setup.ts         # Vitest セットアップ（jest-dom, cleanup）
+│           └── deferred.ts      # 送信中状態を検証するための Promise ヘルパー
 ├── backend/                     # Go バックエンド
 │   ├── cmd/
 │   │   ├── api/main.go          # エントリーポイント・DI
@@ -156,6 +159,7 @@ satehits/
 | `types/reservation.ts` | 型定義。フロントとバックが共通で使う型はここに集約 |
 | `lib/*.ts` | API クライアント・カレンダー共通ロジック・表示ラベル（`auth`, `api`, `reservation`, `availability`, `schedule`, `calendarTheme`, `reservationStatusTheme` 等） |
 | `styles/global.css` | Tailwind v4 `@theme`（カスタムカラー `#43676B`、Noto Serif JP、グラデーション、アニメーション） |
+| `*.test.ts(x)` | テスト。対象と同じディレクトリに置く（`components/react/Foo.test.tsx`、`lib/foo.test.ts`）。コンポーネントは React Testing Library で描画し、`lib/*` の API 層は `vi.mock` で差し替える（方針は `docs/test_design.md`） |
 
 ### ハイドレーション戦略
 

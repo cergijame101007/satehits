@@ -32,6 +32,15 @@ export default function Modal({
 }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  // onClose / closeDisabled は毎レンダーで変わり得るため ref 経由で参照し、
+  // 入力のたびにフォーカス制御の effect が再実行されてフォーカスを奪わないようにする
+  const onCloseRef = useRef(onClose);
+  const closeDisabledRef = useRef(closeDisabled);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    closeDisabledRef.current = closeDisabled;
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -45,9 +54,9 @@ export default function Modal({
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !closeDisabled) {
+      if (event.key === 'Escape' && !closeDisabledRef.current) {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -78,7 +87,7 @@ export default function Modal({
       document.body.style.overflow = originalOverflow;
       previousFocusRef.current?.focus();
     };
-  }, [open, closeDisabled, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
