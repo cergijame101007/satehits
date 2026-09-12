@@ -25,10 +25,11 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 echo "Downloading ${SOURCE_URL}"
 curl -sSfL -o "${TMP_DIR}/syukujitsu_sjis.csv" "${SOURCE_URL}"
 
-# Shift_JIS → UTF-8、CRLF → LF、先頭 BOM があれば除去
+# Shift_JIS → UTF-8、CRLF → LF、先頭 BOM があれば除去（BSD sed でも動くよう \x エスケープは使わない）
+BOM="$(printf '\xEF\xBB\xBF')"
 iconv -f SHIFT_JIS -t UTF-8 "${TMP_DIR}/syukujitsu_sjis.csv" \
   | tr -d '\r' \
-  | sed '1s/^\xEF\xBB\xBF//' \
+  | sed "1s/^${BOM}//" \
   > "${TMP_DIR}/syukujitsu_utf8.csv"
 
 # 形式の簡易検証（ヘッダと行数）。出典側の形式変更に気付けるようにする
@@ -43,12 +44,20 @@ if [[ "${ROW_COUNT}" -lt 100 ]]; then
 fi
 
 # frontend 用 JSON（YYYY-MM-DD の昇順配列）。日付として解釈できない行は捨てる
+# （区間指定 {n} を解釈しない awk でも動くよう文字クラスの繰り返しで書く）
 awk -F',' '
-  $1 ~ /^[0-9]{4}\/[0-9]{1,2}\/[0-9]{1,2}$/ {
+  $1 ~ /^[0-9][0-9][0-9][0-9]\/[0-9][0-9]?\/[0-9][0-9]?$/ {
     split($1, ymd, "/")
     printf "%04d-%02d-%02d\n", ymd[1], ymd[2], ymd[3]
   }
 ' "${TMP_DIR}/syukujitsu_utf8.csv" | sort -u > "${TMP_DIR}/dates.txt"
+
+# CSV の日付行数と JSON に出す日付数が一致しなければ中断（awk の非互換などで空の JSON を作らない）
+DATE_COUNT="$(wc -l < "${TMP_DIR}/dates.txt" | tr -d ' ')"
+if [[ "${DATE_COUNT}" -ne "${ROW_COUNT}" ]]; then
+  echo "error: parsed ${DATE_COUNT} dates but CSV has ${ROW_COUNT} holiday rows" >&2
+  exit 1
+fi
 
 {
   echo '['
@@ -62,6 +71,6 @@ cp "${TMP_DIR}/holidays.json" "${FRONTEND_JSON}"
 
 LAST_DATE="$(tail -n 1 "${TMP_DIR}/dates.txt")"
 echo "Updated ${BACKEND_CSV#"${ROOT_DIR}"/} (${ROW_COUNT} rows)"
-echo "Updated ${FRONTEND_JSON#"${ROOT_DIR}"/} ($(wc -l < "${TMP_DIR}/dates.txt") dates)"
+echo "Updated ${FRONTEND_JSON#"${ROOT_DIR}"/} (${DATE_COUNT} dates)"
 echo "Last holiday in data: ${LAST_DATE}"
 echo "Review the diff and commit (e.g. 'chore: 祝日データを ${LAST_DATE%%-*} 年分まで更新')."
