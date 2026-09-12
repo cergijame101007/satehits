@@ -7,7 +7,6 @@ import (
 
 	"github.com/cergijame101007/satehits/internal/datetime"
 	"github.com/cergijame101007/satehits/internal/domain"
-	"github.com/cergijame101007/satehits/internal/domain/holiday"
 )
 
 const (
@@ -50,13 +49,15 @@ func (e *DateValidationError) Error() string {
 }
 
 // ScheduleResolver — DB 保存行と店舗定例の合成（docs/data_flow.md §3）
+// 行が無い日の合成は StoreCalendar（祝日 → 曜日）に委譲する
 type ScheduleResolver struct {
-	repo domain.ScheduleRepository
+	repo     domain.ScheduleRepository
+	calendar *StoreCalendar
 }
 
 // NewScheduleResolver は ScheduleResolver を生成する
-func NewScheduleResolver(repo domain.ScheduleRepository) *ScheduleResolver {
-	return &ScheduleResolver{repo: repo}
+func NewScheduleResolver(repo domain.ScheduleRepository, calendar *StoreCalendar) *ScheduleResolver {
+	return &ScheduleResolver{repo: repo, calendar: calendar}
 }
 
 // ResolveForDate — 指定日の有効スケジュール（行優先、無ければ定例合成）
@@ -71,7 +72,7 @@ func (r *ScheduleResolver) ResolveForDate(ctx context.Context, date datetime.Dat
 	if found {
 		return EffectiveSchedule{Schedule: stored, IsDefault: false}, nil
 	}
-	return EffectiveSchedule{Schedule: synthesizeFromStoreCalendar(date), IsDefault: true}, nil
+	return EffectiveSchedule{Schedule: r.calendar.DefaultSchedule(date), IsDefault: true}, nil
 }
 
 // ResolveMonth — 指定年月の各暦日の有効スケジュール（日付昇順）
@@ -97,7 +98,7 @@ func (r *ScheduleResolver) ResolveMonth(ctx context.Context, year, month int) ([
 			items = append(items, EffectiveSchedule{Schedule: s, IsDefault: false})
 			continue
 		}
-		items = append(items, EffectiveSchedule{Schedule: synthesizeFromStoreCalendar(d), IsDefault: true})
+		items = append(items, EffectiveSchedule{Schedule: r.calendar.DefaultSchedule(d), IsDefault: true})
 	}
 	return items, nil
 }
@@ -138,35 +139,4 @@ func validateYearMonth(year, month int) []ScheduleFieldViolation {
 
 func daysInMonth(year int, month time.Month) int {
 	return time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
-}
-
-// synthesizeFromStoreCalendar — daily_schedules 行なし日の店舗定例合成
-// 祝日は曜日にかかわらず normal（日曜と重なっても朝営業なし）、それ以外は木金 closed・日曜 morning・月〜水土 normal
-// （docs/domain_knowledge.md §3・§4・§6）。祝日判定は同梱の内閣府 CSV（internal/domain/holiday）に基づく
-func synthesizeFromStoreCalendar(d datetime.Date) domain.Schedule {
-	scheduleType, capacity := defaultScheduleTypeAndCapacity(d)
-	openTime, lastOrder, closeTime := ApplyDefaultBusinessHours(scheduleType, datetime.Time{}, datetime.Time{}, datetime.Time{})
-	return domain.Schedule{
-		Date:          d,
-		ScheduleType:  scheduleType,
-		Capacity:      capacity,
-		OpenTime:      openTime,
-		LastOrderTime: lastOrder,
-		CloseTime:     closeTime,
-	}
-}
-
-// defaultScheduleTypeAndCapacity は店舗定例のタイプ・提供数。祝日が最優先、次に曜日
-func defaultScheduleTypeAndCapacity(d datetime.Date) (scheduleType string, capacity int) {
-	if holiday.IsNationalHoliday(d) {
-		return domain.ScheduleTypeNormal, defaultScheduleCapacity
-	}
-	switch d.Weekday() {
-	case time.Thursday, time.Friday:
-		return domain.ScheduleTypeClosed, 0
-	case time.Sunday:
-		return domain.ScheduleTypeMorning, defaultScheduleCapacity
-	default:
-		return domain.ScheduleTypeNormal, defaultScheduleCapacity
-	}
 }

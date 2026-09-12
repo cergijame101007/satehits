@@ -11,7 +11,7 @@ import (
 )
 
 func TestGetScheduleUseCase_Execute_rejectsZeroDate(t *testing.T) {
-	uc := NewGetScheduleUseCase(service.NewScheduleResolver(&listSchedulesStubRepo{}))
+	uc := NewGetScheduleUseCase(service.NewScheduleResolver(&listSchedulesStubRepo{}, testStoreCalendar()))
 	_, err := uc.Execute(context.Background(), datetime.Date{})
 	if err == nil {
 		t.Fatal("err = nil, want ValidationError")
@@ -32,7 +32,7 @@ func TestGetScheduleUseCase_Execute_returnsStoredRow(t *testing.T) {
 			d.String(): {Date: d, ScheduleType: "special_menu", Capacity: 8},
 		},
 	}
-	uc := NewGetScheduleUseCase(service.NewScheduleResolver(repo))
+	uc := NewGetScheduleUseCase(service.NewScheduleResolver(repo, testStoreCalendar()))
 
 	res, err := uc.Execute(context.Background(), d)
 	if err != nil {
@@ -49,7 +49,7 @@ func TestGetScheduleUseCase_Execute_returnsStoredRow(t *testing.T) {
 func TestGetScheduleUseCase_Execute_returnsDomainDefaultWhenMissing(t *testing.T) {
 	d := datetime.MustParseDate("2026-03-05") // Thursday
 	repo := &listSchedulesStubRepo{byDate: map[string]domain.Schedule{}}
-	uc := NewGetScheduleUseCase(service.NewScheduleResolver(repo))
+	uc := NewGetScheduleUseCase(service.NewScheduleResolver(repo, testStoreCalendar()))
 
 	res, err := uc.Execute(context.Background(), d)
 	if err != nil {

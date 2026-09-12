@@ -46,6 +46,7 @@ type CreateReservationUseCase struct {
 	repo         domain.ReservationRepository
 	resolver     *service.ScheduleResolver
 	availability *service.AvailabilityService
+	calendar     *service.StoreCalendar
 	txManager    application.TxManager
 	locker       application.VisitDateLocker
 	verifier     CaptchaVerifier
@@ -57,6 +58,7 @@ func NewCreateReservationUseCase(
 	repo domain.ReservationRepository,
 	resolver *service.ScheduleResolver,
 	availability *service.AvailabilityService,
+	calendar *service.StoreCalendar,
 	txManager application.TxManager,
 	locker application.VisitDateLocker,
 	verifier CaptchaVerifier,
@@ -69,6 +71,7 @@ func NewCreateReservationUseCase(
 		repo:         repo,
 		resolver:     resolver,
 		availability: availability,
+		calendar:     calendar,
 		txManager:    txManager,
 		locker:       locker,
 		verifier:     verifier,
@@ -96,7 +99,7 @@ func (u *CreateReservationUseCase) Execute(ctx context.Context, cmd CreateReserv
 			{Field: "visit_date", Message: "この日は予約できません"},
 		}}
 	}
-	if v := validateVisitTimeForSchedule(eff.Schedule, cmd.VisitTime); len(v) > 0 {
+	if v := validateVisitTimeForSchedule(u.calendar, eff.Schedule, cmd.VisitTime); len(v) > 0 {
 		return nil, &ValidationError{Violations: v}
 	}
 

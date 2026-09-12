@@ -193,44 +193,44 @@ func TestValidateCreateReservation_visitTimeWindow(t *testing.T) {
 	normalThursday := domain.Schedule{Date: thursdayOverride, ScheduleType: domain.ScheduleTypeNormal}
 
 	t.Run("rejects weekday schedule before open time", func(t *testing.T) {
-		v := validateVisitTimeForSchedule(normalMonday, datetime.MustParseTime("11:00"))
+		v := validateVisitTimeForSchedule(testStoreCalendar(), normalMonday, datetime.MustParseTime("11:00"))
 		assertHasViolationField(t, v, "visit_time")
 	})
 
 	t.Run("accepts Thursday override within weekday hours", func(t *testing.T) {
-		v := validateVisitTimeForSchedule(normalThursday, datetime.MustParseTime("12:00"))
+		v := validateVisitTimeForSchedule(testStoreCalendar(), normalThursday, datetime.MustParseTime("12:00"))
 		assertNoViolations(t, v)
 	})
 
 	t.Run("rejects Thursday override before weekday open", func(t *testing.T) {
-		v := validateVisitTimeForSchedule(normalThursday, datetime.MustParseTime("08:30"))
+		v := validateVisitTimeForSchedule(testStoreCalendar(), normalThursday, datetime.MustParseTime("08:30"))
 		assertHasViolationField(t, v, "visit_time")
 	})
 
 	t.Run("rejects Sunday morning coffee time before lunch open", func(t *testing.T) {
 		for _, visit := range []string{"08:00", "08:30", "10:00", "11:00"} {
-			v := validateVisitTimeForSchedule(morningSunday, datetime.MustParseTime(visit))
+			v := validateVisitTimeForSchedule(testStoreCalendar(), morningSunday, datetime.MustParseTime(visit))
 			assertHasViolationField(t, v, "visit_time")
 		}
 	})
 
 	t.Run("accepts Sunday morning schedule at lunch open", func(t *testing.T) {
-		v := validateVisitTimeForSchedule(morningSunday, datetime.MustParseTime("11:30"))
+		v := validateVisitTimeForSchedule(testStoreCalendar(), morningSunday, datetime.MustParseTime("11:30"))
 		assertNoViolations(t, v)
 	})
 
 	t.Run("rejects visit time after last order", func(t *testing.T) {
-		v := validateVisitTimeForSchedule(normalMonday, datetime.MustParseTime("14:00"))
+		v := validateVisitTimeForSchedule(testStoreCalendar(), normalMonday, datetime.MustParseTime("14:00"))
 		assertHasViolationField(t, v, "visit_time")
 	})
 
 	t.Run("rejects weekday schedule after last order", func(t *testing.T) {
-		v := validateVisitTimeForSchedule(normalMonday, datetime.MustParseTime("13:45"))
+		v := validateVisitTimeForSchedule(testStoreCalendar(), normalMonday, datetime.MustParseTime("13:45"))
 		assertHasViolationField(t, v, "visit_time")
 	})
 
 	t.Run("accepts weekday schedule at opening time", func(t *testing.T) {
-		v := validateVisitTimeForSchedule(normalMonday, datetime.MustParseTime("11:30"))
+		v := validateVisitTimeForSchedule(testStoreCalendar(), normalMonday, datetime.MustParseTime("11:30"))
 		assertNoViolations(t, v)
 	})
 

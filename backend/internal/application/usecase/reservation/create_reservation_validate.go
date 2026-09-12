@@ -144,11 +144,11 @@ func civilWeekday(d datetime.Date) time.Weekday {
 
 // validateVisitTimeForSchedule は有効スケジュールの営業時間内かどうかを検証する。
 // 休業日（closed）は呼び出し側で visit_date エラーにしている前提。
-func validateVisitTimeForSchedule(sch domain.Schedule, visitTime datetime.Time) []FieldViolation {
+func validateVisitTimeForSchedule(calendar *service.StoreCalendar, sch domain.Schedule, visitTime datetime.Time) []FieldViolation {
 	if visitTime.IsZero() {
 		return nil
 	}
-	openMins, lastOrderMins, ok := service.BookingWindowMinutes(sch)
+	openMins, lastOrderMins, ok := calendar.BookingWindowMinutes(sch)
 	if !ok {
 		return nil
 	}

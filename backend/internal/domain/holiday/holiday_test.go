@@ -73,20 +73,20 @@ func TestParse(t *testing.T) {
 				t.Fatalf("LastYear = %d, want %d", got.LastYear(), tt.wantLastYear)
 			}
 			for _, d := range tt.wantContains {
-				if !got.Contains(datetime.MustParseDate(d)) {
-					t.Fatalf("Contains(%s) = false, want true", d)
+				if !got.IsNationalHoliday(datetime.MustParseDate(d)) {
+					t.Fatalf("IsNationalHoliday(%s) = false, want true", d)
 				}
 			}
 			for _, d := range tt.wantMissing {
-				if got.Contains(datetime.MustParseDate(d)) {
-					t.Fatalf("Contains(%s) = true, want false", d)
+				if got.IsNationalHoliday(datetime.MustParseDate(d)) {
+					t.Fatalf("IsNationalHoliday(%s) = true, want false", d)
 				}
 			}
 		})
 	}
 }
 
-func TestSet_Contains_nilSafety(t *testing.T) {
+func TestSet_IsNationalHoliday_nilSafety(t *testing.T) {
 	tests := []struct {
 		name string
 		set  *Set
@@ -97,8 +97,8 @@ func TestSet_Contains_nilSafety(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.set.Contains(tt.date) {
-				t.Fatal("Contains = true, want false")
+			if tt.set.IsNationalHoliday(tt.date) {
+				t.Fatal("IsNationalHoliday = true, want false")
 			}
 		})
 	}
@@ -139,8 +139,8 @@ func TestEmbedded(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := IsNationalHoliday(datetime.MustParseDate(tt.date)); got != tt.want {
-				t.Fatalf("IsNationalHoliday(%s) = %v, want %v", tt.date, got, tt.want)
+			if got := Embedded().IsNationalHoliday(datetime.MustParseDate(tt.date)); got != tt.want {
+				t.Fatalf("Embedded().IsNationalHoliday(%s) = %v, want %v", tt.date, got, tt.want)
 			}
 		})
 	}

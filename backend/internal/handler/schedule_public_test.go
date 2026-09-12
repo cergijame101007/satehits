@@ -15,7 +15,7 @@ import (
 const testPublicSchedulesPath = "/api/v1/schedules"
 
 func newPublicScheduleHandlerForTest(sched handlerTestScheduleRepo, res handlerTestReservationRepo) *PublicScheduleHandler {
-	resolver := service.NewScheduleResolver(sched)
+	resolver := service.NewScheduleResolver(sched, testStoreCalendar())
 	avail := service.NewAvailabilityService(resolver, res)
 	getUC := usecase.NewGetAvailabilityUseCase(avail)
 	return NewPublicScheduleHandler(getUC, testPublicSchedulesPath)

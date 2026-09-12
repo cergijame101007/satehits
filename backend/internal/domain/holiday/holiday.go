@@ -3,6 +3,7 @@
 // データ出典: https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv（Shift_JIS）
 // syukujitsu.csv は UTF-8 に変換したものを同梱し、年 1 回 `make update-holidays` で更新する（docs/holidays.md）。
 // リクエストのたびに外部へ取りに行かないため、同梱データに無い年は「祝日なし」として扱う。
+// 利用側（service.StoreCalendar）へは service.NationalHolidayChecker として注入する。
 package holiday
 
 import (
@@ -68,8 +69,9 @@ func parseLine(line string) (datetime.Date, bool) {
 	return datetime.NewDate(t.Year(), t.Month(), t.Day()), true
 }
 
-// Contains は d が祝日なら true（ゼロ値・データに無い年は false）
-func (s *Set) Contains(d datetime.Date) bool {
+// IsNationalHoliday は d が国民の祝日・休日なら true（ゼロ値・データに無い年は false）。
+// 休業日を表す service.AvailabilityResult.IsHoliday / API の is_holiday とは別概念
+func (s *Set) IsNationalHoliday(d datetime.Date) bool {
 	if s == nil || d.IsZero() {
 		return false
 	}
@@ -118,13 +120,7 @@ func mustParseEmbedded() *Set {
 	return s
 }
 
-// IsNationalHoliday は同梱データに基づき d が国民の祝日・休日なら true を返す
-// （休業日を表す AvailabilityResult.IsHoliday / API の is_holiday とは別概念）
-func IsNationalHoliday(d datetime.Date) bool {
-	return embedded.Contains(d)
-}
-
-// Embedded は同梱データの祝日集合（起動時の鮮度チェック等に使う）
+// Embedded は同梱データの祝日集合。cmd/api/main.go で service.NewStoreCalendar に注入し、起動時の鮮度チェックにも使う
 func Embedded() *Set {
 	return embedded
 }

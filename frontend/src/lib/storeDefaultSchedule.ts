@@ -2,7 +2,7 @@
  * 店舗定例スケジュールのプレビュー（暫定・フロント定数）
  *
  * NOTE:
- * - 現状は backend の schedule_resolver.synthesizeFromStoreCalendar と同じ祝日・曜日ルールを FE で再実装している
+ * - 現状は backend の service.StoreCalendar.DefaultSchedule と同じ祝日・曜日ルールを FE で再実装している
  *   （祝日データも backend と同一ソース。docs/holidays.md）
  * - 今後オーナーが店舗定例を DB 登録できる機能追加時は、API（Resolver 経由）取得に差し替える
  * - DELETE /admin/schedules/{date} 自体は override 行削除のため変更不要

@@ -45,12 +45,13 @@ type SetScheduleResult struct {
 
 // SetScheduleUseCase は日別スケジュールの設定（Upsert）
 type SetScheduleUseCase struct {
-	repo domain.ScheduleRepository
+	repo     domain.ScheduleRepository
+	calendar *service.StoreCalendar
 }
 
-// NewSetScheduleUseCase は SetScheduleUseCase の生成
-func NewSetScheduleUseCase(repo domain.ScheduleRepository) *SetScheduleUseCase {
-	return &SetScheduleUseCase{repo: repo}
+// NewSetScheduleUseCase は SetScheduleUseCase の生成（calendar は event の省略時刻の補完に使う）
+func NewSetScheduleUseCase(repo domain.ScheduleRepository, calendar *service.StoreCalendar) *SetScheduleUseCase {
+	return &SetScheduleUseCase{repo: repo, calendar: calendar}
 }
 
 // Execute は入力検証・デフォルト営業時刻の適用・Repository への Upsert
@@ -63,7 +64,7 @@ func (u *SetScheduleUseCase) Execute(ctx context.Context, cmd SetScheduleCommand
 	scheduleType := strings.TrimSpace(cmd.ScheduleType)
 	openTime, lastOrder, closeTime := service.ApplyDefaultBusinessHours(scheduleType, cmd.OpenTime, cmd.LastOrderTime, cmd.CloseTime)
 	if scheduleType == domain.ScheduleTypeEvent {
-		openTime, lastOrder, closeTime = service.ApplyEventDefaultBusinessHours(cmd.Date, openTime, lastOrder, closeTime)
+		openTime, lastOrder, closeTime = u.calendar.ApplyEventDefaultBusinessHours(cmd.Date, openTime, lastOrder, closeTime)
 	}
 	if scheduleType == domain.ScheduleTypeClosed || scheduleType == domain.ScheduleTypeExternalEvent {
 		openTime, lastOrder, closeTime = datetime.Time{}, datetime.Time{}, datetime.Time{}

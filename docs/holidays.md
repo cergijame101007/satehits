@@ -27,6 +27,8 @@
 
 両方とも `scripts/update-holidays.sh` が同一の CSV から生成するため、backend の合成結果と frontend のプレビューがずれない。リクエストのたびに外部へ取りに行くことはしない。
 
+backend では祝日集合をパッケージグローバルで参照せず、`service.NationalHolidayChecker` として `StoreCalendar` に注入する（`cmd/api/main.go`）。service 層のテストは stub の祝日集合で書き、同梱データには依存しない。
+
 ## 3. 年次更新手順
 
 内閣府 CSV は翌年分が例年 **2 月頃**に公開される（予約は 2 週間先までなので、運用上は 2 週間先の祝日が分かっていればよい）。**毎年 1 回、翌年分の公開後に次を実行してコミットする。**
@@ -59,10 +61,10 @@ WARNING: bundled holiday data ends at 2027; run `make update-holidays` to bundle
 
 | レイヤー | ファイル | 役割 |
 |----------|----------|------|
-| backend Domain | `backend/internal/domain/holiday/holiday.go` | CSV パース（ヘッダ・BOM・不正行スキップ）、`IsNationalHoliday(date)`、`Embedded().LastYear()` / `NeedsUpdate(now)` |
-| backend Domain | `backend/internal/domain/service/schedule_resolver.go` | `synthesizeFromStoreCalendar` が祝日 → 曜日の順で合成 |
-| backend Domain | `backend/internal/domain/service/business_hours.go` | `ApplyEventDefaultBusinessHours` の朝／通常の判定 |
-| backend 起動 | `backend/cmd/api/main.go` | 鮮度警告のログ出力 |
+| backend Domain | `backend/internal/domain/holiday/holiday.go` | CSV パース（ヘッダ・BOM・不正行スキップ）、`Set.IsNationalHoliday(date)`、`Embedded().LastYear()` / `NeedsUpdate(now)` |
+| backend Domain | `backend/internal/domain/service/store_calendar.go` | `StoreCalendar`（`NationalHolidayChecker` を注入）。`DefaultSchedule` が祝日 → 曜日の順で合成、`ApplyEventDefaultBusinessHours` が event の朝／通常を判定、`BookingWindowMinutes` が予約受付時間帯を算出 |
+| backend Domain | `backend/internal/domain/service/schedule_resolver.go` | 行が無い日を `StoreCalendar.DefaultSchedule` で合成 |
+| backend 起動 | `backend/cmd/api/main.go` | `holiday.Embedded()` を `StoreCalendar` に注入、鮮度警告のログ出力 |
 | frontend | `frontend/src/lib/holidays.ts` | `isNationalHoliday(dateStr)` |
 | frontend | `frontend/src/lib/storeDefaultSchedule.ts` | 店舗定例プレビュー（祝日 → 曜日） |
 | スクリプト | `scripts/update-holidays.sh` / `Makefile` (`update-holidays`) | 年次更新 |
