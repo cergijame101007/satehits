@@ -93,10 +93,19 @@ func (s *Set) Len() int {
 	return len(s.dates)
 }
 
-// NeedsUpdate は同梱データの最終年が now の年以前（翌年分が未同梱）なら true。
-// 内閣府 CSV の翌年分は例年 2 月頃に公開されるため、起動時の警告に使う。
+// nextYearPublishedMonth は内閣府 CSV の翌年分が例年公開される月（2 月）の翌月。
+// この月より前は翌年分が未公開で更新しようがないため、警告を出さない
+const nextYearPublishedMonth = time.March
+
+// NeedsUpdate は同梱データの更新が必要なら true（起動時の警告に使う）。
+//   - 最終年が now の年より前: 常に true（当年の祝日すら無い）
+//   - 最終年が now の年と同じ（翌年分が未同梱）: 翌年分が公開済みとみなせる 3 月以降のみ true
 func (s *Set) NeedsUpdate(now time.Time) bool {
-	return s.LastYear() <= now.Year()
+	last := s.LastYear()
+	if last < now.Year() {
+		return true
+	}
+	return last == now.Year() && now.Month() >= nextYearPublishedMonth
 }
 
 var embedded = mustParseEmbedded()

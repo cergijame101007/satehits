@@ -112,8 +112,10 @@ func TestSet_NeedsUpdate(t *testing.T) {
 		want bool
 	}{
 		{name: "fresh while next year is bundled", now: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC), want: false},
-		{name: "needs update once the last bundled year is the current year", now: time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC), want: true},
-		{name: "needs update when bundled data is older than the current year", now: time.Date(2028, 6, 1, 0, 0, 0, 0, time.UTC), want: true},
+		{name: "stays quiet before march while next year is not yet published", now: time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC), want: false},
+		{name: "stays quiet at the end of february", now: time.Date(2027, 2, 28, 23, 59, 0, 0, time.UTC), want: false},
+		{name: "needs update from march once next year should be published", now: time.Date(2027, 3, 1, 0, 0, 0, 0, time.UTC), want: true},
+		{name: "needs update when bundled data is older than the current year even in january", now: time.Date(2028, 1, 1, 0, 0, 0, 0, time.UTC), want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
