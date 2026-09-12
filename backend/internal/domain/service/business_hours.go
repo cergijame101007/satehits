@@ -48,7 +48,7 @@ func ApplyEventDefaultBusinessHours(date datetime.Date, openTime, lastOrder, clo
 }
 
 func defaultBusinessHoursTypeForEventDate(date datetime.Date) string {
-	if date.Weekday() == time.Sunday && !holiday.IsHoliday(date) {
+	if date.Weekday() == time.Sunday && !holiday.IsNationalHoliday(date) {
 		return domain.ScheduleTypeMorning
 	}
 	return domain.ScheduleTypeNormal

@@ -10,7 +10,7 @@
 
 import type { ScheduleType } from '@/types/reservation';
 import { scheduleTypeLabels } from '@/lib/calendarTheme';
-import { isHoliday } from '@/lib/holidays';
+import { isNationalHoliday } from '@/lib/holidays';
 
 const DEFAULT_CAPACITY = 10;
 
@@ -26,7 +26,7 @@ export interface StoreDefaultSchedulePreview {
 /** YYYY-MM-DD から店舗定例のタイプ・提供数を算出する */
 export function getStoreDefaultSchedule(dateStr: string): { type: ScheduleType; capacity: number } {
   // 祝日は曜日にかかわらず通常営業（日曜と重なっても朝営業なし。docs/domain_knowledge.md §4）
-  if (isHoliday(dateStr)) {
+  if (isNationalHoliday(dateStr)) {
     return { type: 'normal', capacity: DEFAULT_CAPACITY };
   }
 

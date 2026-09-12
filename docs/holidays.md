@@ -56,10 +56,10 @@ WARNING: bundled holiday data ends at 2027; run `make update-holidays` to bundle
 
 | レイヤー | ファイル | 役割 |
 |----------|----------|------|
-| backend Domain | `backend/internal/domain/holiday/holiday.go` | CSV パース（ヘッダ・BOM・不正行スキップ）、`IsHoliday(date)`、`Embedded().LastYear()` / `NeedsUpdate(now)` |
+| backend Domain | `backend/internal/domain/holiday/holiday.go` | CSV パース（ヘッダ・BOM・不正行スキップ）、`IsNationalHoliday(date)`、`Embedded().LastYear()` / `NeedsUpdate(now)` |
 | backend Domain | `backend/internal/domain/service/schedule_resolver.go` | `synthesizeFromStoreCalendar` が祝日 → 曜日の順で合成 |
 | backend Domain | `backend/internal/domain/service/business_hours.go` | `ApplyEventDefaultBusinessHours` の朝／通常の判定 |
 | backend 起動 | `backend/cmd/api/main.go` | 鮮度警告のログ出力 |
-| frontend | `frontend/src/lib/holidays.ts` | `isHoliday(dateStr)` |
+| frontend | `frontend/src/lib/holidays.ts` | `isNationalHoliday(dateStr)` |
 | frontend | `frontend/src/lib/storeDefaultSchedule.ts` | 店舗定例プレビュー（祝日 → 曜日） |
 | スクリプト | `scripts/update-holidays.sh` / `Makefile` (`update-holidays`) | 年次更新 |

@@ -109,8 +109,9 @@ func mustParseEmbedded() *Set {
 	return s
 }
 
-// IsHoliday は同梱データに基づき d が国民の祝日・休日なら true を返す
-func IsHoliday(d datetime.Date) bool {
+// IsNationalHoliday は同梱データに基づき d が国民の祝日・休日なら true を返す
+// （休業日を表す AvailabilityResult.IsHoliday / API の is_holiday とは別概念）
+func IsNationalHoliday(d datetime.Date) bool {
 	return embedded.Contains(d)
 }
 

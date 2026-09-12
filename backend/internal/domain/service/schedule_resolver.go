@@ -158,7 +158,7 @@ func synthesizeFromStoreCalendar(d datetime.Date) domain.Schedule {
 
 // defaultScheduleTypeAndCapacity は店舗定例のタイプ・提供数。祝日が最優先、次に曜日
 func defaultScheduleTypeAndCapacity(d datetime.Date) (scheduleType string, capacity int) {
-	if holiday.IsHoliday(d) {
+	if holiday.IsNationalHoliday(d) {
 		return domain.ScheduleTypeNormal, defaultScheduleCapacity
 	}
 	switch d.Weekday() {
