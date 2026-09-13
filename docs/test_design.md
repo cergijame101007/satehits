@@ -187,6 +187,13 @@
 | 13 | mark 系 | 結合（PostgreSQL） | `MarkRetry` は attempt を増やさない、`ReleaseClaim` は attempt を戻す、`sent` 後の mark はエラー |
 | 14 | Resend ステータス分類 | 単体 | 5xx/429/409 concurrent は一時、401/403 は `ErrMailAuth`、他 4xx は `ErrMailPermanent` |
 | 15 | flush エンドポイント | 単体 | POST 200、GET 405 |
+| 16 | リマインド対象ウィンドウ | 単体 | 来店日 today / +1 は `pending_reminder_1d`、+2 / +3 は `pending_reminder_3d`、+4 以降・過去は対象外 |
+| 17 | リマインドの店舗暦日 | 単体 | UTC 23:30（JST 翌 8:30）は翌日の暦日として判定 |
+| 18 | リマインド重複 | 単体 | `ErrMailAlreadyEnqueued` は `skipped` に数えて続行、他のエラーは中断 |
+| 19 | リマインド本文 | 単体 | 件名に来店日（M/D）、本文に来店日時・人数・氏名・電話・メール・備考・pending 総数・管理画面 URL |
+| 20 | リマインド enqueue | 単体 | 宛先 = `MAIL_OWNER_ADDRESS`、`mail_type` が引数どおり、宛先未設定はエラー |
+| 21 | リマインドエンドポイント | 単体 | POST 200 `{candidates, enqueued, skipped}`、GET 405、DB エラー 500 |
+| 22 | リマインド対象クエリ | 結合（PostgreSQL） | status / source / 来店日範囲で絞り込み、pending 件数は source を問わない、新 `mail_type` が INSERT できる |
 
 ## 4. フロントエンドテストケース
 

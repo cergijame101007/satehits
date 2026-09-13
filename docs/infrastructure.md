@@ -359,6 +359,8 @@ jobs:
 | LOGIN_RATE_LIMIT_WINDOW_MINUTES | レートリミットの窓（既定 15 分） |
 | RESEND_API_KEY | Resend APIキー（未設定時は NoOp Sender）。`ENVIRONMENT=production` かつ `OUTBOX_FLUSH_ENDPOINT_ENABLED=true` では必須（未設定なら起動失敗） |
 | MAIL_FROM_ADDRESS | メール送信元アドレス（例: noreply@satehits.com） |
+| MAIL_OWNER_ADDRESS | オーナー向け pending リマインド（UC-S04）の宛先。`ENVIRONMENT=production` かつ `OUTBOX_FLUSH_ENDPOINT_ENABLED=true` では必須（未設定なら起動失敗）。それ以外で未設定ならリマインドエンドポイントを登録しない |
+| ADMIN_URL | リマインドメール本文に載せる管理画面 URL（既定 `http://localhost:4321/admin`。本番は `https://satehits.com/admin` 等） |
 | OUTBOX_BATCH_SIZE | 1 回の flush で処理する最大件数（既定 20） |
 | OUTBOX_FLUSH_TIME_BUDGET_SECONDS | 1 回の flush の時間予算（既定 120）。Cloud Scheduler の attempt-deadline（180 秒）より短くする |
 | OUTBOX_FLUSH_ENDPOINT_ENABLED | `true` のときだけ `POST /internal/outbox/flush` を登録（private サービスで true、公開サービスで false。デプロイ設定で固定する） |
@@ -478,16 +480,23 @@ export default defineConfig({
 
 ### 概要
 
-Resend は顧客向けメールの配信先（`MailSender` 実装）。送信意図は PostgreSQL の `email_outbox` に永続化し、Cloud Scheduler が private Cloud Run の flush エンドポイントを 1 分ごとに呼ぶ（ADR-014 / ADR-015）。手順の冪等スクリプトは `scripts/setup-scheduler.sh`（attempt-deadline 180 秒）。
+Resend は顧客向け・オーナー向けメールの配信先（`MailSender` 実装）。送信意図は PostgreSQL の `email_outbox` に永続化し、Cloud Scheduler が private Cloud Run の flush エンドポイントを 1 分ごとに呼ぶ（ADR-014 / ADR-015）。オーナー向け pending リマインド（UC-S04）は別の Scheduler ジョブが毎日 9:00（JST）に `POST /internal/reminders/pending` を呼んで enqueue し、送信は同じ flush に乗る。手順の冪等スクリプトは `scripts/setup-scheduler.sh`（両ジョブとも attempt-deadline 180 秒）。
+
+| Scheduler ジョブ | スケジュール | URI | 役割 |
+|-----------------|-------------|-----|------|
+| `outbox-flush` | `* * * * *` | `/internal/outbox/flush` | Outbox の pending 行を送信 |
+| `pending-reminder` | `0 9 * * *`（Asia/Tokyo） | `/internal/reminders/pending` | 来店が近い pending（web）予約のリマインドを enqueue。対象ウィンドウが 2 日幅なので 1 日欠けても翌日に拾える |
 
 ### 2 サービスのデプロイ設定
 
 同一イメージを 2 つの Cloud Run サービスとしてデプロイし、flush の有効・無効は**デプロイ設定（`--set-env-vars`）で固定**する。手動で env を変えない。
 
-| サービス | 認証 | OUTBOX_FLUSH_ENDPOINT_ENABLED | RESEND_API_KEY |
-|---------|------|-------------------------------|----------------|
-| `satehits-api`（公開） | `--allow-unauthenticated` | `false` | 不要（enqueue のみ） |
-| `satehits-api-internal`（private flush） | `--no-allow-unauthenticated` | `true` | 必須（production では未設定なら起動失敗） |
+| サービス | 認証 | OUTBOX_FLUSH_ENDPOINT_ENABLED | RESEND_API_KEY | MAIL_OWNER_ADDRESS |
+|---------|------|-------------------------------|----------------|--------------------|
+| `satehits-api`（公開） | `--allow-unauthenticated` | `false` | 不要（enqueue のみ） | 不要 |
+| `satehits-api-internal`（private flush / リマインド） | `--no-allow-unauthenticated` | `true` | 必須（production では未設定なら起動失敗） | 必須（production では未設定なら起動失敗） |
+
+`/internal/reminders/pending` は flush と同じフラグで private サービスにだけ登録される。
 
 時間の制約は `送信タイムアウト 30 秒 ≤ OUTBOX_FLUSH_TIME_BUDGET_SECONDS 120 秒 < Scheduler attempt-deadline 180 秒 < Cloud Run request timeout（既定 300 秒）` を保つ。
 
@@ -515,7 +524,7 @@ WHERE id = '<outbox id>' AND status = 'failed';
 
 監視・アラートは未決定（ADR-014）。当面は上の SELECT で目視する。
 
-コスト目安: 1 分間隔では約 43,200 回/月。Cloud Scheduler は実行回数ではなくジョブ数課金。Cloud Run のリクエスト数もこのジョブ単体では無料枠を十分下回るが、無料枠は billing account 単位で共有されるため「必ず無料」とは限らない。Cloud Run の「CPU always allocated」は有効にしない。
+コスト目安: flush は 1 分間隔で約 43,200 回/月、リマインドは 1 日 1 回で約 30 回/月。Cloud Scheduler は実行回数ではなくジョブ数課金（無料枠 3 ジョブ/月に対して 2 ジョブ）。リマインドメール自体は Web の pending 1 件あたり最大 2 通で、Resend の無料枠（3,000 通/月）に対して無視できる量。Cloud Run のリクエスト数もこのジョブ単体では無料枠を十分下回るが、無料枠は billing account 単位で共有されるため「必ず無料」とは限らない。Cloud Run の「CPU always allocated」は有効にしない。
 
 ### 送信元ドメインの DNS 設定
 
@@ -534,6 +543,7 @@ Resend でカスタムドメイン（`satehits.com`）からメールを送信�
 | 予約申請受付メール | 顧客がWebから予約申請した直後 | 顧客 | 申請を受け付けた旨、オーナー確認後に連絡する旨 |
 | 予約承認メール | オーナーが予約を承認した時 | 顧客 | 予約確定の通知、来店日時、キャンセルポリシー |
 | 予約拒否メール | オーナーが予約を拒否した時 | 顧客 | 予約できなかった旨、Instagramへの誘導 |
+| pending リマインドメール | Web 予約が `pending` のまま来店 3 日前・前日（各 2 日幅のウィンドウ）になった時。毎日 9:00 JST に判定 | オーナー（`MAIL_OWNER_ADDRESS`） | 当該予約の内容、当日以降の pending 総数、管理画面 URL |
 
 ### Go SDK の使用例
 

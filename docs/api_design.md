@@ -493,6 +493,7 @@ Cookie の RT を revoke し、同名 Cookie を削除する。リクエスト�
 #### メール（実装状況）
 
 - **UC-S01〜S03（顧客向け）**: 実装済み。`email_outbox` + Resend（`MailSender`）。予約操作と同一トランザクションで enqueue。`RESEND_API_KEY` 未設定時は NoOp Sender（ログのみ）。送信処理は Cloud Scheduler が `POST /internal/outbox/flush` を呼ぶ（ADR-014 / ADR-015）
+- **UC-S04（オーナー向け pending リマインド）**: 実装済み。Cloud Scheduler が毎日 9:00（JST）に `POST /internal/reminders/pending` を呼び、来店が近い pending（web）予約をタイミングごと（`pending_reminder_3d` / `pending_reminder_1d`）に同じ Outbox へ enqueue する。送信は flush と共通
 
 ---
 
@@ -533,6 +534,47 @@ Outbox の pending 行を最大 `OUTBOX_BATCH_SIZE` 件・`OUTBOX_FLUSH_TIME_BUD
 **メソッド不正（405）** — GET 等。
 
 **内部エラー（500）** — claim（DB）自体に失敗した場合のみ。行ごとの送信失敗・記録失敗は 200 で `failed` / `errors` に数える。
+
+---
+
+### POST /internal/reminders/pending
+
+来店が近い `pending`（`source = web`）予約について、オーナー向けリマインド（UC-S04）を `email_outbox` に enqueue する内部運用エンドポイント。送信自体は行わず、`POST /internal/outbox/flush` に任せる。**OpenAPI（公開 API 仕様）の対象外**。認証はアプリ側では行わず、Cloud Run IAM（private サービス）で保護する。`OUTBOX_FLUSH_ENDPOINT_ENABLED=true` かつ `MAIL_OWNER_ADDRESS` 設定時のみ登録される。
+
+対象ウィンドウは店舗カレンダー（Asia/Tokyo）の今日を `today` として次のとおり。予約 1 件・`mail_type` 1 種につき最大 1 行（`UNIQUE (reservation_id, mail_type)`）なので、Scheduler の重複実行や手動実行が並行しても二重送信にならない。
+
+| mail_type | 来店日（`visit_date`） |
+|-----------|------------------------|
+| `pending_reminder_3d` | `today+2` 〜 `today+3` |
+| `pending_reminder_1d` | `today` 〜 `today+1` |
+
+#### リクエスト
+
+- Method: `POST`
+- Path: `/internal/reminders/pending`
+- Body: なし
+
+#### レスポンス
+
+**成功時（200 OK）**
+
+```json
+{
+  "candidates": 3,
+  "enqueued": 2,
+  "skipped": 1
+}
+```
+
+| フィールド | 説明 |
+|-----------|------|
+| candidates | ウィンドウ内の pending（web）予約数 |
+| enqueued | 今回新たに Outbox へ記録した件数 |
+| skipped | 同じ `mail_type` が既に記録済みで飛ばした件数（再実行時の正常系） |
+
+**メソッド不正（405）** — GET 等。`INVALID_REQUEST`。
+
+**内部エラー（500）** — 予約の取得・件数取得・Outbox 挿入（既に記録済み以外）に失敗した場合。`INTERNAL_ERROR`。失敗した予約より前の enqueue は確定しており、次回実行で残りが記録される。
 
 ---
 

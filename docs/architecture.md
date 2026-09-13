@@ -458,6 +458,7 @@ UseCase は Domain の `MailEnqueuer` / `EmailOutboxRepository` 経由で送信�
 | 予約申請受付メール | 顧客が Web から予約申請した直後 | 顧客 | `reservation_received` |
 | 予約承認メール | オーナーが予約を承認した時 | 顧客 | `reservation_approved` |
 | 予約拒否メール | オーナーが予約を拒否した時 | 顧客 | `reservation_rejected` |
+| pending リマインドメール（UC-S04） | Cloud Scheduler → `POST /internal/reminders/pending`（毎日 9:00 JST）。来店 3 日前 / 前日の pending（web）予約 | オーナー | `pending_reminder_3d` / `pending_reminder_1d` |
 
 ## 11. テスト戦略
 

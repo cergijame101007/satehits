@@ -159,9 +159,9 @@ erDiagram
 | updated_at | TIMESTAMPTZ | NO | NOW() | 更新日時 |
 
 **制約:**
-- `mail_type`: CHECK IN (`reservation_received`, `reservation_approved`, `reservation_rejected`)
+- `mail_type`: CHECK IN (`reservation_received`, `reservation_approved`, `reservation_rejected`, `pending_reminder_3d`, `pending_reminder_1d`)
 - `status`: CHECK IN (`pending`, `sent`, `failed`)
-- `UNIQUE (reservation_id, mail_type)`（防御的不変条件。遷移表上は各種別最大 1 回）
+- `UNIQUE (reservation_id, mail_type)`（顧客向け 3 種は遷移表上 各種別最大 1 回の防御的不変条件。オーナー向けリマインド（UC-S04）はタイミングごとに別 `mail_type` なので、この UNIQUE が「予約あたり 3 日前 1 回・前日 1 回」の冪等性をそのまま保証する）
 
 **インデックス:**
 - `idx_email_outbox_dispatch`: `(next_attempt_at) WHERE status = 'pending'`
@@ -331,6 +331,7 @@ erDiagram
 | `000008_login_attempts.sql` | 8 | `login_attempts`、インデックス |
 | `000009_email_outbox.sql` | 9 | `email_outbox`、dispatch 部分インデックス、`updated_at` トリガー |
 | `000010_refresh_tokens_expires_at_index.sql` | 10 | `refresh_tokens.expires_at` インデックス（期限切れ掃除用） |
+| `000011_email_outbox_pending_reminder.sql` | 11 | `email_outbox.mail_type` の CHECK に `pending_reminder_3d` / `pending_reminder_1d` を追加 |
 
 ## 3. DDL
 

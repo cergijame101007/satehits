@@ -436,6 +436,49 @@ sequenceDiagram
 
 拒否理由 `reason` は DB カラムに残さず、enqueue 時に本文へ埋め込んで Outbox に保存する。フローは 8.2 と同様（`mail_type=reservation_rejected`）。
 
+### 8.4 pending 未対応リマインド（オーナーへ）
+
+Cloud Scheduler（毎日 9:00 JST）が private Cloud Run の `POST /internal/reminders/pending` を呼び、来店が近い pending（web）予約をタイミングごとに Outbox へ記録する。予約操作の Tx とは無関係で、冪等性は `UNIQUE (reservation_id, mail_type)` に委ねる。送信は 8.1 と同じ flush 経路。
+
+```mermaid
+sequenceDiagram
+    participant Scheduler as Cloud Scheduler
+    participant Handler as PendingReminderHandler
+    participant UseCase as EnqueuePendingRemindersUseCase
+    participant Repo as ReservationRepository
+    participant Enqueuer as OutboxEnqueuer
+    participant DB as PostgreSQL
+    participant Flush as OutboxFlush
+    participant Resend as Resend API
+
+    Scheduler->>Handler: POST /internal/reminders/pending (OIDC)
+    Handler->>UseCase: Execute(ctx)
+    UseCase->>UseCase: today = now in Asia/Tokyo
+    UseCase->>Repo: ListPendingWebByVisitDateRange(today, today+3)
+    Repo->>DB: SELECT ... WHERE status='pending' AND source='web' AND visit_date BETWEEN
+    DB-->>Repo: 対象予約
+    UseCase->>Repo: CountPendingFrom(today)
+    Repo->>DB: SELECT COUNT(*) ... WHERE status='pending' AND visit_date >= today
+    loop 対象予約ごと
+        UseCase->>UseCase: visit_date から mail_type を決定（today..+1 → 1d、+2..+3 → 3d）
+        UseCase->>Enqueuer: EnqueuePendingReminder(reservation, mail_type, totalPending)
+        Enqueuer->>DB: INSERT email_outbox ... ON CONFLICT DO NOTHING
+        alt 既に同じ mail_type がある
+            DB-->>Enqueuer: 0 行
+            Enqueuer-->>UseCase: ErrMailAlreadyEnqueued → skipped
+        else 新規
+            DB-->>Enqueuer: id
+            Enqueuer-->>UseCase: enqueued
+        end
+    end
+    UseCase-->>Handler: {candidates, enqueued, skipped}
+    Handler-->>Scheduler: 200 OK
+    Note over Flush: Cloud Scheduler（1 分ごと）→ POST /internal/outbox/flush
+    Flush->>DB: ClaimNextPending
+    Flush->>Resend: POST /emails（宛先 = MAIL_OWNER_ADDRESS）
+    Flush->>DB: MarkSent
+```
+
 ## 9. スケジュール設定（オーナー）
 
 ```mermaid

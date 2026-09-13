@@ -818,6 +818,7 @@ Go API のホスティング先を選定する必要があった。
 - `failed` からの自動復帰は無い。復帰は運用手順（`docs/infrastructure.md` の Outbox 運用）による手動 SQL。Resend の Idempotency-Key は 24 時間保持され、失敗レスポンスがキャッシュされるかは公式に明記されていないため、手動再送は最終試行から 24 時間以上経ってから行う
 - `reservations` 削除時は `ON DELETE CASCADE` で未送信行も消える（意図どおり。予約が無いメールは送らない）
 - Domain の `MailSender` 抽象により UseCase / Outbox は Resend に依存しない
+- オーナー向け pending リマインド（UC-S04）も同じ Outbox に乗せる。タイミングごとに別 `mail_type`（`pending_reminder_3d` / `pending_reminder_1d`）にすることで、`UNIQUE (reservation_id, mail_type)` が予約あたり各 1 回を保証する。enqueue は Cloud Scheduler（毎日 9:00 JST）→ `POST /internal/reminders/pending` で行い、予約操作の Tx には参加しない
 
 ### 理由
 
@@ -892,7 +893,7 @@ OIDC audience は Cloud Run のサービス URL（例 `https://xxx.run.app`）�
 
 ### ステータス
 
-一部採用（管理画面を一次手段。メール催促・LINE は未実装）
+一部採用（管理画面を一次手段。メール催促は UC-S04 として Outbox 上で実装済み。LINE は未実装）
 
 ### コンテキスト
 
@@ -905,13 +906,13 @@ Web 予約の `pending` 滞留にオーナーが気づく手段が必要だっ�
 
 ### 決定
 
-- オーナー向けの pending 催促メールは**実装しない**
 - オーナーが新規予約に気づく一次手段は**管理画面の pending 一覧**とする（現状 UI は日付横断の pending ビューが弱く、改善は別スコープ）
+- 来店が近い pending の取りこぼし防止として、オーナー向けリマインドメール（UC-S04）を ADR-014 の Outbox 上で実装する。来店 3 日前・前日の 2 段階、予約あたり各 1 回（`mail_type` 別 UNIQUE）。新規申請の即時通知ではない
 - メール以外のプッシュ通知として **LINE Messaging API** を将来検討する（今回は実装しない）
 
 ### 未解決の課題
 
-メール以外の能動通知がないため、オーナーの気づきは管理画面の能動的確認に依存する。Resend 障害時も顧客メールは遅延するが、オーナー通知チャネルは増えない。
+メール以外の能動通知がないため、新規申請への即時の気づきは管理画面の能動的確認に依存する。リマインドは来店直前の 2 回のみで、Resend 障害時はリマインドも顧客メールと同様に遅延する。
 
 ### 再検討トリガー
 
@@ -972,6 +973,7 @@ Web 予約の `pending` 滞留にオーナーが気づく手段が必要だっ�
 | 日付 | ADR | 内容 |
 | --- | --- | --- |
 | 2026-09-14 | ADR-011 | バックエンド CD（`deploy-backend.yml`、develop → staging / main → production、Workload Identity Federation）を決定に追記 |
+| 2026-09-14 | ADR-014 / ADR-016 | オーナー向け pending リマインド（UC-S04）を Outbox 上で実装。ADR-016 の「催促メールは実装しない」を改訂 |
 | 2026-09-11 | ADR-017 | refresh_tokens の掃除（ログイン成功時のベストエフォート削除）を追加 |
 | 2026-09-11 | ADR-014 | lease 方式（Tx 分割）、時間予算、認証エラー中断、本番キー必須、順序・復帰・監視の方針を追記 |
 | 2026-09-07 | ADR-015 | タイトル・文脈を「flush の配置と保護」に明確化（定期実行主体は Scheduler / ADR-014） |
