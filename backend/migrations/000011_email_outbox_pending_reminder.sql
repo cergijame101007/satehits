@@ -1,4 +1,4 @@
--- オーナー向け pending リマインド（UC-S04）の mail_type を追加する。
+-- オーナー向け pending リマインド（UC-S04）の mail_type を CHECK に含める。
 -- 000009 では CHECK が無名のため PostgreSQL の自動命名（email_outbox_mail_type_check）を前提に置き換える。
 -- リマインドはタイミングごとに別 mail_type なので UNIQUE (reservation_id, mail_type) がそのまま
 -- 「予約 1 件・タイミング 1 種につき最大 1 通」を保証する。
