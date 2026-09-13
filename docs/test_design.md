@@ -140,6 +140,21 @@
 | 9 | IP 単位の失敗上限超過 | 単体 | 429 `TOO_MANY_REQUESTS`、認証処理未実行 |
 | 10 | ログイン成功後 | 単体 | 当該メールの失敗試行がクリアされる |
 | 11 | 制限中の再試行 | 単体 | 失敗行が増えず、窓経過後に解除される |
+| 12 | 未登録メールとパスワード不一致の応答 | 単体 | HTTP ステータス・`code`・`message` が完全一致（`details` なし）。429 も同様 |
+| 13 | 未登録メールの所要時間 | 単体 | ダミー bcrypt 比較により、登録済みメールの誤パスワードと中央値の比が 3 倍以内 |
+| 14 | パスワード比較方式 | 単体 | bcrypt 比較。保存ハッシュが平文と同じ文字列でも認証失敗 |
+| 15 | レートリミット境界 | 単体 | メール `max-1` / IP `max-1` は通過、`max` で 429。両方超過時は `Retry-After` が大きい方。端数秒は切り上げ、最小 1 |
+| 16 | ログイン応答の機密 | 単体 | JSON に RT・`password_hash` を含めない。RT は Cookie のみ、DB には SHA-256 ハッシュ |
+| 17 | 認証系ログの機密 | 単体 | login / refresh / logout の 401・500 でパスワード平文・bcrypt ハッシュ・RT 平文・RT ハッシュ・AT がログに出ない |
+| 18 | `RequireAuth` の拒否 | 単体 | ヘッダ無し・`Basic`・空 `Bearer` は 401 `UNAUTHORIZED`。改ざん・別 secret・`alg=none`・期限切れ・`nbf` 未来・`iss` / `aud` 不一致・`sub` 不正・`role` 不正は 401 `INVALID_TOKEN`。いずれも next ハンドラ未呼出 |
+| 19 | AT 時刻境界 | 単体 | `exp = now+2s` 有効、`exp = now` / `now-1s` 無効、`nbf = now+2s` 無効。`expires_at - now ≈ 1h` |
+| 20 | refresh の CSRF 緩和 | 単体 | Origin 無し・許可外は 403 `FORBIDDEN`（Cookie 検査より先。repo 未呼出）。Referer のみ許可は通過 |
+| 21 | refresh の RT 検証 | 単体 | Cookie 無し・空・未知 RT は 401 `INVALID_TOKEN`。失効済み RT の再利用は 401 + `RevokeAllByUser`。`expires_at = now-1ms` は 401 かつローテーションなし、`now+1s` は 200 |
+| 22 | RT ローテーション | 単体 | `FindByTokenHash(sha256)` → `RevokeIfActive(旧)` → `Issue(新)` の順、1 トランザクション。新 RT ≠ 旧 RT、Cookie 値 = 新 RT、`Issue` の `expires_at ≈ now+30d`。`RevokeIfActive` が false なら 401 + `RevokeAllByUser`、`Issue` 失敗は 500 で Cookie 未更新 |
+| 23 | セッションの連続動作 | 単体 | login → refresh → 旧 RT 再利用で 401 + 全失効 → 新 RT も 401。logout 後の同一 RT で refresh は 401 |
+| 24 | logout | 単体 | AT 無し 401 `UNAUTHORIZED`、AT 改ざん 401 `INVALID_TOKEN`、Origin 無し / 許可外 403、Referer のみ許可は 204。成功時 `Revoke(当該 RT)` と Cookie 削除（`Max-Age=0`・`HttpOnly`・`Secure`・`SameSite=None`・`Path=/api/v1/admin`・`Domain` は設定時のみ）。Cookie 無し・未知 RT でも 204（`Revoke` 未呼出）。repo 失敗は 500 で Cookie 未削除 |
+| 25 | RT Cookie 属性 | 単体 | 発行時 `Max-Age=2592000`、削除時 `Max-Age=0`。`HttpOnly` / `Secure` / `SameSite=None` / `Path=/api/v1/admin`、`Domain` は `COOKIE_DOMAIN` 設定時のみ |
+| 26 | CORS | 単体 | 許可 Origin のみ反映（`*` は返さない）。許可外・Origin 無しはヘッダ無し。OPTIONS は 204 で next 未呼出 |
 
 ### 3.5 メール送信（Outbox）
 
