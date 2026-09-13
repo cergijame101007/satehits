@@ -39,5 +39,6 @@ func retryAfterFromOldest(oldest time.Time, window time.Duration, now time.Time)
 	if until < time.Second {
 		return time.Second
 	}
-	return until.Truncate(time.Second)
+	// 切り捨てると Retry-After 経過直後の再試行がまだ制限中になりうるため切り上げる
+	return time.Duration(math.Ceil(until.Seconds())) * time.Second
 }
