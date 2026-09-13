@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { statusLabels, statusBadgeBg, statusBadgeText } from '@/lib/reservationStatusTheme';
 import { getAvailability, toAvailabilityErrorMessage } from '@/lib/availability';
 import { listReservations, toReservationErrorMessage } from '@/lib/adminReservation';
+import {
+  fetchActionablePendingCount,
+  formatBadgeCount,
+  pendingBadgeLabel,
+} from '@/lib/pendingReservations';
 import { formatDate, formatDateJa } from '@/lib/calendarUtils';
 import type { AvailabilityResponse, Reservation } from '@/types/reservation';
 import Alert from '@/components/react/ui/Alert';
@@ -143,6 +148,19 @@ function DaySummary({ title, date }: DaySummaryProps) {
   );
 }
 
+/** 未対応 pending 件数の赤バッジ（0 件は描画しない） */
+function PendingCountBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      aria-label={pendingBadgeLabel(count)}
+      className="ml-1 align-middle inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-red-600 text-white text-[11px] font-medium leading-none tabular-nums"
+    >
+      {formatBadgeCount(count)}
+    </span>
+  );
+}
+
 export default function DashboardSummary() {
   const today = useMemo(() => new Date(), []);
   const tomorrow = useMemo(() => {
@@ -150,10 +168,43 @@ export default function DashboardSummary() {
     d.setDate(d.getDate() + 1);
     return d;
   }, []);
+  // 取得失敗時は 0 扱いにして注意帯・バッジを出さない（日別サマリー側でエラーは見える）
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchActionablePendingCount()
+      .then((count) => {
+        if (!cancelled) setPendingCount(count);
+      })
+      .catch((err: unknown) => {
+        console.error('未対応予約件数の取得に失敗しました', err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-medium">ダッシュボード</h1>
+
+      {pendingCount > 0 && (
+        <Alert variant="error" className="flex flex-wrap items-center justify-between gap-2">
+          <span>
+            未対応の予約が <span className="font-medium tabular-nums">{pendingCount}</span>{' '}
+            件あります。承認または拒否を行ってください。
+          </span>
+          <a
+            href="/admin/reservations"
+            className="shrink-0 font-medium underline underline-offset-2 hover:opacity-80 transition-opacity"
+          >
+            予約一覧へ
+          </a>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <DaySummary title="今日の予約" date={today} />
@@ -176,7 +227,10 @@ export default function DashboardSummary() {
             <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={link.icon} />
             </svg>
-            <span className="text-sm font-medium">{link.label}</span>
+            <span className="text-sm font-medium">
+              {link.label}
+              {link.href === '/admin/reservations' && <PendingCountBadge count={pendingCount} />}
+            </span>
           </a>
         ))}
         <a
