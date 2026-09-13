@@ -10,6 +10,7 @@ import (
 const (
 	minJWTSecretBytes      = 32
 	defaultMailFrom        = "さて、羊に戻るとしよう <noreply@satehits.com>"
+	defaultAdminURL        = "http://localhost:4321/admin"
 	defaultOutboxBatchSize = 20
 	// Cloud Scheduler の attempt-deadline（180 秒）より短くする
 	defaultOutboxFlushTimeBudgetSeconds = 120
@@ -22,15 +23,19 @@ const (
 
 // Config はバックエンドが起動時に必要とする環境変数を集約する
 type Config struct {
-	DatabaseURL                  string
-	JWTSecret                    []byte
-	CORSOrigins                  []string
-	CookieDomain                 string
-	TurnstileSecret              string
-	Environment                  string
-	MigrationsDir                string
-	ResendAPIKey                 string
-	MailFromAddress              string
+	DatabaseURL     string
+	JWTSecret       []byte
+	CORSOrigins     []string
+	CookieDomain    string
+	TurnstileSecret string
+	Environment     string
+	MigrationsDir   string
+	ResendAPIKey    string
+	MailFromAddress string
+	// MailOwnerAddress はオーナー向けメール（pending リマインド）の宛先。空ならリマインドエンドポイントを登録しない
+	MailOwnerAddress string
+	// AdminURL はオーナー向けメール本文に載せる管理画面 URL
+	AdminURL                     string
 	OutboxBatchSize              int
 	OutboxFlushTimeBudgetSeconds int
 	OutboxFlushEndpointEnabled   bool
@@ -97,6 +102,15 @@ func Load() Config {
 	if environment == "production" && outboxFlushEnabled && resendAPIKey == "" {
 		log.Fatal("RESEND_API_KEY is required when ENVIRONMENT=production and OUTBOX_FLUSH_ENDPOINT_ENABLED=true")
 	}
+	// リマインド（UC-S04）は flush と同じ private サービスで動かす。本番で宛先が無いと通知が黙って止まるため起動を止める
+	mailOwner := strings.TrimSpace(os.Getenv("MAIL_OWNER_ADDRESS"))
+	if environment == "production" && outboxFlushEnabled && mailOwner == "" {
+		log.Fatal("MAIL_OWNER_ADDRESS is required when ENVIRONMENT=production and OUTBOX_FLUSH_ENDPOINT_ENABLED=true")
+	}
+	adminURL := strings.TrimSpace(os.Getenv("ADMIN_URL"))
+	if adminURL == "" {
+		adminURL = defaultAdminURL
+	}
 
 	return Config{
 		DatabaseURL:                  dbURL,
@@ -108,6 +122,8 @@ func Load() Config {
 		MigrationsDir:                migrationsDir,
 		ResendAPIKey:                 resendAPIKey,
 		MailFromAddress:              mailFrom,
+		MailOwnerAddress:             mailOwner,
+		AdminURL:                     adminURL,
 		OutboxBatchSize:              positiveIntEnv("OUTBOX_BATCH_SIZE", defaultOutboxBatchSize),
 		OutboxFlushTimeBudgetSeconds: positiveIntEnv("OUTBOX_FLUSH_TIME_BUDGET_SECONDS", defaultOutboxFlushTimeBudgetSeconds),
 		OutboxFlushEndpointEnabled:   outboxFlushEnabled,

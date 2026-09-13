@@ -93,7 +93,11 @@ func main() {
 		log.Println("RESEND_API_KEY not set; mail sender runs in noop mode")
 	}
 	emailOutboxRepo := repository.NewPostgresEmailOutboxRepository(db)
-	mailEnqueuer := inframail.NewOutboxEnqueuer(emailOutboxRepo, inframail.EnqueuerConfig{FromAddress: cfg.MailFromAddress})
+	mailEnqueuer := inframail.NewOutboxEnqueuer(emailOutboxRepo, inframail.EnqueuerConfig{
+		FromAddress:  cfg.MailFromAddress,
+		OwnerAddress: cfg.MailOwnerAddress,
+		AdminURL:     cfg.AdminURL,
+	})
 	mailDispatcher := inframail.NewDispatcher(emailOutboxRepo, mailSender, inframail.Config{
 		BatchSize:  cfg.OutboxBatchSize,
 		TimeBudget: time.Duration(cfg.OutboxFlushTimeBudgetSeconds) * time.Second,
@@ -202,6 +206,16 @@ func main() {
 		outboxHandler := handler.NewOutboxHandler(mailDispatcher)
 		http.HandleFunc("/internal/outbox/flush", outboxHandler.HandleFlush)
 		log.Println("Outbox flush endpoint enabled at POST /internal/outbox/flush")
+
+		// リマインド（UC-S04）は flush と同じ private サービスにだけ置く（ADR-015）
+		if cfg.MailOwnerAddress != "" {
+			enqueuePendingReminders := reservationusecase.NewEnqueuePendingRemindersUseCase(reservationRepo, mailEnqueuer)
+			reminderHandler := handler.NewPendingReminderHandler(enqueuePendingReminders)
+			http.HandleFunc("/internal/reminders/pending", reminderHandler.HandlePendingReminders)
+			log.Println("Pending reminder endpoint enabled at POST /internal/reminders/pending")
+		} else {
+			log.Println("MAIL_OWNER_ADDRESS not set; pending reminder endpoint is disabled")
+		}
 	}
 
 	// 認証エンドポイント、login / refresh は AT 不要
