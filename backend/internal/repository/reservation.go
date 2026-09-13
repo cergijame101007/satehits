@@ -211,3 +211,43 @@ GROUP BY visit_date`
 	}
 	return result, nil
 }
+
+var _ domain.PendingReminderReservationReader = (*PostgresReservationRepository)(nil)
+
+// ListPendingWebByVisitDateRange は status=pending かつ source=web で来店日が [from, to] の予約を返す（UC-S04）
+func (r *PostgresReservationRepository) ListPendingWebByVisitDateRange(ctx context.Context, from, to datetime.Date) ([]domain.Reservation, error) {
+	query := reservationSelectColumns + `
+WHERE status = 'pending' AND source = 'web'
+  AND visit_date >= $1 AND visit_date <= $2
+ORDER BY visit_date, visit_time, created_at`
+	rows, err := r.getDB(ctx).QueryContext(ctx, query, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("list pending web reservations: %w", err)
+	}
+	defer rows.Close()
+
+	var reservations []domain.Reservation
+	for rows.Next() {
+		reservation, err := scanReservation(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan pending web reservation: %w", err)
+		}
+		reservations = append(reservations, reservation)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate pending web reservations: %w", err)
+	}
+	return reservations, nil
+}
+
+// CountPendingFrom は来店日が from 以降の pending 予約数（source を問わない）を返す
+func (r *PostgresReservationRepository) CountPendingFrom(ctx context.Context, from datetime.Date) (int, error) {
+	var total int
+	err := r.getDB(ctx).QueryRowContext(ctx, `
+SELECT COUNT(*) FROM reservations
+WHERE status = 'pending' AND visit_date >= $1`, from).Scan(&total)
+	if err != nil {
+		return 0, fmt.Errorf("count pending reservations: %w", err)
+	}
+	return total, nil
+}
