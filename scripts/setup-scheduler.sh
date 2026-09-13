@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cloud Scheduler → private Cloud Run（Outbox flush）の初回セットアップ（冪等）
+# Cloud Scheduler → private Cloud Run（Outbox flush / pending リマインド）の初回セットアップ（冪等）
 # Cloud Shell での実行を想定。必要な権限: run.admin / iam.serviceAccountAdmin / cloudscheduler.admin
 set -euo pipefail
 
@@ -10,6 +10,9 @@ PRIVATE_SERVICE="${PRIVATE_SERVICE:-satehits-api-internal}"
 SA_NAME="${SA_NAME:-scheduler-sa}"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 JOB_NAME="${JOB_NAME:-outbox-flush}"
+REMINDER_JOB_NAME="${REMINDER_JOB_NAME:-pending-reminder}"
+# リマインドはオーナーが朝に確認できるよう JST 9:00 に 1 日 1 回。対象ウィンドウに幅があるので 1 日欠けても翌日に拾える
+REMINDER_SCHEDULE="${REMINDER_SCHEDULE:-0 9 * * *}"
 # アプリ側の OUTBOX_FLUSH_TIME_BUDGET_SECONDS（既定 120）より長く、Cloud Run request timeout より短くする
 ATTEMPT_DEADLINE="${ATTEMPT_DEADLINE:-180s}"
 
@@ -39,30 +42,31 @@ gcloud run services add-iam-policy-binding "${PRIVATE_SERVICE}" \
   --role="roles/run.invoker" \
   --quiet
 
-# 3. Scheduler ジョブ（1 分ごと）
-FLUSH_URI="${PRIVATE_SERVICE_URL}/internal/outbox/flush"
-if gcloud scheduler jobs describe "${JOB_NAME}" --project="${PROJECT_ID}" --location="${REGION}" >/dev/null 2>&1; then
-  gcloud scheduler jobs update http "${JOB_NAME}" \
+# Scheduler ジョブを作成または更新する（describe で存在確認 → update / create）
+upsert_http_job() {
+  local name="$1" schedule="$2" uri="$3"
+  local action="create"
+  if gcloud scheduler jobs describe "${name}" --project="${PROJECT_ID}" --location="${REGION}" >/dev/null 2>&1; then
+    action="update"
+  fi
+  gcloud scheduler jobs "${action}" http "${name}" \
     --project="${PROJECT_ID}" \
     --location="${REGION}" \
-    --schedule="* * * * *" \
+    --schedule="${schedule}" \
+    --time-zone="Asia/Tokyo" \
     --attempt-deadline="${ATTEMPT_DEADLINE}" \
-    --uri="${FLUSH_URI}" \
+    --uri="${uri}" \
     --http-method=POST \
     --oidc-service-account-email="${SA_EMAIL}" \
     --oidc-token-audience="${PRIVATE_SERVICE_URL}"
-else
-  gcloud scheduler jobs create http "${JOB_NAME}" \
-    --project="${PROJECT_ID}" \
-    --location="${REGION}" \
-    --schedule="* * * * *" \
-    --attempt-deadline="${ATTEMPT_DEADLINE}" \
-    --uri="${FLUSH_URI}" \
-    --http-method=POST \
-    --oidc-service-account-email="${SA_EMAIL}" \
-    --oidc-token-audience="${PRIVATE_SERVICE_URL}"
-fi
+}
+
+# 3. Scheduler ジョブ: Outbox flush（1 分ごと）
+upsert_http_job "${JOB_NAME}" "* * * * *" "${PRIVATE_SERVICE_URL}/internal/outbox/flush"
+
+# 4. Scheduler ジョブ: pending リマインド enqueue（毎日 JST 9:00）
+upsert_http_job "${REMINDER_JOB_NAME}" "${REMINDER_SCHEDULE}" "${PRIVATE_SERVICE_URL}/internal/reminders/pending"
 
 echo "Done."
-echo "Ensure ${PRIVATE_SERVICE} is deployed with OUTBOX_FLUSH_ENDPOINT_ENABLED=true and --no-allow-unauthenticated."
+echo "Ensure ${PRIVATE_SERVICE} is deployed with OUTBOX_FLUSH_ENDPOINT_ENABLED=true, MAIL_OWNER_ADDRESS set, and --no-allow-unauthenticated."
 echo "Public service ${PUBLIC_SERVICE} should keep OUTBOX_FLUSH_ENDPOINT_ENABLED=false."

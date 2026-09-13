@@ -1,4 +1,4 @@
-.PHONY: dev dev-build dev-down dev-front prod prod-build prod-down build run test test-coverage test-integration outbox-flush lint tools-install clean migrate seed update-holidays
+.PHONY: dev dev-build dev-down dev-front prod prod-build prod-down build run test test-coverage test-integration outbox-flush reminders-pending lint tools-install clean migrate seed update-holidays
 
 # ===== 開発ツール =====
 TOOLS_DIR := $(CURDIR)/tools
@@ -70,6 +70,10 @@ test-integration:
 # ローカルで Outbox flush を手動実行（OUTBOX_FLUSH_ENDPOINT_ENABLED=true が必要）
 outbox-flush:
 	curl -sS -X POST http://localhost:8080/internal/outbox/flush
+
+# ローカルで pending リマインドの enqueue を手動実行（OUTBOX_FLUSH_ENDPOINT_ENABLED=true と MAIL_OWNER_ADDRESS が必要）
+reminders-pending:
+	curl -sS -X POST http://localhost:8080/internal/reminders/pending
 
 # ===== 祝日データの年次更新 =====
 # 内閣府 CSV → backend の embed 用 CSV と frontend の JSON を再生成（docs/holidays.md）
