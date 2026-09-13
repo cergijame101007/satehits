@@ -59,6 +59,7 @@ Copilot 等の自動レビュー指摘は**仮説**とする。上表の docs �
 - `schedule_type` とイベント欄（正は `docs/api_design.md` の表）: `normal` / `morning` / `closed` はイベント欄を送らない・保存前にクリア。`event` / `external_event` は名称必須・説明任意。`external_event` は capacity 0 固定・時刻 NULL。`special_menu` は任意（Copilot が「必須」と言っても docs 優先）
 - Outbox Dispatcher（正は ADR-014）: claim → 送信 → 記録は lease 方式で**独立コミット**。送信を DB Tx の中に戻さない。`attempt_count` は claim 時に +1（失敗回数ではない）。401/403 は `ReleaseClaim` でバッチ中断
 - 店舗定例の合成（正は `docs/domain_knowledge.md` §6 / `docs/holidays.md`）: `daily_schedules` 行なし日は **祝日 → 曜日** の順。祝日は曜日にかかわらず `normal`（日曜祝日も朝営業なし）。祝日データは同梱 CSV（`internal/domain/holiday`）で、外部へ取りに行かない。FE の `storeDefaultSchedule.ts` も同じデータ（`src/data/holidays.json`）で整合させる
+- pending リマインド（正は `docs/use_case.md` UC-S04）: 二重送信防止は `mail_type` 別の `UNIQUE (reservation_id, mail_type)` に依存し、送信済みフラグや Tx は持たない。対象ウィンドウ（3d: today+2〜+3、1d: today〜+1）を広げても二重送信にはならないので、ウィンドウを 1 日に狭めない。`ErrMailAlreadyEnqueued` は `skipped`（正常系）
 
 ---
 
@@ -280,6 +281,7 @@ Presentation  →  Application  →  Domain  ←  Infrastructure
 | `PUT` | `/api/v1/admin/suppliers/order` | 取引先並び順更新 | 実装済み |
 | `POST` | `/api/v1/admin/suppliers/:id/image` | 取引先画像アップロード | 実装済み |
 | `POST` | `/internal/outbox/flush` | Outbox 送信処理（内部・IAM 保護） | 実装済み |
+| `POST` | `/internal/reminders/pending` | pending リマインドの Outbox 登録（内部・IAM 保護） | 実装済み |
 
 ---
 
@@ -334,6 +336,8 @@ TURNSTILE_SECRET_KEY=your-turnstile-secret-key
 ENVIRONMENT=development
 RESEND_API_KEY=
 MAIL_FROM_ADDRESS=さて、羊に戻るとしよう <noreply@satehits.com>
+MAIL_OWNER_ADDRESS=
+ADMIN_URL=http://localhost:4321/admin
 OUTBOX_BATCH_SIZE=20
 OUTBOX_FLUSH_TIME_BUDGET_SECONDS=120
 OUTBOX_FLUSH_ENDPOINT_ENABLED=true
