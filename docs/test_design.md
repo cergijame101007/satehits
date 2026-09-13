@@ -226,6 +226,18 @@ make test-coverage
 
 実装済みのテストファイルは各コンポーネントと同じディレクトリの `*.test.tsx` を参照（`cd frontend && bun run test:run` で全件実行）。
 
+### 4.2 lib 単体テスト（Vitest）
+
+| # | ファイル | テストケース | 期待結果 |
+|---|---------|-------------|----------|
+| 1 | `pendingReservations.test.ts` | `countActionablePending`: 空配列 | 0 |
+| 2 | `pendingReservations.test.ts` | `countActionablePending`: 今日・明日・昨日の pending | 今日と明日のみ数えて 2 |
+| 3 | `pendingReservations.test.ts` | `countActionablePending`: pending 以外のステータス | approved / rejected / cancelled / no_show は数えない |
+| 4 | `pendingReservations.test.ts` | `countActionablePending`: 月・年をまたぐ日付 | 文字列比較で翌月・翌年は数え、前年は数えない |
+| 5 | `pendingReservations.test.ts` | `formatBadgeCount`: 0 / 9 | `"0"` / `"9"` |
+| 6 | `pendingReservations.test.ts` | `formatBadgeCount`: 10 以上 | `"9+"` |
+| 7 | `pendingReservations.test.ts` | `pendingBadgeLabel` | `未対応の予約 N 件` |
+
 ## 5. E2E テストシナリオ
 
 > **未実装**（手動確認用シナリオ。Playwright 等は未導入）
