@@ -18,6 +18,10 @@ const (
 	MailTypeReservationReceived MailType = "reservation_received"
 	MailTypeReservationApproved MailType = "reservation_approved"
 	MailTypeReservationRejected MailType = "reservation_rejected"
+	// オーナー向け pending リマインド（UC-S04）。タイミングごとに別種別にすることで
+	// UNIQUE (reservation_id, mail_type) が「予約 1 件・タイミング 1 種につき最大 1 通」を保証する
+	MailTypePendingReminder3D MailType = "pending_reminder_3d"
+	MailTypePendingReminder1D MailType = "pending_reminder_1d"
 )
 
 // Outbox 行の status。pending → sent / failed のみで、sent と failed は終端
