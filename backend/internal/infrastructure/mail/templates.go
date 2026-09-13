@@ -3,6 +3,7 @@ package mail
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/cergijame101007/satehits/internal/domain"
 )
@@ -81,6 +82,39 @@ func buildReservationRejected(r domain.Reservation, reason string) reservationMa
 	body := strings.Join(lines, "\n")
 	html := plainToHTML(body)
 	return reservationMailContent{Subject: subject, HTML: html, Text: body}
+}
+
+// buildPendingReminder は UC-S04 オーナー向けリマインド。宛先がオーナーなので個人情報はマスクしない。
+// 対象ウィンドウに幅があるため「3 日前」「前日」と断定せず来店日を明記する
+func buildPendingReminder(r domain.Reservation, totalPending int, adminURL string) reservationMailContent {
+	visit := r.VisitDate.UTC()
+	subject := fmt.Sprintf("%s未承認のご予約があります（%d/%d 来店）", subjectPrefix, int(visit.Month()), visit.Day())
+	note := strings.TrimSpace(r.Note)
+	if note == "" {
+		note = "なし"
+	}
+	body := strings.Join([]string{
+		"未承認（pending）の Web 予約があります。管理画面から承認または拒否をお願いします。",
+		"",
+		"【ご予約内容】",
+		fmt.Sprintf("来店日: %s（%s）", r.VisitDate.Format("2006-01-02"), jaWeekday(r.VisitDate.Weekday())),
+		fmt.Sprintf("来店時間: %s", r.VisitTime.Format("15:04")),
+		fmt.Sprintf("人数: %d 名", r.People),
+		fmt.Sprintf("お名前: %s", r.Name),
+		fmt.Sprintf("電話番号: %s", r.Phone),
+		fmt.Sprintf("メール: %s", r.Email),
+		fmt.Sprintf("備考: %s", note),
+		"",
+		fmt.Sprintf("現在未対応（pending）の予約は全部で %d 件です。", totalPending),
+		"",
+		fmt.Sprintf("管理画面: %s", adminURL),
+	}, "\n")
+	html := plainToHTML(body)
+	return reservationMailContent{Subject: subject, HTML: html, Text: body}
+}
+
+func jaWeekday(w time.Weekday) string {
+	return [...]string{"日", "月", "火", "水", "木", "金", "土"}[w]
 }
 
 func reservationDetailLines(r domain.Reservation) string {

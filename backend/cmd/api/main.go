@@ -93,7 +93,7 @@ func main() {
 		log.Println("RESEND_API_KEY not set; mail sender runs in noop mode")
 	}
 	emailOutboxRepo := repository.NewPostgresEmailOutboxRepository(db)
-	mailEnqueuer := inframail.NewOutboxEnqueuer(emailOutboxRepo, cfg.MailFromAddress)
+	mailEnqueuer := inframail.NewOutboxEnqueuer(emailOutboxRepo, inframail.EnqueuerConfig{FromAddress: cfg.MailFromAddress})
 	mailDispatcher := inframail.NewDispatcher(emailOutboxRepo, mailSender, inframail.Config{
 		BatchSize:  cfg.OutboxBatchSize,
 		TimeBudget: time.Duration(cfg.OutboxFlushTimeBudgetSeconds) * time.Second,

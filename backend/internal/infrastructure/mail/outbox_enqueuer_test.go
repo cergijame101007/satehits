@@ -42,7 +42,7 @@ func (f *fakeOutboxRepoForEnqueuer) ReleaseClaim(context.Context, uuid.UUID, tim
 
 func TestOutboxEnqueuerReservationReceived(t *testing.T) {
 	repo := &fakeOutboxRepoForEnqueuer{}
-	e := NewOutboxEnqueuer(repo, "さて、羊に戻るとしよう <noreply@satehits.com>")
+	e := NewOutboxEnqueuer(repo, EnqueuerConfig{FromAddress: "さて、羊に戻るとしよう <noreply@satehits.com>"})
 	r := sampleReservation()
 
 	if err := e.EnqueueReservationReceived(context.Background(), r); err != nil {
@@ -67,7 +67,7 @@ func TestOutboxEnqueuerReservationReceived(t *testing.T) {
 
 func TestOutboxEnqueuerReservationRejectedIncludesReason(t *testing.T) {
 	repo := &fakeOutboxRepoForEnqueuer{}
-	e := NewOutboxEnqueuer(repo, "noreply@satehits.com")
+	e := NewOutboxEnqueuer(repo, EnqueuerConfig{FromAddress: "noreply@satehits.com"})
 
 	if err := e.EnqueueReservationRejected(context.Background(), sampleReservation(), "定員超過"); err != nil {
 		t.Fatalf("err = %v", err)
@@ -82,9 +82,61 @@ func TestOutboxEnqueuerReservationRejectedIncludesReason(t *testing.T) {
 
 func TestOutboxEnqueuerPropagatesAlreadyEnqueued(t *testing.T) {
 	repo := &fakeOutboxRepoForEnqueuer{err: domain.ErrMailAlreadyEnqueued}
-	e := NewOutboxEnqueuer(repo, "noreply@satehits.com")
+	e := NewOutboxEnqueuer(repo, EnqueuerConfig{FromAddress: "noreply@satehits.com"})
 
 	err := e.EnqueueReservationApproved(context.Background(), sampleReservation())
+	if !errors.Is(err, domain.ErrMailAlreadyEnqueued) {
+		t.Fatalf("err = %v, want ErrMailAlreadyEnqueued", err)
+	}
+}
+
+func TestOutboxEnqueuerPendingReminder(t *testing.T) {
+	repo := &fakeOutboxRepoForEnqueuer{}
+	e := NewOutboxEnqueuer(repo, EnqueuerConfig{
+		FromAddress:  "noreply@satehits.com",
+		OwnerAddress: "owner@example.com",
+		AdminURL:     "https://satehits.com/admin",
+	})
+	r := sampleReservation()
+
+	if err := e.EnqueuePendingReminder(context.Background(), r, domain.MailTypePendingReminder3D, 4); err != nil {
+		t.Fatalf("EnqueuePendingReminder() err = %v", err)
+	}
+	if repo.last.MailType != domain.MailTypePendingReminder3D {
+		t.Fatalf("MailType = %q, want pending_reminder_3d", repo.last.MailType)
+	}
+	if repo.last.ReservationID != r.ID {
+		t.Fatalf("ReservationID = %v", repo.last.ReservationID)
+	}
+	if repo.last.ToAddress != "owner@example.com" {
+		t.Fatalf("ToAddress = %q, want owner address (not the customer)", repo.last.ToAddress)
+	}
+	if repo.last.FromAddress != "noreply@satehits.com" {
+		t.Fatalf("FromAddress = %q", repo.last.FromAddress)
+	}
+	if !strings.Contains(repo.last.BodyText, "全部で 4 件") || !strings.Contains(repo.last.BodyText, "https://satehits.com/admin") {
+		t.Fatalf("BodyText = %q", repo.last.BodyText)
+	}
+}
+
+func TestOutboxEnqueuerPendingReminderRequiresOwnerAddress(t *testing.T) {
+	repo := &fakeOutboxRepoForEnqueuer{}
+	e := NewOutboxEnqueuer(repo, EnqueuerConfig{FromAddress: "noreply@satehits.com"})
+
+	err := e.EnqueuePendingReminder(context.Background(), sampleReservation(), domain.MailTypePendingReminder1D, 1)
+	if !errors.Is(err, ErrOwnerAddressNotConfigured) {
+		t.Fatalf("err = %v, want ErrOwnerAddressNotConfigured", err)
+	}
+	if repo.last.MailType != "" {
+		t.Fatal("repo.Enqueue should not be called without owner address")
+	}
+}
+
+func TestOutboxEnqueuerPendingReminderPropagatesAlreadyEnqueued(t *testing.T) {
+	repo := &fakeOutboxRepoForEnqueuer{err: domain.ErrMailAlreadyEnqueued}
+	e := NewOutboxEnqueuer(repo, EnqueuerConfig{FromAddress: "noreply@satehits.com", OwnerAddress: "owner@example.com"})
+
+	err := e.EnqueuePendingReminder(context.Background(), sampleReservation(), domain.MailTypePendingReminder1D, 1)
 	if !errors.Is(err, domain.ErrMailAlreadyEnqueued) {
 		t.Fatalf("err = %v, want ErrMailAlreadyEnqueued", err)
 	}
