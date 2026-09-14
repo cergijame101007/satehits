@@ -1,0 +1,223 @@
+# バックエンド（Go API）を Google Cloud Run へ継続デプロイする。
+# 手順書: docs/deploy_cloud_run.md / 設計: ADR-011（CI/CD）, ADR-014/015（Outbox と private flush サービス）
+#
+# 流れ: build once → Artifact Registry へ push → Cloud Run Job で migrate → 公開 / private の 2 サービスをデプロイ → スモーク
+# 認証は Workload Identity Federation（キーレス）。SA キー JSON は使わない。
+# CI（lint / test / build）は backend.yml。本 workflow はデプロイのみ。
+name: Backend Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+
+# 同時デプロイを直列化する（migrate と 2 サービスの整合を守るため cancel はしない）
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION || 'asia-northeast1' }}
+      GCP_ARTIFACT_REPO: ${{ vars.GCP_ARTIFACT_REPO || 'satehits' }}
+      RUNTIME_SA: ${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
+      PUBLIC_SERVICE: satehits-api
+      PRIVATE_SERVICE: satehits-api-internal
+      MIGRATE_JOB: satehits-migrate
+      # 非秘密の実行時設定（両サービス共通）。秘密は Secret Manager（steps の secrets:）
+      CORS_ORIGINS: ${{ vars.CORS_ORIGINS || 'https://satehits.com,https://www.satehits.com' }}
+      COOKIE_DOMAIN: ${{ vars.COOKIE_DOMAIN }}
+      # backend/pkg/config/config.go の defaultMailFrom と同じ文言
+      MAIL_FROM_ADDRESS: さて、羊に戻るとしよう <noreply@satehits.com>
+      STORAGE_ENDPOINT: ${{ vars.STORAGE_ENDPOINT }}
+      STORAGE_BUCKET: ${{ vars.STORAGE_BUCKET }}
+      STORAGE_PUBLIC_BASE_URL: ${{ vars.STORAGE_PUBLIC_BASE_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required configuration
+        run: |
+          missing=0
+          for name in GCP_PROJECT_ID RUNTIME_SA; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::${name} is not set (GitHub Variables of the 'production' environment)"
+              missing=1
+            fi
+          done
+          exit "${missing}"
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+
+      - name: Resolve image names and escaped values
+        id: cfg
+        run: |
+          image_base="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPO}/api"
+          {
+            echo "image=${image_base}:${GITHUB_SHA}"
+            echo "image_latest=${image_base}:latest"
+            # deploy-cloudrun の env_vars は "," と改行を区切りとして扱うため、値中の "," は "\," にエスケープする
+            echo "cors_origins=${CORS_ORIGINS//,/\\,}"
+          } >> "${GITHUB_OUTPUT}"
+
+      # イメージは 1 回だけビルドし、sha と latest の 2 タグで push する
+      - name: Build image
+        run: |
+          docker build \
+            -f backend/docker/Dockerfile \
+            -t "${IMAGE}" \
+            -t "${IMAGE_LATEST}" \
+            backend
+        env:
+          IMAGE: ${{ steps.cfg.outputs.image }}
+          IMAGE_LATEST: ${{ steps.cfg.outputs.image_latest }}
+
+      - name: Push image
+        run: |
+          docker push "${IMAGE}"
+          docker push "${IMAGE_LATEST}"
+        env:
+          IMAGE: ${{ steps.cfg.outputs.image }}
+          IMAGE_LATEST: ${{ steps.cfg.outputs.image_latest }}
+
+      # マイグレーションは同じイメージの Cloud Run Job で実行する。失敗したらサービスのデプロイに進まない
+      - name: Deploy migration job
+        run: |
+          gcloud run jobs deploy "${MIGRATE_JOB}" \
+            --project="${GCP_PROJECT_ID}" \
+            --region="${GCP_REGION}" \
+            --image="${IMAGE}" \
+            --command=/app/migrate \
+            --set-env-vars=MIGRATIONS_DIR=/app/migrations \
+            --set-secrets=DATABASE_URL=DATABASE_URL:latest \
+            --service-account="${RUNTIME_SA}" \
+            --tasks=1 \
+            --max-retries=0 \
+            --task-timeout=10m \
+            --quiet
+        env:
+          IMAGE: ${{ steps.cfg.outputs.image }}
+
+      - name: Run migrations
+        run: |
+          gcloud run jobs execute "${MIGRATE_JOB}" \
+            --project="${GCP_PROJECT_ID}" \
+            --region="${GCP_REGION}" \
+            --wait \
+            --quiet
+
+      # 公開 API（顧客ブラウザから直接叩く）。flush エンドポイントは登録しない
+      - name: Deploy public service
+        id: deploy-public
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          region: ${{ env.GCP_REGION }}
+          service: ${{ env.PUBLIC_SERVICE }}
+          image: ${{ steps.cfg.outputs.image }}
+          env_vars_update_strategy: overwrite
+          env_vars: |
+            ENVIRONMENT=production
+            CORS_ORIGINS=${{ steps.cfg.outputs.cors_origins }}
+            COOKIE_DOMAIN=${{ env.COOKIE_DOMAIN }}
+            MAIL_FROM_ADDRESS=${{ env.MAIL_FROM_ADDRESS }}
+            OUTBOX_BATCH_SIZE=20
+            OUTBOX_FLUSH_TIME_BUDGET_SECONDS=120
+            OUTBOX_FLUSH_ENDPOINT_ENABLED=false
+            TRUSTED_PROXY_HOPS=1
+            STORAGE_ENDPOINT=${{ env.STORAGE_ENDPOINT }}
+            STORAGE_REGION=auto
+            STORAGE_BUCKET=${{ env.STORAGE_BUCKET }}
+            STORAGE_PUBLIC_BASE_URL=${{ env.STORAGE_PUBLIC_BASE_URL }}
+          secrets_update_strategy: overwrite
+          secrets: |
+            DATABASE_URL=DATABASE_URL:latest
+            JWT_SECRET=JWT_SECRET:latest
+            TURNSTILE_SECRET_KEY=TURNSTILE_SECRET_KEY:latest
+            STORAGE_ACCESS_KEY=STORAGE_ACCESS_KEY:latest
+            STORAGE_SECRET_KEY=STORAGE_SECRET_KEY:latest
+          flags: >-
+            --allow-unauthenticated
+            --service-account=${{ env.RUNTIME_SA }}
+            --port=8080
+            --cpu=1
+            --memory=256Mi
+            --cpu-throttling
+            --min-instances=0
+            --max-instances=2
+            --concurrency=80
+            --timeout=60
+
+      # private flush サービス（ADR-015）。Cloud Scheduler が OIDC で呼ぶ。RESEND_API_KEY はこちらだけに注入する
+      - name: Deploy private service
+        id: deploy-private
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          region: ${{ env.GCP_REGION }}
+          service: ${{ env.PRIVATE_SERVICE }}
+          image: ${{ steps.cfg.outputs.image }}
+          env_vars_update_strategy: overwrite
+          env_vars: |
+            ENVIRONMENT=production
+            CORS_ORIGINS=${{ steps.cfg.outputs.cors_origins }}
+            COOKIE_DOMAIN=${{ env.COOKIE_DOMAIN }}
+            MAIL_FROM_ADDRESS=${{ env.MAIL_FROM_ADDRESS }}
+            OUTBOX_BATCH_SIZE=20
+            OUTBOX_FLUSH_TIME_BUDGET_SECONDS=120
+            OUTBOX_FLUSH_ENDPOINT_ENABLED=true
+            TRUSTED_PROXY_HOPS=1
+            STORAGE_ENDPOINT=${{ env.STORAGE_ENDPOINT }}
+            STORAGE_REGION=auto
+            STORAGE_BUCKET=${{ env.STORAGE_BUCKET }}
+            STORAGE_PUBLIC_BASE_URL=${{ env.STORAGE_PUBLIC_BASE_URL }}
+          secrets_update_strategy: overwrite
+          secrets: |
+            DATABASE_URL=DATABASE_URL:latest
+            JWT_SECRET=JWT_SECRET:latest
+            TURNSTILE_SECRET_KEY=TURNSTILE_SECRET_KEY:latest
+            STORAGE_ACCESS_KEY=STORAGE_ACCESS_KEY:latest
+            STORAGE_SECRET_KEY=STORAGE_SECRET_KEY:latest
+            RESEND_API_KEY=RESEND_API_KEY:latest
+          flags: >-
+            --no-allow-unauthenticated
+            --service-account=${{ env.RUNTIME_SA }}
+            --port=8080
+            --cpu=1
+            --memory=256Mi
+            --cpu-throttling
+            --min-instances=0
+            --max-instances=1
+            --concurrency=80
+            --timeout=300
+
+      - name: Smoke test (public service)
+        run: |
+          echo "public service: ${PUBLIC_URL}"
+          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors "${PUBLIC_URL}/"
+          echo
+          echo "private service: ${PRIVATE_URL} (not called; requires IAM)"
+        env:
+          PUBLIC_URL: ${{ steps.deploy-public.outputs.url }}
+          PRIVATE_URL: ${{ steps.deploy-private.outputs.url }}
