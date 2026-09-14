@@ -251,7 +251,7 @@ CMD ["./main"]
 ```mermaid
 flowchart TB
     subgraph Trigger[トリガー]
-        Push[Push to main]
+        Push[Push to develop / main]
         PR[Pull Request]
     end
 
@@ -268,7 +268,7 @@ flowchart TB
 
     Push --> Test
     PR --> Test
-    Test -->|main branch only| Deploy
+    Push -->|develop → staging / main → production| Deploy
 ```
 
 ### GitHub Actions ワークフロー
@@ -325,9 +325,10 @@ jobs:
 
 実ファイルは `.github/workflows/deploy-backend.yml`。手順書は `docs/deploy_cloud_run.md`、GCP 側の初期セットアップは `scripts/setup-gcp.sh`。
 
-- トリガー: `main` への push（`backend/**`）と `workflow_dispatch`。`concurrency` で直列化
+- トリガー: `develop` への push → **staging**、`main` への push → **production**（いずれも `backend/**`）。`workflow_dispatch` は `environment` の choice で選ぶ。PR では動かない（fork からの PR に Secrets を晒さない）。`concurrency` で環境ごとに直列化
+- 環境の切り替え: GitHub Environments `staging` / `production` に同じ名前の Secrets / Variables を置く。GCP プロジェクトと Artifact Registry は共用。Cloud Run 名は staging のみ `-stg`、Secret Manager 名は staging のみ `_STG` サフィックス（対応表は `docs/deploy_cloud_run.md` §1）
 - 認証: **Workload Identity Federation**（キーレス。SA キー JSON は使わない）
-- 流れ: `docker build` 1 回 → Artifact Registry へ `api:<sha>` / `api:latest` を push → Cloud Run Job `satehits-migrate` でマイグレーション → 公開 `satehits-api` と private `satehits-api-internal` を `google-github-actions/deploy-cloudrun@v2` でデプロイ（env / secrets は全置換）→ `GET /` のスモーク
+- 流れ: `docker build` 1 回 → Artifact Registry へ `api:<sha>` / `api:latest`（staging は `latest-stg`）を push → Cloud Run Job `satehits-migrate` でマイグレーション → 公開 `satehits-api` と private `satehits-api-internal` を `google-github-actions/deploy-cloudrun@v2` でデプロイ（env / secrets は全置換）→ `GET /` のスモーク
 - CI（lint / test / build）は `backend.yml` で別に走る。CD と分離
 
 フロントエンド（Cloudflare Pages）のデプロイは `frontend.yml` のビルド成果物を Cloudflare Pages が取り込む（§10）。

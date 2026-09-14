@@ -351,7 +351,7 @@ PUBLIC_TURNSTILE_SITE_KEY=your-turnstile-site-key
 |------------|---------|-------|
 | `.github/workflows/backend.yml` | `backend/**` の変更を `main`/`develop` に push/PR | lint → test → build → docker-build |
 | `.github/workflows/frontend.yml` | `frontend/**` の変更を `main`/`develop` に push/PR | lint → test → build → アーティファクトアップロード |
-| `.github/workflows/deploy-backend.yml` | `backend/**` の変更を `main` に push / `workflow_dispatch` | WIF 認証 → docker build/push → Cloud Run Job で migrate → `satehits-api` / `satehits-api-internal` デプロイ → スモーク |
+| `.github/workflows/deploy-backend.yml` | `backend/**` の変更を `develop` に push → **staging**、`main` に push → **production** / `workflow_dispatch`（環境を choice） | WIF 認証 → docker build/push → Cloud Run Job で migrate → `satehits-api` / `satehits-api-internal`（staging は `-stg`）デプロイ → スモーク |
 
 - フロントエンドのビルド成果物は `frontend/dist/` にアップロードされ Cloudflare Pages へデプロイ
 - バックエンドは Google Cloud Run へデプロイ（手順は `docs/deploy_cloud_run.md`）
