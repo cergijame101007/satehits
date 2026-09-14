@@ -137,6 +137,7 @@ satehits/
 │   └── schema.sql               # DB スキーマ
 ├── docs/                        # 設計ドキュメント（日本語）
 ├── scripts/
+│   ├── setup-gcp.sh             # GCP 初期セットアップ（Artifact Registry / SA / WIF / Secret Manager 枠）
 │   ├── setup-scheduler.sh       # Cloud Scheduler（Outbox flush）セットアップ
 │   └── update-holidays.sh       # 祝日データの年次更新（make update-holidays）
 ├── .github/workflows/           # CI/CD
@@ -350,9 +351,10 @@ PUBLIC_TURNSTILE_SITE_KEY=your-turnstile-site-key
 |------------|---------|-------|
 | `.github/workflows/backend.yml` | `backend/**` の変更を `main`/`develop` に push/PR | lint → test → build → docker-build |
 | `.github/workflows/frontend.yml` | `frontend/**` の変更を `main`/`develop` に push/PR | lint → test → build → アーティファクトアップロード |
+| `.github/workflows/deploy-backend.yml` | `backend/**` の変更を `main` に push / `workflow_dispatch` | WIF 認証 → docker build/push → Cloud Run Job で migrate → `satehits-api` / `satehits-api-internal` デプロイ → スモーク |
 
 - フロントエンドのビルド成果物は `frontend/dist/` にアップロードされ Cloudflare Pages へデプロイ
-- バックエンドは Google Cloud Run へデプロイ
+- バックエンドは Google Cloud Run へデプロイ（手順は `docs/deploy_cloud_run.md`）
 
 ---
 
@@ -372,6 +374,7 @@ PUBLIC_TURNSTILE_SITE_KEY=your-turnstile-site-key
 | [docs/screen_transition.md](docs/screen_transition.md) | 画面一覧・遷移図・ワイヤーフレーム |
 | [docs/table_design.md](docs/table_design.md) | テーブル設計 |
 | [docs/infrastructure.md](docs/infrastructure.md) | インフラ構成、環境設定、CI/CD 詳細 |
+| [docs/deploy_cloud_run.md](docs/deploy_cloud_run.md) | Cloud Run への CD 手順（GCP セットアップ、Secrets/Variables、初回デプロイ、ロールバック） |
 | [docs/test_design.md](docs/test_design.md) | テスト方針・テストケース一覧 |
 | [docs/use_case.md](docs/use_case.md) | ユースケース一覧 |
 | [docs/data_flow.md](docs/data_flow.md) | データフロー図 |
