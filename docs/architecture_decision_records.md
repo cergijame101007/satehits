@@ -680,6 +680,8 @@ Go API のホスティング先を選定する必要があった。
 
 **GitHub Actions** を採用（`frontend.yml` / `backend.yml` 等）
 
+バックエンドのデプロイは `deploy-backend.yml`（`develop` への push で **staging**、`main` への push で **production**。build once → Cloud Run Job で migrate → 公開 / private の 2 サービス）。2 環境は 1 つの GCP プロジェクトを共用し、GitHub Environments の同名 Secrets / Variables と Cloud Run / Secret Manager のサフィックス（`-stg` / `_STG`）で切り替える。GCP への認証は **Workload Identity Federation**（キーレス。SA キー JSON を GitHub に置かない）。手順は `docs/deploy_cloud_run.md`。
+
 ### 理由
 
 - コードと同じ場所で PR 検証できる
@@ -969,6 +971,7 @@ Web 予約の `pending` 滞留にオーナーが気づく手段が必要だっ�
 
 | 日付 | ADR | 内容 |
 | --- | --- | --- |
+| 2026-09-14 | ADR-011 | バックエンド CD（`deploy-backend.yml`、develop → staging / main → production、Workload Identity Federation）を決定に追記 |
 | 2026-09-11 | ADR-017 | refresh_tokens の掃除（ログイン成功時のベストエフォート削除）を追加 |
 | 2026-09-11 | ADR-014 | lease 方式（Tx 分割）、時間予算、認証エラー中断、本番キー必須、順序・復帰・監視の方針を追記 |
 | 2026-09-07 | ADR-015 | タイトル・文脈を「flush の配置と保護」に明確化（定期実行主体は Scheduler / ADR-014） |

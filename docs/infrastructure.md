@@ -251,7 +251,7 @@ CMD ["./main"]
 ```mermaid
 flowchart TB
     subgraph Trigger[トリガー]
-        Push[Push to main]
+        Push[Push to develop / main]
         PR[Pull Request]
     end
 
@@ -268,7 +268,7 @@ flowchart TB
 
     Push --> Test
     PR --> Test
-    Test -->|main branch only| Deploy
+    Push -->|develop → staging / main → production| Deploy
 ```
 
 ### GitHub Actions ワークフロー
@@ -321,48 +321,17 @@ jobs:
       - run: cd frontend && bun run build
 ```
 
-#### `.github/workflows/deploy.yml`
+#### `.github/workflows/deploy-backend.yml`（バックエンド CD）
 
-```yaml
-name: Deploy
+実ファイルは `.github/workflows/deploy-backend.yml`。手順書は `docs/deploy_cloud_run.md`、GCP 側の初期セットアップは `scripts/setup-gcp.sh`。
 
-on:
-  push:
-    branches: [main]
+- トリガー: `develop` への push → **staging**、`main` への push → **production**（いずれも `backend/**`）。`workflow_dispatch` は `environment` の choice で選ぶ。PR では動かない（fork からの PR に Secrets を晒さない）。`concurrency` で環境ごとに直列化
+- 環境の切り替え: GitHub Environments `staging` / `production` に同じ名前の Secrets / Variables を置く。GCP プロジェクトと Artifact Registry は共用。Cloud Run 名は staging のみ `-stg`、Secret Manager 名は staging のみ `_STG` サフィックス（対応表は `docs/deploy_cloud_run.md` §1）
+- 認証: **Workload Identity Federation**（キーレス。SA キー JSON は使わない）
+- 流れ: `docker build` 1 回 → Artifact Registry へ `api:<sha>` / `api:latest`（staging は `latest-stg`）を push → Cloud Run Job `satehits-migrate` でマイグレーション → 公開 `satehits-api` と private `satehits-api-internal` を `google-github-actions/deploy-cloudrun@v2` でデプロイ（env / secrets は全置換）→ `GET /` のスモーク
+- CI（lint / test / build）は `backend.yml` で別に走る。CD と分離
 
-jobs:
-  deploy-frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - name: Install dependencies
-        run: cd frontend && bun install --frozen-lockfile
-      - name: Build
-        run: cd frontend && bun run build
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy frontend/dist --project-name=satehits
-
-  deploy-backend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-      - uses: google-github-actions/setup-gcloud@v2
-      - name: Deploy to Cloud Run
-        run: |
-          gcloud run deploy satehits-api \
-            --source ./backend \
-            --region asia-northeast1 \
-            --platform managed \
-            --allow-unauthenticated
-```
+フロントエンド（Cloudflare Pages）のデプロイは `frontend.yml` のビルド成果物を Cloudflare Pages が取り込む（§10）。
 
 ## 6. 環境変数
 
@@ -371,7 +340,7 @@ jobs:
 | 変数名 | 説明 |
 |--------|------|
 | PUBLIC_API_URL | バックエンドAPIのURL |
-| PUBLIC_RECAPTCHA_SITE_KEY | reCAPTCHAサイトキー |
+| PUBLIC_TURNSTILE_SITE_KEY | Cloudflare Turnstile のサイトキー |
 
 > **注**: Astro では `PUBLIC_` プレフィックスを付けた環境変数がクライアントサイドに公開される（Next.js の `NEXT_PUBLIC_` に相当）。
 
@@ -379,16 +348,22 @@ jobs:
 
 | 変数名 | 説明 |
 |--------|------|
-| DATABASE_URL | Supabase接続URL |
-| JWT_SECRET | JWT署名用シークレット |
-| RECAPTCHA_SECRET_KEY | reCAPTCHAシークレットキー |
+| DATABASE_URL | Supabase接続URL（本番は Session pooler / IPv4。Secret Manager から注入） |
+| JWT_SECRET | JWT署名用シークレット（32 バイト以上。Secret Manager から注入） |
+| CORS_ORIGINS | 許可するオリジン（カンマ区切り。本番: `https://satehits.com,https://www.satehits.com`） |
+| COOKIE_DOMAIN | refresh token Cookie の Domain 属性（本番: API ホスト。空なら属性なし） |
+| TURNSTILE_SECRET_KEY | Cloudflare Turnstile のシークレットキー（`ENVIRONMENT` が development 以外なら必須。Secret Manager から注入） |
+| TRUSTED_PROXY_HOPS | `X-Forwarded-For` の右から何段目をクライアント IP とするか（Cloud Run 直結なら 1） |
+| LOGIN_RATE_LIMIT_EMAIL_MAX | ログイン失敗のメールアドレス別上限（既定 5） |
+| LOGIN_RATE_LIMIT_IP_MAX | ログイン失敗の IP 別上限（既定 20） |
+| LOGIN_RATE_LIMIT_WINDOW_MINUTES | レートリミットの窓（既定 15 分） |
 | RESEND_API_KEY | Resend APIキー（未設定時は NoOp Sender）。`ENVIRONMENT=production` かつ `OUTBOX_FLUSH_ENDPOINT_ENABLED=true` では必須（未設定なら起動失敗） |
 | MAIL_FROM_ADDRESS | メール送信元アドレス（例: noreply@satehits.com） |
 | OUTBOX_BATCH_SIZE | 1 回の flush で処理する最大件数（既定 20） |
 | OUTBOX_FLUSH_TIME_BUDGET_SECONDS | 1 回の flush の時間予算（既定 120）。Cloud Scheduler の attempt-deadline（180 秒）より短くする |
 | OUTBOX_FLUSH_ENDPOINT_ENABLED | `true` のときだけ `POST /internal/outbox/flush` を登録（private サービスで true、公開サービスで false。デプロイ設定で固定する） |
 | ENVIRONMENT | 環境識別子（development/production） |
-| PORT | サーバーポート（Cloud Runは自動設定） |
+| PORT | サーバーポート（現状 `:8080` 固定。Cloud Run の既定と一致） |
 | STORAGE_ENDPOINT | S3 互換ストレージのエンドポイント（本番: Cloudflare R2、ローカル: MinIO） |
 | STORAGE_REGION | リージョン（R2 は `auto` 等） |
 | STORAGE_BUCKET | 画像バケット名 |
