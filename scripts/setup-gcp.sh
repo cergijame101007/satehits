@@ -15,7 +15,9 @@ DEPLOY_SA_NAME="${DEPLOY_SA_NAME:-github-deployer}"
 POOL_ID="${POOL_ID:-github}"
 PROVIDER_ID="${PROVIDER_ID:-github}"
 # 値は入れない（枠だけ作る）。値の投入は docs/deploy_cloud_run.md の手順で行う
-SECRET_NAMES=(DATABASE_URL JWT_SECRET TURNSTILE_SECRET_KEY RESEND_API_KEY STORAGE_ACCESS_KEY STORAGE_SECRET_KEY)
+# production は素の名前、staging は "_STG" サフィックス（GCP プロジェクトは両環境で共用）
+SECRET_BASE_NAMES=(DATABASE_URL JWT_SECRET TURNSTILE_SECRET_KEY RESEND_API_KEY STORAGE_ACCESS_KEY STORAGE_SECRET_KEY)
+SECRET_SUFFIXES=("" "_STG")
 
 RUNTIME_SA_EMAIL="${RUNTIME_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 DEPLOY_SA_EMAIL="${DEPLOY_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
@@ -100,7 +102,13 @@ gcloud iam service-accounts add-iam-policy-binding "${DEPLOY_SA_EMAIL}" \
   --role="roles/iam.workloadIdentityUser" \
   --quiet >/dev/null
 
-# 6. Secret Manager の枠（値は入れない。既存ならスキップ）
+# 6. Secret Manager の枠（production / staging の両環境分。値は入れない。既存ならスキップ）
+SECRET_NAMES=()
+for suffix in "${SECRET_SUFFIXES[@]}"; do
+  for base in "${SECRET_BASE_NAMES[@]}"; do
+    SECRET_NAMES+=("${base}${suffix}")
+  done
+done
 for name in "${SECRET_NAMES[@]}"; do
   if ! gcloud secrets describe "${name}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
     gcloud secrets create "${name}" \
@@ -115,17 +123,23 @@ PROVIDER_NAME="$(gcloud iam workload-identity-pools providers describe "${PROVID
   --format='value(name)')"
 
 echo
-echo "Done. Register the following in GitHub (Settings > Environments > production):"
+echo "Done. Register the following in GitHub under BOTH environments"
+echo "(Settings > Environments > staging AND production), using the same names:"
 echo
-echo "  [Secrets]"
+echo "  [Secrets]  (same value in both environments)"
 echo "  GCP_WORKLOAD_IDENTITY_PROVIDER = ${PROVIDER_NAME}"
 echo "  GCP_DEPLOY_SERVICE_ACCOUNT     = ${DEPLOY_SA_EMAIL}"
 echo
-echo "  [Variables]"
+echo "  [Variables]  (same value in both environments)"
 echo "  GCP_PROJECT_ID              = ${PROJECT_ID}"
 echo "  GCP_REGION                  = ${REGION}"
 echo "  GCP_ARTIFACT_REPO           = ${ARTIFACT_REPO}"
 echo "  GCP_RUNTIME_SERVICE_ACCOUNT = ${RUNTIME_SA_EMAIL}"
 echo
-echo "Next: add secret values (gcloud secrets versions add ...) for: ${SECRET_NAMES[*]}"
+echo "  [Variables]  (different value per environment)"
+echo "  CORS_ORIGINS, COOKIE_DOMAIN, STORAGE_ENDPOINT, STORAGE_BUCKET, STORAGE_PUBLIC_BASE_URL"
+echo
+echo "Next: add secret values (gcloud secrets versions add ...) for all of:"
+echo "  production: ${SECRET_BASE_NAMES[*]}"
+echo "  staging:    ${SECRET_BASE_NAMES[*]/%/_STG}"
 echo "See docs/deploy_cloud_run.md."
