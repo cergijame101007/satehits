@@ -67,7 +67,7 @@ jobs:
               svc_suffix=""
               secret_suffix=""
               app_environment="production"
-              public_max_instances=2
+              public_max_instances=1
               ;;
             staging)
               svc_suffix="-stg"
