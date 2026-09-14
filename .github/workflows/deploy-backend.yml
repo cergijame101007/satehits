@@ -1,23 +1,31 @@
 # バックエンド（Go API）を Google Cloud Run へ継続デプロイする。
 # 手順書: docs/deploy_cloud_run.md / 設計: ADR-011（CI/CD）, ADR-014/015（Outbox と private flush サービス）
 #
+# 環境: develop への push → staging、main への push → production（workflow_dispatch では choice で選ぶ）
+#   - GitHub Environments の staging / production に「同じ名前」の Secrets / Variables を置き、環境を切り替えるだけで同じキー名を参照する
+#   - GCP プロジェクトと Artifact Registry は共用。Cloud Run 名は staging のみ "-stg"、Secret Manager 名は staging のみ "_STG" サフィックス
 # 流れ: build once → Artifact Registry へ push → Cloud Run Job で migrate → 公開 / private の 2 サービスをデプロイ → スモーク
 # 認証は Workload Identity Federation（キーレス）。SA キー JSON は使わない。
-# CI（lint / test / build）は backend.yml。本 workflow はデプロイのみ。
+# CI（lint / test / build）は backend.yml。本 workflow はデプロイのみ。pull_request では動かさない（fork からの PR に secrets を晒さない）。
 name: Backend Deploy
+run-name: Deploy backend (${{ inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }})
 
 on:
   push:
-    branches: [main]
+    branches: [develop, main]
     paths:
       - "backend/**"
       - ".github/workflows/deploy-backend.yml"
   workflow_dispatch:
-
-# 同時デプロイを直列化する（migrate と 2 サービスの整合を守るため cancel はしない）
-concurrency:
-  group: deploy-backend
-  cancel-in-progress: false
+    inputs:
+      environment:
+        description: "デプロイ先"
+        type: choice
+        required: true
+        default: staging
+        options:
+          - staging
+          - production
 
 permissions:
   contents: read
@@ -27,15 +35,17 @@ jobs:
   deploy:
     name: Deploy to Cloud Run
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }}
+    # 同じ環境への同時デプロイを直列化する（migrate と 2 サービスの整合を守るため cancel はしない）。環境が違えば並行してよい
+    concurrency:
+      group: deploy-backend-${{ inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }}
+      cancel-in-progress: false
     env:
+      DEPLOY_ENV: ${{ inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }}
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
       GCP_REGION: ${{ vars.GCP_REGION || 'asia-northeast1' }}
       GCP_ARTIFACT_REPO: ${{ vars.GCP_ARTIFACT_REPO || 'satehits' }}
       RUNTIME_SA: ${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
-      PUBLIC_SERVICE: satehits-api
-      PRIVATE_SERVICE: satehits-api-internal
-      MIGRATE_JOB: satehits-migrate
       # 非秘密の実行時設定（両サービス共通）。秘密は Secret Manager（steps の secrets:）
       CORS_ORIGINS: ${{ vars.CORS_ORIGINS || 'https://satehits.com,https://www.satehits.com' }}
       COOKIE_DOMAIN: ${{ vars.COOKIE_DOMAIN }}
@@ -48,12 +58,45 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 環境ごとのリソース名・Secret 名・アプリ設定を決める。以降の step はこの出力だけを参照する
+      - name: Resolve target environment
+        id: target
+        run: |
+          case "${DEPLOY_ENV}" in
+            production)
+              svc_suffix=""
+              secret_suffix=""
+              app_environment="production"
+              public_max_instances=2
+              ;;
+            staging)
+              svc_suffix="-stg"
+              secret_suffix="_STG"
+              app_environment="staging"
+              public_max_instances=1
+              ;;
+            *)
+              echo "::error::unknown DEPLOY_ENV: ${DEPLOY_ENV}"
+              exit 1
+              ;;
+          esac
+          {
+            echo "svc_suffix=${svc_suffix}"
+            echo "secret_suffix=${secret_suffix}"
+            echo "app_environment=${app_environment}"
+            echo "public_max_instances=${public_max_instances}"
+            echo "public_service=satehits-api${svc_suffix}"
+            echo "private_service=satehits-api-internal${svc_suffix}"
+            echo "migrate_job=satehits-migrate${svc_suffix}"
+          } >> "${GITHUB_OUTPUT}"
+          echo "target: ${DEPLOY_ENV} (services: satehits-api${svc_suffix} / satehits-api-internal${svc_suffix}, secrets: *${secret_suffix})"
+
       - name: Check required configuration
         run: |
           missing=0
           for name in GCP_PROJECT_ID RUNTIME_SA; do
             if [[ -z "${!name}" ]]; then
-              echo "::error::${name} is not set (GitHub Variables of the 'production' environment)"
+              echo "::error::${name} is not set (GitHub Variables of the '${DEPLOY_ENV}' environment)"
               missing=1
             fi
           done
@@ -76,7 +119,12 @@ jobs:
           image_base="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPO}/api"
           {
             echo "image=${image_base}:${GITHUB_SHA}"
-            echo "image_latest=${image_base}:latest"
+            # latest は production のみ。staging は latest-stg
+            if [[ "${DEPLOY_ENV}" == "production" ]]; then
+              echo "image_latest=${image_base}:latest"
+            else
+              echo "image_latest=${image_base}:latest-stg"
+            fi
             # deploy-cloudrun の env_vars は "," と改行を区切りとして扱うため、値中の "," は "\," にエスケープする
             echo "cors_origins=${CORS_ORIGINS//,/\\,}"
           } >> "${GITHUB_OUTPUT}"
@@ -110,7 +158,7 @@ jobs:
             --image="${IMAGE}" \
             --command=/app/migrate \
             --set-env-vars=MIGRATIONS_DIR=/app/migrations \
-            --set-secrets=DATABASE_URL=DATABASE_URL:latest \
+            --set-secrets="DATABASE_URL=DATABASE_URL${SECRET_SUFFIX}:latest" \
             --service-account="${RUNTIME_SA}" \
             --tasks=1 \
             --max-retries=0 \
@@ -118,6 +166,8 @@ jobs:
             --quiet
         env:
           IMAGE: ${{ steps.cfg.outputs.image }}
+          MIGRATE_JOB: ${{ steps.target.outputs.migrate_job }}
+          SECRET_SUFFIX: ${{ steps.target.outputs.secret_suffix }}
 
       - name: Run migrations
         run: |
@@ -126,6 +176,8 @@ jobs:
             --region="${GCP_REGION}" \
             --wait \
             --quiet
+        env:
+          MIGRATE_JOB: ${{ steps.target.outputs.migrate_job }}
 
       # 公開 API（顧客ブラウザから直接叩く）。flush エンドポイントは登録しない
       - name: Deploy public service
@@ -134,11 +186,11 @@ jobs:
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
           region: ${{ env.GCP_REGION }}
-          service: ${{ env.PUBLIC_SERVICE }}
+          service: ${{ steps.target.outputs.public_service }}
           image: ${{ steps.cfg.outputs.image }}
           env_vars_update_strategy: overwrite
           env_vars: |
-            ENVIRONMENT=production
+            ENVIRONMENT=${{ steps.target.outputs.app_environment }}
             CORS_ORIGINS=${{ steps.cfg.outputs.cors_origins }}
             COOKIE_DOMAIN=${{ env.COOKIE_DOMAIN }}
             MAIL_FROM_ADDRESS=${{ env.MAIL_FROM_ADDRESS }}
@@ -152,11 +204,11 @@ jobs:
             STORAGE_PUBLIC_BASE_URL=${{ env.STORAGE_PUBLIC_BASE_URL }}
           secrets_update_strategy: overwrite
           secrets: |
-            DATABASE_URL=DATABASE_URL:latest
-            JWT_SECRET=JWT_SECRET:latest
-            TURNSTILE_SECRET_KEY=TURNSTILE_SECRET_KEY:latest
-            STORAGE_ACCESS_KEY=STORAGE_ACCESS_KEY:latest
-            STORAGE_SECRET_KEY=STORAGE_SECRET_KEY:latest
+            DATABASE_URL=DATABASE_URL${{ steps.target.outputs.secret_suffix }}:latest
+            JWT_SECRET=JWT_SECRET${{ steps.target.outputs.secret_suffix }}:latest
+            TURNSTILE_SECRET_KEY=TURNSTILE_SECRET_KEY${{ steps.target.outputs.secret_suffix }}:latest
+            STORAGE_ACCESS_KEY=STORAGE_ACCESS_KEY${{ steps.target.outputs.secret_suffix }}:latest
+            STORAGE_SECRET_KEY=STORAGE_SECRET_KEY${{ steps.target.outputs.secret_suffix }}:latest
           flags: >-
             --allow-unauthenticated
             --service-account=${{ env.RUNTIME_SA }}
@@ -165,7 +217,7 @@ jobs:
             --memory=256Mi
             --cpu-throttling
             --min-instances=0
-            --max-instances=2
+            --max-instances=${{ steps.target.outputs.public_max_instances }}
             --concurrency=80
             --timeout=60
 
@@ -176,11 +228,11 @@ jobs:
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
           region: ${{ env.GCP_REGION }}
-          service: ${{ env.PRIVATE_SERVICE }}
+          service: ${{ steps.target.outputs.private_service }}
           image: ${{ steps.cfg.outputs.image }}
           env_vars_update_strategy: overwrite
           env_vars: |
-            ENVIRONMENT=production
+            ENVIRONMENT=${{ steps.target.outputs.app_environment }}
             CORS_ORIGINS=${{ steps.cfg.outputs.cors_origins }}
             COOKIE_DOMAIN=${{ env.COOKIE_DOMAIN }}
             MAIL_FROM_ADDRESS=${{ env.MAIL_FROM_ADDRESS }}
@@ -194,12 +246,12 @@ jobs:
             STORAGE_PUBLIC_BASE_URL=${{ env.STORAGE_PUBLIC_BASE_URL }}
           secrets_update_strategy: overwrite
           secrets: |
-            DATABASE_URL=DATABASE_URL:latest
-            JWT_SECRET=JWT_SECRET:latest
-            TURNSTILE_SECRET_KEY=TURNSTILE_SECRET_KEY:latest
-            STORAGE_ACCESS_KEY=STORAGE_ACCESS_KEY:latest
-            STORAGE_SECRET_KEY=STORAGE_SECRET_KEY:latest
-            RESEND_API_KEY=RESEND_API_KEY:latest
+            DATABASE_URL=DATABASE_URL${{ steps.target.outputs.secret_suffix }}:latest
+            JWT_SECRET=JWT_SECRET${{ steps.target.outputs.secret_suffix }}:latest
+            TURNSTILE_SECRET_KEY=TURNSTILE_SECRET_KEY${{ steps.target.outputs.secret_suffix }}:latest
+            STORAGE_ACCESS_KEY=STORAGE_ACCESS_KEY${{ steps.target.outputs.secret_suffix }}:latest
+            STORAGE_SECRET_KEY=STORAGE_SECRET_KEY${{ steps.target.outputs.secret_suffix }}:latest
+            RESEND_API_KEY=RESEND_API_KEY${{ steps.target.outputs.secret_suffix }}:latest
           flags: >-
             --no-allow-unauthenticated
             --service-account=${{ env.RUNTIME_SA }}
@@ -214,6 +266,7 @@ jobs:
 
       - name: Smoke test (public service)
         run: |
+          echo "environment: ${DEPLOY_ENV}"
           echo "public service: ${PUBLIC_URL}"
           curl -fsS --retry 5 --retry-delay 5 --retry-all-errors "${PUBLIC_URL}/"
           echo
