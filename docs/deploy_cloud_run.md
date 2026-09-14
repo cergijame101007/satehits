@@ -48,7 +48,7 @@ GCP プロジェクトと Artifact Registry は 1 つを共用する。環境の
 | Secret Manager | `DATABASE_URL_STG`, `JWT_SECRET_STG`, `TURNSTILE_SECRET_KEY_STG`, `RESEND_API_KEY_STG`, `STORAGE_ACCESS_KEY_STG`, `STORAGE_SECRET_KEY_STG` | `DATABASE_URL`, `JWT_SECRET`, `TURNSTILE_SECRET_KEY`, `RESEND_API_KEY`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY` |
 | イメージタグ | `api:<git sha>`, `api:latest-stg` | `api:<git sha>`, `api:latest` |
 | Supabase | **現行の開発用プロジェクトを当面再利用**（`DATABASE_URL_STG` に開発用の Session pooler 接続文字列） | 後で **新規 Supabase プロジェクト（Tokyo）** を作り、その接続文字列を `DATABASE_URL` に入れる |
-| 公開サービスの max-instances | 1 | 2 |
+| 公開サービスの max-instances | 1 | 1（ピーク同時 10 未満想定・ADR-000。足りなくなったら workflow で上げる） |
 | Cloud Scheduler（flush） | 任意（`outbox-flush-stg`） | 必須（`outbox-flush`） |
 
 GitHub 側は `staging` / `production` の両 Environment に **同じ名前** の Secrets / Variables を置く。workflow は Environment を切り替えるだけで同じキー名を参照する（§3 (3)）。
@@ -250,7 +250,7 @@ staging:
 
 | 名前 | 環境 | 種別 | 認証 | env（非秘密） | secrets（Secret Manager） | スケール | timeout |
 |------|------|------|------|---------------|---------------------------|----------|---------|
-| `satehits-api` | production | Service | `--allow-unauthenticated` | `ENVIRONMENT=production`, `CORS_ORIGINS`, `COOKIE_DOMAIN`, `MAIL_FROM_ADDRESS`, `OUTBOX_BATCH_SIZE=20`, `OUTBOX_FLUSH_TIME_BUDGET_SECONDS=120`, **`OUTBOX_FLUSH_ENDPOINT_ENABLED=false`**, `TRUSTED_PROXY_HOPS=1`, `STORAGE_ENDPOINT`, `STORAGE_REGION=auto`, `STORAGE_BUCKET`, `STORAGE_PUBLIC_BASE_URL` | `DATABASE_URL`, `JWT_SECRET`, `TURNSTILE_SECRET_KEY`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY` | cpu 1 / 256Mi / min 0 / max 2 / concurrency 80 / CPU はリクエスト中のみ | 60s |
+| `satehits-api` | production | Service | `--allow-unauthenticated` | `ENVIRONMENT=production`, `CORS_ORIGINS`, `COOKIE_DOMAIN`, `MAIL_FROM_ADDRESS`, `OUTBOX_BATCH_SIZE=20`, `OUTBOX_FLUSH_TIME_BUDGET_SECONDS=120`, **`OUTBOX_FLUSH_ENDPOINT_ENABLED=false`**, `TRUSTED_PROXY_HOPS=1`, `STORAGE_ENDPOINT`, `STORAGE_REGION=auto`, `STORAGE_BUCKET`, `STORAGE_PUBLIC_BASE_URL` | `DATABASE_URL`, `JWT_SECRET`, `TURNSTILE_SECRET_KEY`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY` | cpu 1 / 256Mi / min 0 / max 1 / concurrency 80 / CPU はリクエスト中のみ | 60s |
 | `satehits-api-internal` | production | Service | `--no-allow-unauthenticated`（Scheduler SA に `roles/run.invoker`） | 同上、ただし **`OUTBOX_FLUSH_ENDPOINT_ENABLED=true`** | 同上 + **`RESEND_API_KEY`** | cpu 1 / 256Mi / min 0 / max 1 / concurrency 80 | 300s（`OUTBOX_FLUSH_TIME_BUDGET_SECONDS` 120 < Scheduler attempt-deadline 180 < 300） |
 | `satehits-migrate` | production | Job | ランタイム SA | `MIGRATIONS_DIR=/app/migrations` | `DATABASE_URL` | tasks 1 / max-retries 0 | 10m |
 | `satehits-api-stg` | staging | Service | `--allow-unauthenticated` | `satehits-api` と同じ、ただし `ENVIRONMENT=staging`。`CORS_ORIGINS` / `COOKIE_DOMAIN` / `STORAGE_*` は staging Environment の Variables | `DATABASE_URL_STG`, `JWT_SECRET_STG`, `TURNSTILE_SECRET_KEY_STG`, `STORAGE_ACCESS_KEY_STG`, `STORAGE_SECRET_KEY_STG` | cpu 1 / 256Mi / min 0 / **max 1** / concurrency 80 | 60s |
