@@ -77,6 +77,8 @@ printf '%s' '<r2 secret access key>'| gcloud secrets versions add STORAGE_SECRET
 
 `JWT_SECRET` を差し替えると発行済みのアクセストークンは全て無効になる（管理者は再ログイン）。
 
+**6 つすべてに値（バージョン）が必要。** workflow は 6 つの Secret を毎回参照するため、バージョンが 1 つも無い Secret があるとデプロイが `Secret version not found` で失敗する。R2 をまだ使わない場合は `STORAGE_ACCESS_KEY` / `STORAGE_SECRET_KEY` にダミー値（例 `unused`）を入れておく（`STORAGE_ENDPOINT` 等の Variables が空なら画像アップロードは NoOp のまま）。同様に Resend 未契約なら `RESEND_API_KEY` にもダミー値を入れる（private サービスは起動するが、flush 時の送信は認証エラーで中断し `pending` のまま残る）。
+
 ### (3) GitHub の Secrets / Variables
 
 Settings → Environments → `production`（次項で作成）に登録する。値は (1) の最後に表示される。
