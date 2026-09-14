@@ -44,6 +44,21 @@ if ! gcloud artifacts repositories describe "${ARTIFACT_REPO}" \
     --repository-format=docker \
     --description="satehits backend images"
 fi
+# sha タグのイメージが溜まって無料枠（0.5 GB）を超えないよう、直近 5 版だけ残して 30 日より古いものを消す
+CLEANUP_POLICY="$(mktemp)"
+cat > "${CLEANUP_POLICY}" <<'JSON'
+[
+  {"name": "keep-recent", "action": {"type": "Keep"}, "mostRecentVersions": {"keepCount": 5}},
+  {"name": "delete-old", "action": {"type": "Delete"}, "condition": {"olderThan": "2592000s"}}
+]
+JSON
+gcloud artifacts repositories set-cleanup-policies "${ARTIFACT_REPO}" \
+  --project="${PROJECT_ID}" \
+  --location="${REGION}" \
+  --policy="${CLEANUP_POLICY}" \
+  --no-dry-run \
+  --quiet
+rm -f "${CLEANUP_POLICY}"
 
 # 3. ランタイム SA（Cloud Run サービス / Job の実行者）。Secret Manager の値を読む
 if ! gcloud iam service-accounts describe "${RUNTIME_SA_EMAIL}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
