@@ -7,7 +7,7 @@ flowchart TB
     subgraph External[外部]
         Customer[顧客]
         Owner[オーナー]
-        ReCaptcha[reCAPTCHA]
+        Turnstile[Cloudflare Turnstile]
     end
 
     subgraph Frontend[フロントエンド - Cloudflare Pages]
@@ -17,10 +17,15 @@ flowchart TB
 
     subgraph Backend[バックエンド - Cloud Run]
         API[Go API Server]
+        Flush[POST /internal/outbox/flush<br/>Dispatcher（private サービス・IAM 保護）]
     end
 
     subgraph Database[データベース - Supabase]
-        DB[(PostgreSQL)]
+        DB[(PostgreSQL<br/>reservations / email_outbox 等)]
+    end
+
+    subgraph Jobs[定期実行]
+        Scheduler[Cloud Scheduler]
     end
 
     subgraph Mail[メール配信]
@@ -28,20 +33,24 @@ flowchart TB
     end
 
     Customer -->|予約情報入力| CustomerUI
-    CustomerUI -->|reCAPTCHAトークン| ReCaptcha
-    ReCaptcha -->|検証結果| API
-    CustomerUI -->|予約申請・空き確認・スケジュール| API
+    CustomerUI -->|ウィジェットでトークン取得| Turnstile
+    CustomerUI -->|予約申請 turnstile_token 付き・空き確認・スケジュール| API
+    API -->|トークン検証| Turnstile
 
     Owner -->|ログイン・予約管理・スケジュール設定| AdminUI
     AdminUI -->|JWT認証付きリクエスト| API
 
-    API -->|CRUD| DB
+    API -->|CRUD・予約操作と同一 Tx で email_outbox へ enqueue| DB
     DB -->|データ| API
     API -->|レスポンス| CustomerUI
     API -->|レスポンス| AdminUI
-    API -->|メール送信| Resend
+    Scheduler -->|1 分ごとに起動| Flush
+    Flush -->|claim / 送信結果の記録（それぞれ独立コミット）| DB
+    Flush -->|送信（DB Tx の外）| Resend
     Resend -->|受付・承認・拒否メール| Customer
 ```
+
+API はメールを直接送らない。予約 INSERT / ステータス更新と同一トランザクションで `email_outbox` に送信意図を記録し、Cloud Scheduler が起動する `POST /internal/outbox/flush` の Dispatcher が lease 方式（claim → 送信 → 記録をそれぞれ独立コミット）で Resend に送る（ADR-014 / ADR-015）。
 
 ## 2. 予約申請のデータフロー
 
@@ -55,7 +64,7 @@ flowchart LR
         Phone[電話番号]
         Email[メールアドレス]
         Note[備考]
-        Token[reCAPTCHAトークン]
+        Token[turnstile_token]
     end
 
     subgraph Validation[バリデーション]
@@ -67,29 +76,31 @@ flowchart LR
     end
 
     subgraph Process[処理]
-        ReCaptcha[reCAPTCHA検証]
+        Turnstile[Turnstile検証]
         AvailService[AvailabilityService]
-        Create[予約作成]
-        SendMail[受付メール送信]
+        Create[予約作成 + 受付メール enqueue<br/>（同一トランザクション）]
     end
 
     subgraph Output[出力データ]
         Reservation[予約レコード]
+        Outbox[email_outbox 行<br/>mail_type=reservation_received]
         Response[APIレスポンス]
     end
 
-    Input --> ReCaptcha
-    ReCaptcha --> Validation
+    Input --> Turnstile
+    Turnstile --> Validation
     V5 --> AvailService
     AvailService --> Create
     Create --> Reservation
-    Reservation --> SendMail
-    SendMail --> Response
+    Create --> Outbox
+    Reservation --> Response
 ```
+
+受付メールはレスポンス前に送信しない。`email_outbox` の行は Dispatcher が非同期に送信する（§1）。enqueue の DB エラーは予約作成ごとロールバックする。
 
 ## 3. 残り食数の計算フロー
 
-`daily_schedules` に該当日の行がある場合はその行を正とし、**行がない場合**はドメイン既定（店の定例に基づく祝日・曜日別の既定。祝日は同梱の内閣府 CSV で判定。[holidays.md](./holidays.md)）で**その日の営業設定（有効なスケジュール）**を合成する。`AvailabilityService` はその内容から `capacity`・休業相当かどうかを決め、`reservations` の承認済人数と組み合わせて残りを算出する。
+`daily_schedules` に該当日の行がある場合はその行を正とし、**行がない場合**はドメイン既定（店の定例に基づく祝日・曜日別の既定。祝日は同梱の内閣府 CSV で判定。[holidays.md](./holidays.md)）で**その日の営業設定（有効なスケジュール）**を合成する。`AvailabilityService` はその内容から `capacity`・休業相当かどうかを決め、`reservations` の予約済み（pending + approved）の人数合計と組み合わせて残りを算出する（NOTE: ローンチ前に要確認 pending を reserved に含める仮方針）。
 
 ```mermaid
 flowchart TB
@@ -130,35 +141,94 @@ flowchart TB
 
 ## 4. 認証フロー
 
+管理者認証はアクセストークン（AT: JWT HS256・1 時間）とリフレッシュトークン（RT: 不透明文字列・`httpOnly` Cookie・30 日スライディング）の二層（[api_design.md](./api_design.md) §5 認証方式）。DB には RT の SHA-256 ハッシュのみを `refresh_tokens` に保存し、ログイン失敗は `login_attempts` に記録する（[table_design.md](./table_design.md) §2.4・§2.5）。
+
+### 4.1 ログイン（`POST /admin/login`）
+
 ```mermaid
 flowchart TB
-    subgraph Login[ログイン]
+    subgraph Input[入力]
         Email[メールアドレス]
         Password[パスワード]
     end
 
-    subgraph Verify[検証]
-        FindUser[ユーザー検索]
-        CompareHash[パスワード照合]
+    subgraph RateLimit[ブルートフォース対策]
+        CountRecent[login_attempts を<br/>email_key・IP で直近件数集計]
     end
 
-    subgraph Token[トークン生成]
-        GenerateJWT[JWT生成]
-        SetExpiry[有効期限設定]
+    subgraph Verify[検証]
+        FindUser[admin_users 検索]
+        CompareHash[bcrypt 照合]
+        RecordFailure[login_attempts に失敗を INSERT]
+    end
+
+    subgraph Issue[トークン発行]
+        ClearAttempts[login_attempts の<br/>当該 email_key を DELETE]
+        GenerateJWT[AT 生成 JWT・1 時間]
+        IssueRT[RT 発行<br/>refresh_tokens にハッシュを INSERT]
+        Cleanup[期限切れ refresh_tokens を DELETE<br/>ベストエフォート]
     end
 
     subgraph Response[レスポンス]
-        JWTToken[JWTトークン]
-        UserInfo[ユーザー情報]
+        Body[JSON: AT・ユーザー情報]
+        Cookie[Set-Cookie: refresh_token]
+        TooMany[429]
+        Unauthorized[401]
     end
 
-    Email --> FindUser
-    Password --> CompareHash
+    Email --> CountRecent
+    CountRecent -->|しきい値超過| TooMany
+    CountRecent -->|OK| FindUser
     FindUser --> CompareHash
-    CompareHash -->|OK| GenerateJWT
-    GenerateJWT --> SetExpiry
-    SetExpiry --> JWTToken
-    SetExpiry --> UserInfo
+    Password --> CompareHash
+    FindUser -->|未存在| RecordFailure
+    CompareHash -->|不一致| RecordFailure
+    RecordFailure --> Unauthorized
+    CompareHash -->|OK| ClearAttempts
+    ClearAttempts --> GenerateJWT --> IssueRT --> Cleanup
+    Cleanup --> Body
+    Cleanup --> Cookie
+```
+
+### 4.2 AT 更新（`POST /admin/refresh`）・ログアウト（`POST /admin/logout`）
+
+```mermaid
+flowchart TB
+    subgraph Input[入力]
+        RTCookie[Cookie: refresh_token]
+        OriginCheck[Origin / Referer を<br/>CORS_ORIGINS と照合]
+    end
+
+    subgraph Refresh[refresh]
+        FindRT[refresh_tokens を<br/>SHA-256 ハッシュで検索]
+        Reused[revoke 済み RT の再送]
+        RevokeAll[当該ユーザーの全 RT を revoke]
+        FindAdmin[admin_users 取得]
+        NewAT[新しい AT 生成]
+        Rotate[同一トランザクションで<br/>旧 RT revoke + 新 RT INSERT]
+    end
+
+    subgraph Logout[logout]
+        FindRTLogout[refresh_tokens を<br/>SHA-256 ハッシュで検索]
+        RevokeOne[該当 RT の revoked_at を設定]
+    end
+
+    subgraph Response[レスポンス]
+        RefreshOK[200 JSON: 新 AT + Set-Cookie: 新 RT]
+        LogoutOK[204 Cookie 削除]
+        Forbidden[403]
+        InvalidToken[401]
+    end
+
+    RTCookie --> OriginCheck
+    OriginCheck -->|不一致| Forbidden
+    OriginCheck -->|refresh| FindRT
+    FindRT -->|有効| FindAdmin --> NewAT --> Rotate --> RefreshOK
+    FindRT -->|未登録・期限切れ| InvalidToken
+    FindRT -->|revoke 済み| Reused --> RevokeAll --> InvalidToken
+    OriginCheck -->|logout AT 必須| FindRTLogout
+    FindRTLogout -->|該当あり| RevokeOne --> LogoutOK
+    FindRTLogout -->|未登録| LogoutOK
 ```
 
 ## 5. ステータス遷移
@@ -169,12 +239,15 @@ stateDiagram-v2
 
     pending --> approved: オーナー承認
     pending --> rejected: オーナー拒否
+    pending --> cancelled: メール連絡後オーナーが手動更新
 
-    approved --> no_show: 無断キャンセル記録
+    approved --> no_show: 当日来店なし
+    approved --> cancelled: メール連絡後オーナーが手動更新
 
     rejected --> [*]
+    cancelled --> [*]
     no_show --> [*]
-    approved --> [*]: 来店完了（ステータス変更なし）
+    approved --> [*]: 来店完了（状態変更なし）
 ```
 
 ## 6. スケジュールタイプと予約可否
@@ -213,7 +286,7 @@ flowchart TB
 ```mermaid
 flowchart TB
     subgraph CustomerAPI[顧客向けAPI]
-        GetAvailability[GET /reservations/availability]
+        GetAvailability[GET /reservations/availability<br/>単日 date / 月次 year・month]
         CreateReservation[POST /reservations]
         GetSchedules[GET /schedules]
         GetSuppliers[GET /suppliers]
@@ -221,10 +294,15 @@ flowchart TB
 
     subgraph AdminAPI[管理者向けAPI]
         Login[POST /admin/login]
+        Refresh[POST /admin/refresh]
+        Logout[POST /admin/logout]
         GetReservations[GET /admin/reservations]
         CreateByAdmin[POST /admin/reservations]
         UpdateStatus[PATCH /admin/reservations/:id/status]
+        GetAdminSchedules[GET /admin/schedules]
+        GetAdminSchedule[GET /admin/schedules/:date]
         SetSchedule[PUT /admin/schedules/:date]
+        DeleteSchedule[DELETE /admin/schedules/:date]
         ManageSuppliers[Suppliers CRUD Operations]
     end
 
@@ -233,19 +311,37 @@ flowchart TB
         SchedulesTable[(daily_schedules)]
         SuppliersTable[(suppliers)]
         AdminUsersTable[(admin_users)]
+        RefreshTokensTable[(refresh_tokens)]
+        LoginAttemptsTable[(login_attempts)]
+        OutboxTable[(email_outbox)]
+    end
+
+    subgraph InternalAPI[内部API（IAM 保護）]
+        FlushOutbox[POST /internal/outbox/flush]
     end
 
     GetAvailability --> SchedulesTable
     GetAvailability --> ReservationsTable
     CreateReservation --> ReservationsTable
+    CreateReservation --> OutboxTable
+    UpdateStatus --> OutboxTable
+    FlushOutbox --> OutboxTable
     GetSchedules --> SchedulesTable
     GetSuppliers --> SuppliersTable
 
     Login --> AdminUsersTable
+    Login --> LoginAttemptsTable
+    Login --> RefreshTokensTable
+    Refresh --> RefreshTokensTable
+    Refresh --> AdminUsersTable
+    Logout --> RefreshTokensTable
     GetReservations --> ReservationsTable
     CreateByAdmin --> ReservationsTable
     UpdateStatus --> ReservationsTable
+    GetAdminSchedules --> SchedulesTable
+    GetAdminSchedule --> SchedulesTable
     SetSchedule --> SchedulesTable
+    DeleteSchedule --> SchedulesTable
     ManageSuppliers --> SuppliersTable
 ```
 
@@ -255,10 +351,10 @@ flowchart TB
 flowchart TB
     subgraph WebReservation[Webからの予約]
         WebInput[顧客入力]
-        ReCaptcha[reCAPTCHA検証]
+        Turnstile[Turnstile検証]
         WebValidation[厳密なバリデーション]
         WebCreate[予約作成 source=web, status=pending]
-        WebMail[受付メール送信]
+        WebMail[受付メール enqueue<br/>（予約作成と同一トランザクション）]
     end
 
     subgraph AdminReservation[オーナー登録の予約]
@@ -269,16 +365,21 @@ flowchart TB
 
     subgraph DB[データベース]
         ReservationsTable[(reservations)]
+        OutboxTable[(email_outbox)]
     end
 
     subgraph MailService[メール配信]
+        Dispatcher[Dispatcher<br/>POST /internal/outbox/flush]
         Resend[Resend]
     end
 
-    WebInput --> ReCaptcha --> WebValidation --> WebCreate --> ReservationsTable
-    WebCreate --> WebMail --> Resend
+    WebInput --> Turnstile --> WebValidation --> WebCreate --> ReservationsTable
+    WebCreate --> WebMail --> OutboxTable
+    OutboxTable -->|claim| Dispatcher --> Resend
     AdminInput --> AdminValidation --> AdminCreate --> ReservationsTable
 ```
+
+オーナー登録の予約はメールを enqueue しない。承認・拒否メールは `PATCH /admin/reservations/{id}/status` のステータス更新と同一トランザクションで enqueue する（§7）。
 
 ## 9. 取引先データフロー
 

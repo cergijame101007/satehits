@@ -69,14 +69,35 @@ erDiagram
         timestamp attempted_at "試行日時"
     }
 
+    email_outbox {
+        uuid id PK "Outbox ID"
+        uuid reservation_id FK "予約ID"
+        string mail_type "論理メール種別"
+        string from_address "From"
+        string to_address "To"
+        string subject "件名"
+        string body_html "HTML本文"
+        string body_text "テキスト本文"
+        string status "送信状態"
+        int attempt_count "claim回数"
+        timestamp next_attempt_at "次回試行時刻・lease期限"
+        string last_error "直近のエラー"
+        timestamp sent_at "送信成功時刻"
+        timestamp created_at "作成日時"
+        timestamp updated_at "更新日時"
+    }
+
     schema_migrations {
         bigint version PK "マイグレーション番号"
         timestamp applied_at "適用日時"
     }
 
-    daily_schedules ||--o{ reservations : "date"
+    daily_schedules ||--o{ reservations : "date 論理関連のみ FK なし"
     admin_users ||--o{ refresh_tokens : "has"
+    reservations ||--o{ email_outbox : "has"
 ```
+
+`daily_schedules` と `reservations`（`visit_date`）は**論理関連のみで外部キーは張らない**。`daily_schedules` に行が無い日も店舗定例の合成で予約できるため、FK を張ると定例合成日の予約が作れなくなる（意図的）。
 
 ## 2. テーブル定義
 
@@ -107,7 +128,7 @@ erDiagram
 **インデックス:**
 - `idx_reservations_visit_date`: visit_date（日付検索用）
 - `idx_reservations_status`: status（ステータス絞り込み用）
-- `idx_reservations_created_at`: created_at（半年経過データ削除バッチ用）
+- `idx_reservations_created_at`: created_at（将来の削除バッチ用。未実装。保持期間は ADR-013 で未決定）
 - `idx_reservations_unique_active`: `(visit_date, visit_time, phone)` の部分ユニーク（`status IN ('pending', 'approved')` のみ。キャンセル・拒否後は同じ電話番号で再予約可）
 
 **ステータスの値:**
@@ -188,7 +209,7 @@ erDiagram
 | capacity | INTEGER | NO | 10 | 提供可能数 |
 | event_name | TEXT | YES | NULL | イベント名 |
 | event_description | TEXT | YES | NULL | イベント説明（顧客に表示） |
-| open_time | TIME | YES | NULL | 開店時間（`normal` / `morning` / `special_menu` / `event` で未指定時はアプリが店舗デフォルトを補完。`closed` は常に NULL） |
+| open_time | TIME | YES | NULL | 開店時間（`normal` / `morning` / `special_menu` で未指定時はアプリが種別の店舗デフォルトを補完。`event` で未指定時はその日の暦日に応じた店舗デフォルトを補完（祝日でない日曜=朝営業、それ以外=通常営業。祝日は日曜と重なっても朝営業なし）。`closed` / `external_event` は常に NULL（時刻は保存しない）） |
 | last_order_time | TIME | YES | NULL | ラストオーダー時間（上記と同様） |
 | close_time | TIME | YES | NULL | 閉店時間（上記と同様） |
 | created_at | TIMESTAMPTZ | NO | NOW() | 作成日時 |
@@ -203,14 +224,14 @@ erDiagram
 |----|------|------|-------------------|
 | normal | 通常営業（月火水土祝） | 可 | 11:30-15:00 (LO 13:30) |
 | morning | 朝営業（日曜） | 可 | 8:30-15:00 (LO 13:30) |
-| event | 店内イベント等（和紅茶をしばく会等）。`event_name` 必須 | 可（注意書き表示） | 省略時は曜日別デフォルト |
-| external_event | 外部イベント（店舗休業）。`event_name` 必須 | 不可（イベント情報表示） | - |
+| event | 店内イベント等（和紅茶をしばく会等）。`event_name` 必須 | 可（注意書き表示） | 省略時は暦日別デフォルト（祝日でない日曜=朝、それ以外=通常） |
+| external_event | 外部イベント（店舗休業）。`event_name` 必須。`capacity` は 0 固定 | 不可（イベント情報表示） | なし（時刻は保存しない） |
 | special_menu | 特別メニュー（リゾットランチ等） | 可（注意書き表示） | 通常と同じ |
-| closed | 臨時休業 | 不可 | - |
+| closed | 臨時休業 | 不可 | なし（時刻は保存しない） |
 
 **備考（営業可否・提供数の「正」）:**
 - **該当日付に行が存在する場合** — その行の `schedule_type`・`capacity`・時刻などが**唯一の正**（顧客向け空き・カレンダー・予約可否はこれに従う）。
-- **行が存在しない場合** — アプリケーションがドメイン既定（店の定例カレンダーに基づく曜日別の既定 `schedule_type` / `capacity` など）で**その日の営業設定（有効なスケジュール）**を合成する。臨時変更や例外は、オーナーが `PUT /admin/schedules/{date}` 等で行を作成し、`daily_schedules` に永続化する。
+- **行が存在しない場合** — アプリケーションがドメイン既定（店の定例カレンダーに基づき**祝日 → 曜日**の順で決める既定 `schedule_type` / `capacity` など。[`domain_knowledge.md`](./domain_knowledge.md) §6 参照）で**その日の営業設定（有効なスケジュール）**を合成する。臨時変更や例外は、オーナーが `PUT /admin/schedules/{date}` 等で行を作成し、`daily_schedules` に永続化する。
 
 ### 2.3 admin_users（管理者ユーザー）
 
@@ -439,6 +460,31 @@ CREATE INDEX IF NOT EXISTS idx_login_attempts_email
 CREATE INDEX IF NOT EXISTS idx_login_attempts_ip
     ON login_attempts (ip, attempted_at DESC);
 
+-- メール送信 Outbox（予約 INSERT / ステータス更新と同一トランザクションで記録する）
+CREATE TABLE IF NOT EXISTS email_outbox (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    reservation_id   UUID NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+    mail_type        TEXT NOT NULL
+                     CHECK (mail_type IN ('reservation_received', 'reservation_approved', 'reservation_rejected')),
+    from_address     TEXT NOT NULL,
+    to_address       TEXT NOT NULL,
+    subject          TEXT NOT NULL,
+    body_html        TEXT NOT NULL,
+    body_text        TEXT NOT NULL,
+    status           TEXT NOT NULL DEFAULT 'pending'
+                     CHECK (status IN ('pending', 'sent', 'failed')),
+    attempt_count    INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_error       TEXT,
+    sent_at          TIMESTAMPTZ,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT email_outbox_logical_event_unique UNIQUE (reservation_id, mail_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_outbox_dispatch
+    ON email_outbox (next_attempt_at) WHERE status = 'pending';
+
 -- updated_at 自動更新用のトリガー関数
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -468,6 +514,11 @@ CREATE TRIGGER update_suppliers_updated_at
 
 CREATE TRIGGER update_admin_users_updated_at
     BEFORE UPDATE ON admin_users
+    FOR EACH ROW
+    EXECUTE PROCEDURE update_updated_at_column();
+
+CREATE TRIGGER update_email_outbox_updated_at
+    BEFORE UPDATE ON email_outbox
     FOR EACH ROW
     EXECUTE PROCEDURE update_updated_at_column();
 ```
