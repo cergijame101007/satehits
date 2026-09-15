@@ -4,12 +4,18 @@ import userEvent from '@testing-library/user-event';
 import ReservationCreateForm from '@/components/react/ReservationCreateForm';
 import { createAdminReservation, ReservationApiError } from '@/lib/adminReservation';
 import { getAvailability } from '@/lib/availability';
+import { notifyPendingCountChanged } from '@/lib/pendingReservations';
 import { createDeferred } from '@/test/deferred';
 import type { AvailabilityResponse, Reservation } from '@/types/reservation';
 
 vi.mock('@/lib/adminReservation', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/adminReservation')>();
   return { ...actual, createAdminReservation: vi.fn() };
+});
+
+vi.mock('@/lib/pendingReservations', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/pendingReservations')>();
+  return { ...actual, notifyPendingCountChanged: vi.fn() };
 });
 
 vi.mock('@/lib/availability', async (importOriginal) => {
@@ -149,6 +155,19 @@ describe('ReservationCreateForm', () => {
     );
   });
 
+  it('登録に成功したら未対応件数の変更を通知する', async () => {
+    const user = userEvent.setup();
+    createMock.mockResolvedValue(created);
+    render(<ReservationCreateForm />);
+
+    await fillValidForm(user);
+    expect(notifyPendingCountChanged).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: '登録する' }));
+
+    expect(await screen.findByText('予約を登録しました')).toBeInTheDocument();
+    expect(notifyPendingCountChanged).toHaveBeenCalledTimes(1);
+  });
+
   it('経路・時間・人数・ステータス・備考の変更が送信内容に反映される', async () => {
     const user = userEvent.setup();
     createMock.mockResolvedValue(created);
@@ -244,6 +263,7 @@ describe('ReservationCreateForm', () => {
 
     expect(await screen.findByText('メールアドレスの形式が正しくありません')).toBeInTheDocument();
     expect(screen.queryByText('予約を登録しました')).not.toBeInTheDocument();
+    expect(notifyPendingCountChanged).not.toHaveBeenCalled();
   });
 
   it('details のない API エラーはメッセージを、想定外の例外は汎用メッセージを表示する', async () => {
