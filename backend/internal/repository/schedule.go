@@ -12,7 +12,9 @@ import (
 )
 
 // NOTE: open_time 等は DB 未設定時 NULL。ドメインは datetime.Time のゼロ値、API は JSON null
-// normal / morning / special_menu / event（曜日別）は Upsert 時に未指定なら店舗デフォルトを補完。closed は常に NULL
+// normal / morning / special_menu は Upsert 時に未指定なら種別の店舗デフォルトを補完。
+// event は暦日に応じた店舗デフォルト（祝日 → 曜日。祝日でない日曜のみ朝営業、それ以外は通常営業）を補完
+// closed / external_event は常に NULL（external_event は capacity 0 固定）
 //
 // PostgresScheduleRepository はPostgreSQLを使ったスケジュールリポジトリの実装
 type PostgresScheduleRepository struct {
