@@ -1094,6 +1094,7 @@ components:
     # 共通
     # ========================================
     ErrorResponse:
+      description: 共通エラー形式。受け付けないメソッドの 405（INVALID_REQUEST、Allow ヘッダ付き）と未知パスの 404（NOT_FOUND）もこの形式で返す（各パスには列挙しない）
       type: object
       required: [error]
       properties:
