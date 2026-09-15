@@ -213,6 +213,7 @@ describe('MonthCalendar', () => {
     expect(screen.getByText('イベント')).toBeInTheDocument();
     expect(screen.getByText('外部イベント（店休）')).toBeInTheDocument();
     expect(screen.getByText('特別メニュー')).toBeInTheDocument();
+    expect(screen.getByText('定休日・臨時休')).toBeInTheDocument();
 
     rerender(
       <MonthCalendar viewYear={2026} viewMonth={9} onViewChange={() => {}} days={[]} variant="picker" />,

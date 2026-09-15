@@ -52,6 +52,17 @@ describe('formatStoreDefaultPreview', () => {
     expect(preview.capacityLabel).toBe('予約不可');
   });
 
+  it('labels a regular Friday closure as 定休日, not 臨時休', () => {
+    const preview = formatStoreDefaultPreview('2026-05-22');
+    expect(preview.type).toBe('closed');
+    expect(preview.typeLabel).toBe('定休日');
+    expect(preview.summaryLines).toEqual([
+      'タイプ: 定休日',
+      '提供可能数: 予約不可',
+      'この日は定休日として扱われます',
+    ]);
+  });
+
   it('shows capacity for normal weekday', () => {
     const preview = formatStoreDefaultPreview('2026-05-18');
     expect(preview.isClosed).toBe(false);

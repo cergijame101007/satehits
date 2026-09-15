@@ -46,6 +46,26 @@ describe('publicScheduleCell', () => {
     expect(display.showEventBar).toBe(true);
   });
 
+  it('shows event bar for special menu only when it has a name', () => {
+    const named = schedule({
+      date: '2026-02-14',
+      schedule_type: 'special_menu',
+      event_name: '春のラム',
+      capacity: 10,
+      available: 10,
+    });
+    const unnamed = schedule({ date: '2026-02-15', schedule_type: 'special_menu', capacity: 10, available: 10 });
+
+    expect(getPublicScheduleCellDisplay(named)).toEqual({ showClosedMark: false, showEventBar: true });
+    expect(getPublicScheduleCellDisplay(unnamed)).toEqual({ showClosedMark: false, showEventBar: false });
+  });
+
+  it('shows closed mark for temporary closure (closed)', () => {
+    const s = schedule({ date: '2026-02-16', schedule_type: 'closed' });
+
+    expect(getPublicScheduleCellDisplay(s)).toEqual({ showClosedMark: true, showEventBar: false });
+  });
+
   it('shows closed mark only for regular holiday', () => {
     const s = schedule({
       date: '2026-02-13',
