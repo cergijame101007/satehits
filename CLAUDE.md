@@ -56,7 +56,7 @@ Copilot 等の自動レビュー指摘は**仮説**とする。上表の docs �
 
 **バックエンド再発防止（docs 確認済みのみ追記）**
 
-- `schedule_type` とイベント欄（正は `docs/api_design.md` の表）: `normal` / `morning` / `closed` はイベント欄を送らない・保存前にクリア。`event` / `external_event` は名称必須・説明任意。`external_event` は capacity 0 固定・時刻 NULL。`special_menu` は任意（Copilot が「必須」と言っても docs 優先）
+- `schedule_type` とイベント欄（正は `docs/api_design.md` の表）: `normal` / `morning` / `closed` はイベント欄を送ると 400（`VALIDATION_ERROR`）。`event` / `external_event` は名称必須・説明任意。`external_event` は capacity 0 固定・時刻 NULL。`special_menu` は任意（Copilot が「必須」と言っても docs 優先）
 - Outbox Dispatcher（正は ADR-014）: claim → 送信 → 記録は lease 方式で**独立コミット**。送信を DB Tx の中に戻さない。`attempt_count` は claim 時に +1（失敗回数ではない）。401/403 は `ReleaseClaim` でバッチ中断
 - 店舗定例の合成（正は `docs/domain_knowledge.md` §6 / `docs/holidays.md`）: `daily_schedules` 行なし日は **祝日 → 曜日** の順。祝日は曜日にかかわらず `normal`（日曜祝日も朝営業なし）。祝日データは同梱 CSV（`internal/domain/holiday`）で、外部へ取りに行かない。FE の `storeDefaultSchedule.ts` も同じデータ（`src/data/holidays.json`）で整合させる
 
@@ -275,6 +275,7 @@ Presentation  →  Application  →  Domain  ←  Infrastructure
 | `GET` | `/api/v1/suppliers` | 取引先一覧（公開） | 実装済み |
 | `GET` | `/api/v1/admin/suppliers` | 取引先一覧取得 | 実装済み |
 | `POST` | `/api/v1/admin/suppliers` | 取引先作成 | 実装済み |
+| `GET` | `/api/v1/admin/suppliers/:id` | 取引先取得 | 実装済み |
 | `PUT` | `/api/v1/admin/suppliers/:id` | 取引先更新 | 実装済み |
 | `DELETE` | `/api/v1/admin/suppliers/:id` | 取引先削除 | 実装済み |
 | `PUT` | `/api/v1/admin/suppliers/order` | 取引先並び順更新 | 実装済み |

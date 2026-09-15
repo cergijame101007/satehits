@@ -69,11 +69,13 @@
 |----------------|--------|------|
 | 400 | INVALID_REQUEST | リクエスト形式が不正 |
 | 400 | VALIDATION_ERROR | バリデーションエラー |
+| 400 | CAPTCHA_FAILED | Turnstile 検証失敗（`POST /reservations`。`details` なし） |
 | 401 | UNAUTHORIZED | 認証が必要 |
 | 401 | INVALID_TOKEN | トークンが無効 |
 | 403 | FORBIDDEN | アクセス権限がない |
 | 404 | NOT_FOUND | リソースが見つからない |
 | 409 | CAPACITY_EXCEEDED | 予約可能数を超過 |
+| 409 | RESERVATION_CONFLICT | 同一電話番号・同一来店日時のアクティブ予約が既にある |
 | 429 | TOO_MANY_REQUESTS | リクエスト過多（ログイン試行上限など） |
 | 500 | INTERNAL_ERROR | サーバー内部エラー |
 
@@ -285,6 +287,8 @@ GET /api/v1/schedules?year=2025&month=2
 
 **成功時（200 OK）** — `MonthlyScheduleResponse`（`year`, `month`, `schedules`）。各要素は `DaySchedule`（`date`, `schedule_type`, `capacity`, `available`, `is_holiday` 等）。
 
+**バリデーションエラー時（400 Bad Request）** — `year` / `month` クエリの欠落・空白のみ・非数値、または範囲外（年 2000〜2100、月 1〜12）の場合。`VALIDATION_ERROR`（`details[].field` は `year` または `month`。形式は `GET /admin/schedules` と同じ）。
+
 ---
 
 ### GET /suppliers
@@ -477,7 +481,7 @@ Cookie の RT を revoke し、同名 Cookie を削除する。リクエスト�
 #### リクエスト
 
 - `Authorization: Bearer {AT}` 必須
-- `Cookie: refresh_token=<opaque>`
+- `Cookie: refresh_token=<opaque>`（任意。Cookie 無し / 未登録トークンでも 204（冪等））
 - `Origin` / `Referer` 検証（`refresh` と同様）
 
 #### レスポンス
@@ -579,6 +583,8 @@ GET /api/v1/admin/reservations?date=2025-02-10&status=pending
 }
 ```
 
+**バリデーションエラー時（400 Bad Request）** — `date` が YYYY-MM-DD 形式でない、または `status` / `source` が列挙値以外の場合。`VALIDATION_ERROR`（`details` 付き）。
+
 ---
 
 ### POST /admin/reservations
@@ -623,6 +629,8 @@ Instagram・電話・知人経由など、オーナーが手動で予約を登�
 #### レスポンス
 
 **成功時（201 Created）** — `ReservationResponse`（公開申請と同型）。
+
+**二重予約時（409 Conflict）** — 同一電話番号で同一来店日時に `pending` / `approved` の予約が既にある場合。`RESERVATION_CONFLICT`（公開申請と同じ形式）。
 
 ---
 
@@ -716,6 +724,8 @@ GET /api/v1/admin/schedules?year=2025&month=2
 
 **成功時（200 OK）** — `ScheduleResponse`（`date`, `schedule_type`, `capacity` 必須。`event_name`, `open_time` 等は OpenAPI 参照）。
 
+**日付形式不正（400 Bad Request）** — パス `{date}` が YYYY-MM-DD でない場合。`INVALID_REQUEST`（`details` なし）。
+
 ---
 
 ### PUT /admin/schedules/{date}
@@ -734,10 +744,11 @@ PUT /api/v1/admin/schedules/2025-02-11
 
 | `schedule_type` | `event_name` / `event_description` | 時刻（`open_time` 等） |
 |-----------------|-------------------------------------|-------------------------|
-| `normal` / `morning` / `special_menu` | 任意（`special_menu` はメニュー名など） | 省略時は店舗デフォルトを適用 |
+| `normal` / `morning` | **送信不可**（空でない値を送ると 400 `VALIDATION_ERROR`） | 省略時は店舗デフォルトを適用 |
+| `special_menu` | 任意（メニュー名など） | 省略時は店舗デフォルトを適用 |
 | `event` | 名称**必須** / 説明**任意** | **任意**（省略時は暦日別の店舗デフォルトを適用: 祝日でない日曜=朝営業、それ以外=通常営業） |
 | `external_event` | 名称**必須** / 説明**任意** | 保存しない（常に NULL）。`capacity` は 0 固定 |
-| `closed` | 不要 | 送信しても保存しない（常に NULL） |
+| `closed` | **送信不可**（空でない値を送ると 400 `VALIDATION_ERROR`） | 送信しても保存しない（常に NULL） |
 
 ```json
 {
@@ -848,6 +859,8 @@ PUT /api/v1/admin/schedules/2025-02-11
 #### レスポンス
 
 **成功時（200 OK）** — `AdminSupplierListResponse`
+
+**対象なし（404 Not Found）** — `order` に存在しない取引先 ID が含まれる場合。`NOT_FOUND`
 
 ---
 
