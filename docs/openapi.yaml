@@ -1611,8 +1611,8 @@ components:
           nullable: true
         image_url:
           type: string
-          format: uri
           nullable: true
+          description: URL 形式は検証しない。画像は `POST /admin/suppliers/{id}/image` で登録するのが正
         display_order:
           type: integer
         is_active:
