@@ -134,7 +134,7 @@ satehits/
 │   ├── docker/
 │   │   ├── Dockerfile           # 本番用マルチステージビルド
 │   │   └── Dockerfile.dev       # 開発用（Air ホットリロード）
-│   └── schema.sql               # DB スキーマ
+│   └── migrations/              # DB マイグレーション SQL（make migrate）
 ├── docs/                        # 設計ドキュメント（日本語）
 ├── scripts/
 │   ├── setup-gcp.sh             # GCP 初期セットアップ（Artifact Registry / SA / WIF / Secret Manager 枠）
@@ -144,11 +144,10 @@ satehits/
 ├── .cursor/rules/               # Cursor AI ルール
 ├── docker-compose.yml           # 開発用 Docker
 ├── docker-compose.prod.yml      # 本番用 Docker
-├── Makefile                     # 開発コマンド
-└── .env.example                 # 環境変数テンプレート
+└── Makefile                     # 開発コマンド
 ```
 
-> **注意**: `backend/` のディレクトリ構成は現在最小限。`docs/architecture.md` に定義された目標構成（`internal/presentation/`, `internal/application/`, `internal/domain/`, `internal/infrastructure/`）に向けて段階的に拡張する予定。
+> **注意**: `backend/` の現状の構成と移行予定は `docs/architecture.md` §7 を正とする。方針はレイヤード + Repository + DI に絞り、DDD 由来の要素（`domain` のサブパッケージ分割、`application/dto` 等）は目標から外す候補として扱う（ADR-005）。
 
 ---
 
@@ -293,6 +292,10 @@ make dev-build    # バックエンド Docker イメージビルド
 make dev-down     # バックエンド Docker 停止
 make dev-front    # フロントエンド開発サーバー起動（bun run dev）
 make prod         # 本番用 Docker 起動
+make prod-build   # 本番用 Docker イメージビルド
+make prod-down    # 本番用 Docker 停止
+make migrate      # DB マイグレーション実行（cmd/migrate）
+make seed         # 開発用シード投入（cmd/seed。SEED_ADMIN_PASSWORD が必要）
 make build        # Go バイナリビルド（bin/api）
 make run          # Go サーバー直接起動
 make test         # バックエンドテスト実行
@@ -322,26 +325,14 @@ bun run test:run  # Vitest（単発実行）
 
 ## 8. 環境変数
 
-`.env.example` をコピーして `.env` を作成する。
+テンプレートはバックエンドとフロントエンドで分かれている。それぞれコピーして使う。
 
-```env
-# バックエンド
-DATABASE_URL=postgresql://user:password@host:5432/dbname
-JWT_SECRET=your-jwt-secret
-CORS_ORIGINS=http://localhost:4321
-COOKIE_DOMAIN=
-TURNSTILE_SECRET_KEY=your-turnstile-secret-key
-ENVIRONMENT=development
-RESEND_API_KEY=
-MAIL_FROM_ADDRESS=さて、羊に戻るとしよう <noreply@satehits.com>
-OUTBOX_BATCH_SIZE=20
-OUTBOX_FLUSH_TIME_BUDGET_SECONDS=120
-OUTBOX_FLUSH_ENDPOINT_ENABLED=true
-
-# フロントエンド（Astro: PUBLIC_ プレフィックスでクライアントに公開）
-PUBLIC_API_URL=http://localhost:8080
-PUBLIC_TURNSTILE_SITE_KEY=your-turnstile-site-key
+```bash
+cp backend/.env.example backend/.env    # docker compose の env_file と go run 時の godotenv が読む
+cp frontend/.env.example frontend/.env  # Astro が frontend/ 直下から読む（PUBLIC_ のみクライアントに公開）
 ```
+
+変数の一覧・既定値・必須条件は `backend/.env.example` / `frontend/.env.example` のコメントを正とし、ここには一覧を持たない（定義元は `backend/pkg/config/config.go`）。本番（Cloud Run / Cloudflare Pages）の設定は `docs/deploy_cloud_run.md`。
 
 ---
 
@@ -376,6 +367,7 @@ PUBLIC_TURNSTILE_SITE_KEY=your-turnstile-site-key
 | [docs/infrastructure.md](docs/infrastructure.md) | インフラ構成、環境設定、CI/CD 詳細 |
 | [docs/deploy_cloud_run.md](docs/deploy_cloud_run.md) | Cloud Run への CD 手順（GCP セットアップ、Secrets/Variables、初回デプロイ、ロールバック） |
 | [docs/test_design.md](docs/test_design.md) | テスト方針・テストケース一覧 |
+| [docs/coding_rule/go_testing.md](docs/coding_rule/go_testing.md) | Go テストの書き方 |
 | [docs/use_case.md](docs/use_case.md) | ユースケース一覧 |
 | [docs/data_flow.md](docs/data_flow.md) | データフロー図 |
 | [docs/holidays.md](docs/holidays.md) | 祝日データの出典・合成ルール・年次更新手順（毎年 2 月頃に `make update-holidays`） |
