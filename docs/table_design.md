@@ -207,7 +207,7 @@ erDiagram
 | capacity | INTEGER | NO | 10 | 提供可能数 |
 | event_name | TEXT | YES | NULL | イベント名 |
 | event_description | TEXT | YES | NULL | イベント説明（顧客に表示） |
-| open_time | TIME | YES | NULL | 開店時間（`normal` / `morning` / `special_menu` / `event` で未指定時はアプリが店舗デフォルトを補完。`closed` は常に NULL） |
+| open_time | TIME | YES | NULL | 開店時間（`normal` / `morning` / `special_menu` で未指定時はアプリが種別の店舗デフォルトを補完。`event` で未指定時はその日の暦日に応じた店舗デフォルトを補完（祝日でない日曜=朝営業、それ以外=通常営業。祝日は日曜と重なっても朝営業なし）。`closed` / `external_event` は常に NULL（時刻は保存しない）） |
 | last_order_time | TIME | YES | NULL | ラストオーダー時間（上記と同様） |
 | close_time | TIME | YES | NULL | 閉店時間（上記と同様） |
 | created_at | TIMESTAMPTZ | NO | NOW() | 作成日時 |
@@ -222,10 +222,10 @@ erDiagram
 |----|------|------|-------------------|
 | normal | 通常営業（月火水土祝） | 可 | 11:30-15:00 (LO 13:30) |
 | morning | 朝営業（日曜） | 可 | 8:30-15:00 (LO 13:30) |
-| event | 店内イベント等（和紅茶をしばく会等）。`event_name` 必須 | 可（注意書き表示） | 省略時は曜日別デフォルト |
-| external_event | 外部イベント（店舗休業）。`event_name` 必須 | 不可（イベント情報表示） | - |
+| event | 店内イベント等（和紅茶をしばく会等）。`event_name` 必須 | 可（注意書き表示） | 省略時は暦日別デフォルト（祝日でない日曜=朝、それ以外=通常） |
+| external_event | 外部イベント（店舗休業）。`event_name` 必須。`capacity` は 0 固定 | 不可（イベント情報表示） | なし（時刻は保存しない） |
 | special_menu | 特別メニュー（リゾットランチ等） | 可（注意書き表示） | 通常と同じ |
-| closed | 臨時休業 | 不可 | - |
+| closed | 臨時休業 | 不可 | なし（時刻は保存しない） |
 
 **備考（営業可否・提供数の「正」）:**
 - **該当日付に行が存在する場合** — その行の `schedule_type`・`capacity`・時刻などが**唯一の正**（顧客向け空き・カレンダー・予約可否はこれに従う）。
