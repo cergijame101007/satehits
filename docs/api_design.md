@@ -626,6 +626,8 @@ Instagram・電話・知人経由など、オーナーが手動で予約を登�
 
 **成功時（201 Created）** — `ReservationResponse`（公開申請と同型）。
 
+**二重予約時（409 Conflict）** — 同一電話番号で同一来店日時に `pending` / `approved` の予約が既にある場合。`RESERVATION_CONFLICT`（公開申請と同じ形式）。
+
 ---
 
 ### PATCH /admin/reservations/{id}/status

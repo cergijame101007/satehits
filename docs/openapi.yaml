@@ -225,6 +225,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MonthlyScheduleResponse"
+        "400":
+          description: |
+            クエリ `year` / `month` の欠落・非数値、または範囲外（年 2000〜2100、月 1〜12）（`VALIDATION_ERROR`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
 
   /suppliers:
     get:
@@ -444,6 +451,15 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReservationListResponse"
+        "400":
+          description: |
+            クエリ不正（`VALIDATION_ERROR`）
+            - `date` が YYYY-MM-DD 形式でない
+            - `status` / `source` が列挙値以外
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
         "401":
           description: 認証エラー
           content:
@@ -654,6 +670,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ScheduleResponse"
+        "400":
+          description: パスの日付形式不正（`INVALID_REQUEST`）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: 認証エラー
           content:
@@ -994,6 +1016,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: 認証エラー
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 存在しない取引先 ID が含まれる（`NOT_FOUND`）
           content:
             application/json:
               schema:
