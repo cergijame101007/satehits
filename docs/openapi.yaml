@@ -1449,11 +1449,13 @@ components:
           maxLength: 100
           description: |
             `schedule_type` が `event` または `external_event` のとき必須。`special_menu` ではメニュー名として任意。
+            `normal` / `morning` / `closed` では送信不可（空でない値を送ると 400 `VALIDATION_ERROR`）。
         event_description:
           type: string
           maxLength: 500
           description: |
             `event` / `external_event` / `special_menu` では任意（顧客に表示）。
+            `normal` / `morning` / `closed` では送信不可（空でない値を送ると 400 `VALIDATION_ERROR`）。
         open_time:
           type: string
           pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$"
