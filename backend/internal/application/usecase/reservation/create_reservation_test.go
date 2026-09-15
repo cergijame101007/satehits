@@ -524,3 +524,111 @@ func TestCreateReservationUseCase_Execute_visitDateLock(t *testing.T) {
 		}
 	})
 }
+
+type txCtxKey struct{}
+
+// recordingTxManager は DoInTx の呼び出し回数と、fn の実行中かどうかを記録する（fn には印付きの ctx を渡す）
+type recordingTxManager struct {
+	calls int
+	inTx  bool
+}
+
+func (m *recordingTxManager) DoInTx(ctx context.Context, fn func(context.Context) error) error {
+	m.calls++
+	m.inTx = true
+	defer func() { m.inTx = false }()
+	return fn(context.WithValue(ctx, txCtxKey{}, true))
+}
+
+var _ application.TxManager = (*recordingTxManager)(nil)
+
+// recordingMailEnqueuer は受付メールの enqueue を記録する
+type recordingMailEnqueuer struct {
+	NoOpMailEnqueuer
+	tx         *recordingTxManager
+	err        error
+	received   []domain.Reservation
+	calledInTx []bool
+}
+
+func (e *recordingMailEnqueuer) EnqueueReservationReceived(ctx context.Context, r domain.Reservation) error {
+	e.received = append(e.received, r)
+	inTxCtx, _ := ctx.Value(txCtxKey{}).(bool)
+	e.calledInTx = append(e.calledInTx, e.tx.inTx && inTxCtx)
+	return e.err
+}
+
+func TestCreateReservationUseCase_Execute_mailOutbox(t *testing.T) {
+	now := time.Now().In(storeLocation)
+	sunday := firstBookableWeekday(t, now, time.Sunday)
+	sched := createTestScheduleRepo{
+		byDate: map[string]domain.Schedule{
+			sunday.String(): {Date: sunday, ScheduleType: domain.ScheduleTypeMorning, Capacity: 10},
+		},
+	}
+	newUseCase := func(repo *createTestReservationRepo, tx *recordingTxManager, enqueuer *recordingMailEnqueuer) *CreateReservationUseCase {
+		resolver := service.NewScheduleResolver(sched, testStoreCalendar())
+		avail := service.NewAvailabilityService(resolver, repo)
+		return NewCreateReservationUseCase(repo, resolver, avail, testStoreCalendar(), tx, noOpVisitDateLocker{}, NoOpCaptchaVerifier{}, enqueuer)
+	}
+
+	t.Run("enqueues received mail once with created reservation inside transaction", func(t *testing.T) {
+		repo := &createTestReservationRepo{}
+		tx := &recordingTxManager{}
+		enqueuer := &recordingMailEnqueuer{tx: tx}
+		uc := newUseCase(repo, tx, enqueuer)
+
+		created, err := uc.Execute(context.Background(), validCreateCommandForDate(sunday))
+		if err != nil {
+			t.Fatalf("Execute() err = %v, want nil", err)
+		}
+		if len(enqueuer.received) != 1 {
+			t.Fatalf("received enqueues = %d, want 1", len(enqueuer.received))
+		}
+		got := enqueuer.received[0]
+		if got.ID != created.ID || got.Status != "pending" || got.Source != "web" || got.VisitDate != sunday {
+			t.Fatalf("enqueued reservation = %+v, want created reservation %+v", got, *created)
+		}
+		if !enqueuer.calledInTx[0] {
+			t.Fatal("EnqueueReservationReceived was called outside DoInTx, want same transaction")
+		}
+		if tx.calls != 1 {
+			t.Fatalf("DoInTx calls = %d, want 1", tx.calls)
+		}
+	})
+
+	t.Run("returns enqueue error so the transaction rolls back", func(t *testing.T) {
+		repo := &createTestReservationRepo{}
+		tx := &recordingTxManager{}
+		enqueueErr := errors.New("outbox insert failed")
+		enqueuer := &recordingMailEnqueuer{tx: tx, err: enqueueErr}
+		uc := newUseCase(repo, tx, enqueuer)
+
+		result, err := uc.Execute(context.Background(), validCreateCommandForDate(sunday))
+		// fn がエラーを返すと実 TxManager は Create ごとロールバックする（fake は巻き戻さない）
+		if !errors.Is(err, enqueueErr) {
+			t.Fatalf("Execute() err = %v, want %v", err, enqueueErr)
+		}
+		if result != nil {
+			t.Fatalf("result = %+v, want nil", result)
+		}
+		if len(enqueuer.received) != 1 || !enqueuer.calledInTx[0] {
+			t.Fatalf("received = %d, calledInTx = %v, want 1 call inside DoInTx", len(enqueuer.received), enqueuer.calledInTx)
+		}
+	})
+
+	t.Run("succeeds when received mail is already enqueued", func(t *testing.T) {
+		repo := &createTestReservationRepo{}
+		tx := &recordingTxManager{}
+		enqueuer := &recordingMailEnqueuer{tx: tx, err: domain.ErrMailAlreadyEnqueued}
+		uc := newUseCase(repo, tx, enqueuer)
+
+		result, err := uc.Execute(context.Background(), validCreateCommandForDate(sunday))
+		if err != nil {
+			t.Fatalf("Execute() err = %v, want nil", err)
+		}
+		if result == nil || len(repo.created) != 1 {
+			t.Fatalf("result = %v, created = %d, want reservation created", result, len(repo.created))
+		}
+	})
+}
