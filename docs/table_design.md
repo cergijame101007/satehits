@@ -128,7 +128,7 @@ erDiagram
 **インデックス:**
 - `idx_reservations_visit_date`: visit_date（日付検索用）
 - `idx_reservations_status`: status（ステータス絞り込み用）
-- `idx_reservations_created_at`: created_at（半年経過データ削除バッチ用）
+- `idx_reservations_created_at`: created_at（将来の削除バッチ用。未実装。保持期間は ADR-013 で未決定）
 - `idx_reservations_unique_active`: `(visit_date, visit_time, phone)` の部分ユニーク（`status IN ('pending', 'approved')` のみ。キャンセル・拒否後は同じ電話番号で再予約可）
 
 **ステータスの値:**
