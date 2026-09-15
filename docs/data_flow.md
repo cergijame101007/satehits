@@ -141,35 +141,94 @@ flowchart TB
 
 ## 4. 認証フロー
 
+管理者認証はアクセストークン（AT: JWT HS256・1 時間）とリフレッシュトークン（RT: 不透明文字列・`httpOnly` Cookie・30 日スライディング）の二層（[api_design.md](./api_design.md) §5 認証方式）。DB には RT の SHA-256 ハッシュのみを `refresh_tokens` に保存し、ログイン失敗は `login_attempts` に記録する（[table_design.md](./table_design.md) §2.4・§2.5）。
+
+### 4.1 ログイン（`POST /admin/login`）
+
 ```mermaid
 flowchart TB
-    subgraph Login[ログイン]
+    subgraph Input[入力]
         Email[メールアドレス]
         Password[パスワード]
     end
 
-    subgraph Verify[検証]
-        FindUser[ユーザー検索]
-        CompareHash[パスワード照合]
+    subgraph RateLimit[ブルートフォース対策]
+        CountRecent[login_attempts を<br/>email_key・IP で直近件数集計]
     end
 
-    subgraph Token[トークン生成]
-        GenerateJWT[JWT生成]
-        SetExpiry[有効期限設定]
+    subgraph Verify[検証]
+        FindUser[admin_users 検索]
+        CompareHash[bcrypt 照合]
+        RecordFailure[login_attempts に失敗を INSERT]
+    end
+
+    subgraph Issue[トークン発行]
+        ClearAttempts[login_attempts の<br/>当該 email_key を DELETE]
+        GenerateJWT[AT 生成 JWT・1 時間]
+        IssueRT[RT 発行<br/>refresh_tokens にハッシュを INSERT]
+        Cleanup[期限切れ refresh_tokens を DELETE<br/>ベストエフォート]
     end
 
     subgraph Response[レスポンス]
-        JWTToken[JWTトークン]
-        UserInfo[ユーザー情報]
+        Body[JSON: AT・ユーザー情報]
+        Cookie[Set-Cookie: refresh_token]
+        TooMany[429]
+        Unauthorized[401]
     end
 
-    Email --> FindUser
-    Password --> CompareHash
+    Email --> CountRecent
+    CountRecent -->|しきい値超過| TooMany
+    CountRecent -->|OK| FindUser
     FindUser --> CompareHash
-    CompareHash -->|OK| GenerateJWT
-    GenerateJWT --> SetExpiry
-    SetExpiry --> JWTToken
-    SetExpiry --> UserInfo
+    Password --> CompareHash
+    FindUser -->|未存在| RecordFailure
+    CompareHash -->|不一致| RecordFailure
+    RecordFailure --> Unauthorized
+    CompareHash -->|OK| ClearAttempts
+    ClearAttempts --> GenerateJWT --> IssueRT --> Cleanup
+    Cleanup --> Body
+    Cleanup --> Cookie
+```
+
+### 4.2 AT 更新（`POST /admin/refresh`）・ログアウト（`POST /admin/logout`）
+
+```mermaid
+flowchart TB
+    subgraph Input[入力]
+        RTCookie[Cookie: refresh_token]
+        OriginCheck[Origin / Referer を<br/>CORS_ORIGINS と照合]
+    end
+
+    subgraph Refresh[refresh]
+        FindRT[refresh_tokens を<br/>SHA-256 ハッシュで検索]
+        Reused[revoke 済み RT の再送]
+        RevokeAll[当該ユーザーの全 RT を revoke]
+        FindAdmin[admin_users 取得]
+        NewAT[新しい AT 生成]
+        Rotate[同一トランザクションで<br/>旧 RT revoke + 新 RT INSERT]
+    end
+
+    subgraph Logout[logout]
+        FindRTLogout[refresh_tokens を<br/>SHA-256 ハッシュで検索]
+        RevokeOne[該当 RT の revoked_at を設定]
+    end
+
+    subgraph Response[レスポンス]
+        RefreshOK[200 JSON: 新 AT + Set-Cookie: 新 RT]
+        LogoutOK[204 Cookie 削除]
+        Forbidden[403]
+        InvalidToken[401]
+    end
+
+    RTCookie --> OriginCheck
+    OriginCheck -->|不一致| Forbidden
+    OriginCheck -->|refresh| FindRT
+    FindRT -->|有効| FindAdmin --> NewAT --> Rotate --> RefreshOK
+    FindRT -->|未登録・期限切れ| InvalidToken
+    FindRT -->|revoke 済み| Reused --> RevokeAll --> InvalidToken
+    OriginCheck -->|logout AT 必須| FindRTLogout
+    FindRTLogout -->|該当あり| RevokeOne --> LogoutOK
+    FindRTLogout -->|未登録| LogoutOK
 ```
 
 ## 5. ステータス遷移
@@ -227,7 +286,7 @@ flowchart TB
 ```mermaid
 flowchart TB
     subgraph CustomerAPI[顧客向けAPI]
-        GetAvailability[GET /reservations/availability]
+        GetAvailability[GET /reservations/availability<br/>単日 date / 月次 year・month]
         CreateReservation[POST /reservations]
         GetSchedules[GET /schedules]
         GetSuppliers[GET /suppliers]
@@ -235,10 +294,15 @@ flowchart TB
 
     subgraph AdminAPI[管理者向けAPI]
         Login[POST /admin/login]
+        Refresh[POST /admin/refresh]
+        Logout[POST /admin/logout]
         GetReservations[GET /admin/reservations]
         CreateByAdmin[POST /admin/reservations]
         UpdateStatus[PATCH /admin/reservations/:id/status]
+        GetAdminSchedules[GET /admin/schedules]
+        GetAdminSchedule[GET /admin/schedules/:date]
         SetSchedule[PUT /admin/schedules/:date]
+        DeleteSchedule[DELETE /admin/schedules/:date]
         ManageSuppliers[Suppliers CRUD Operations]
     end
 
@@ -247,6 +311,8 @@ flowchart TB
         SchedulesTable[(daily_schedules)]
         SuppliersTable[(suppliers)]
         AdminUsersTable[(admin_users)]
+        RefreshTokensTable[(refresh_tokens)]
+        LoginAttemptsTable[(login_attempts)]
         OutboxTable[(email_outbox)]
     end
 
@@ -264,10 +330,18 @@ flowchart TB
     GetSuppliers --> SuppliersTable
 
     Login --> AdminUsersTable
+    Login --> LoginAttemptsTable
+    Login --> RefreshTokensTable
+    Refresh --> RefreshTokensTable
+    Refresh --> AdminUsersTable
+    Logout --> RefreshTokensTable
     GetReservations --> ReservationsTable
     CreateByAdmin --> ReservationsTable
     UpdateStatus --> ReservationsTable
+    GetAdminSchedules --> SchedulesTable
+    GetAdminSchedule --> SchedulesTable
     SetSchedule --> SchedulesTable
+    DeleteSchedule --> SchedulesTable
     ManageSuppliers --> SuppliersTable
 ```
 
