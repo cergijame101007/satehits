@@ -287,6 +287,8 @@ GET /api/v1/schedules?year=2025&month=2
 
 **成功時（200 OK）** — `MonthlyScheduleResponse`（`year`, `month`, `schedules`）。各要素は `DaySchedule`（`date`, `schedule_type`, `capacity`, `available`, `is_holiday` 等）。
 
+**バリデーションエラー時（400 Bad Request）** — `year` / `month` クエリの欠落・空白のみ・非数値、または範囲外（年 2000〜2100、月 1〜12）の場合。`VALIDATION_ERROR`（`details[].field` は `year` または `month`。形式は `GET /admin/schedules` と同じ）。
+
 ---
 
 ### GET /suppliers
@@ -581,6 +583,8 @@ GET /api/v1/admin/reservations?date=2025-02-10&status=pending
 }
 ```
 
+**バリデーションエラー時（400 Bad Request）** — `date` が YYYY-MM-DD 形式でない、または `status` / `source` が列挙値以外の場合。`VALIDATION_ERROR`（`details` 付き）。
+
 ---
 
 ### POST /admin/reservations
@@ -720,6 +724,8 @@ GET /api/v1/admin/schedules?year=2025&month=2
 
 **成功時（200 OK）** — `ScheduleResponse`（`date`, `schedule_type`, `capacity` 必須。`event_name`, `open_time` 等は OpenAPI 参照）。
 
+**日付形式不正（400 Bad Request）** — パス `{date}` が YYYY-MM-DD でない場合。`INVALID_REQUEST`（`details` なし）。
+
 ---
 
 ### PUT /admin/schedules/{date}
@@ -853,6 +859,8 @@ PUT /api/v1/admin/schedules/2025-02-11
 #### レスポンス
 
 **成功時（200 OK）** — `AdminSupplierListResponse`
+
+**対象なし（404 Not Found）** — `order` に存在しない取引先 ID が含まれる場合。`NOT_FOUND`
 
 ---
 
