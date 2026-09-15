@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 )
 
 const mediaTypeJSON = "application/json"
@@ -79,4 +80,17 @@ func respondWithError(w http.ResponseWriter, status int, code string, message st
 		},
 	}
 	respondWithJSON(w, status, payload)
+}
+
+// respondMethodNotAllowed は Allow ヘッダに受け付けるメソッドを載せ、405 INVALID_REQUEST を返す
+// OPTIONS は CORS ミドルウェアが先に 204 を返すため allowed に含めない
+func respondMethodNotAllowed(w http.ResponseWriter, allowed ...string) {
+	w.Header().Set("Allow", strings.Join(allowed, ", "))
+	respondWithError(w, http.StatusMethodNotAllowed, InvalidRequestCode, "許可されていないメソッドです", nil)
+}
+
+// respondNotFound はルーティングに一致しないパスへ 404 NOT_FOUND を返す
+// 個別リソースが無い場合（予約・取引先など）は各 handler のメッセージを使う
+func respondNotFound(w http.ResponseWriter) {
+	respondWithError(w, http.StatusNotFound, NotFoundCode, "リソースが見つかりません", nil)
 }

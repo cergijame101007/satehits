@@ -66,7 +66,7 @@ func NewAuthHandler(
 // HandleLogin は POST /admin/login
 func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		respondWithError(w, http.StatusMethodNotAllowed, InvalidRequestCode, "許可されていないメソッドです", nil)
+		respondMethodNotAllowed(w, http.MethodPost)
 		return
 	}
 
@@ -131,7 +131,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 // HandleRefresh は POST /admin/refresh
 func (h *AuthHandler) HandleRefresh(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		respondWithError(w, http.StatusMethodNotAllowed, InvalidRequestCode, "許可されていないメソッドです", nil)
+		respondMethodNotAllowed(w, http.MethodPost)
 		return
 	}
 
@@ -166,7 +166,7 @@ func (h *AuthHandler) HandleRefresh(w http.ResponseWriter, r *http.Request) {
 // HandleLogout は POST /admin/logout（RequireAuth でラップ前提）
 func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		respondWithError(w, http.StatusMethodNotAllowed, InvalidRequestCode, "許可されていないメソッドです", nil)
+		respondMethodNotAllowed(w, http.MethodPost)
 		return
 	}
 
