@@ -11,7 +11,7 @@ function day(
 ): MonthCalendarDay {
   return {
     date,
-    schedule: { date, type: 'normal', capacity: 10, is_default: true, ...schedule },
+    schedule: { date, schedule_type: 'normal', capacity: 10, is_default: true, ...schedule },
     reservation,
   };
 }
@@ -27,8 +27,8 @@ function getDayCell(dayNumber: number): HTMLButtonElement {
 
 const days: MonthCalendarDay[] = [
   day('2026-09-15'),
-  day('2026-09-16', { type: 'closed', capacity: 0 }),
-  day('2026-09-17', { type: 'event', capacity: 8, event_name: '夜会', is_default: false }),
+  day('2026-09-16', { schedule_type: 'closed', capacity: 0 }),
+  day('2026-09-17', { schedule_type: 'event', capacity: 8, event_name: '夜会', is_default: false }),
   day('2026-09-18', {}, { count: 2, reservedMeals: 10 }),
   day('2026-09-19', {}, { count: 1, reservedMeals: 4 }),
 ];
@@ -205,7 +205,7 @@ describe('MonthCalendar', () => {
     expect(onSelectDate).toHaveBeenCalledWith('2026-09-16');
   });
 
-  it('凡例は schedule では編集可能な全種別、picker では通常・朝営業・定休日のみ', () => {
+  it('凡例は schedule では編集可能な全種別、picker では通常・朝営業・休業のみ', () => {
     const { rerender } = render(
       <MonthCalendar viewYear={2026} viewMonth={9} onViewChange={() => {}} days={[]} variant="schedule" />,
     );
@@ -213,6 +213,7 @@ describe('MonthCalendar', () => {
     expect(screen.getByText('イベント')).toBeInTheDocument();
     expect(screen.getByText('外部イベント（店休）')).toBeInTheDocument();
     expect(screen.getByText('特別メニュー')).toBeInTheDocument();
+    expect(screen.getByText('定休日・臨時休')).toBeInTheDocument();
 
     rerender(
       <MonthCalendar viewYear={2026} viewMonth={9} onViewChange={() => {}} days={[]} variant="picker" />,
@@ -220,7 +221,7 @@ describe('MonthCalendar', () => {
 
     expect(screen.getByText('通常')).toBeInTheDocument();
     expect(screen.getByText('朝営業')).toBeInTheDocument();
-    expect(screen.getByText('定休日')).toBeInTheDocument();
+    expect(screen.getByText('定休日・臨時休')).toBeInTheDocument();
     expect(screen.queryByText('イベント')).not.toBeInTheDocument();
   });
 

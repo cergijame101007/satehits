@@ -15,20 +15,20 @@ const setScheduleMock = vi.mocked(setSchedule);
 const deleteScheduleMock = vi.mocked(deleteSchedule);
 
 function schedule(date: string, overrides: Partial<DailySchedule> = {}): DailySchedule {
-  return { date, type: 'normal', capacity: 10, is_default: true, ...overrides };
+  return { date, schedule_type: 'normal', capacity: 10, is_default: true, ...overrides };
 }
 
 /** 2026 年 9 月: 15 日は通常（定例）、16 日はイベント（個別設定）、17 日は定休（定例） */
 const septemberSchedules: DailySchedule[] = [
   schedule('2026-09-15'),
   schedule('2026-09-16', {
-    type: 'event',
+    schedule_type: 'event',
     capacity: 8,
     event_name: '羊の夜会',
-    description: 'ラム尽くしのコース',
+    event_description: 'ラム尽くしのコース',
     is_default: false,
   }),
-  schedule('2026-09-17', { type: 'closed', capacity: 0 }),
+  schedule('2026-09-17', { schedule_type: 'closed', capacity: 0 }),
 ];
 
 function getDayCell(dayNumber: number): HTMLButtonElement {
@@ -138,10 +138,10 @@ describe('ScheduleCalendar', () => {
     const user = userEvent.setup();
     setScheduleMock.mockResolvedValue(
       schedule('2026-09-15', {
-        type: 'event',
+        schedule_type: 'event',
         capacity: 6,
         event_name: '限定ランチ',
-        description: '説明文',
+        event_description: '説明文',
         is_default: false,
       }),
     );
@@ -164,7 +164,7 @@ describe('ScheduleCalendar', () => {
   it('外部イベントは提供数の入力を隠し、0 で保存する', async () => {
     const user = userEvent.setup();
     setScheduleMock.mockResolvedValue(
-      schedule('2026-09-15', { type: 'external_event', capacity: 0, event_name: 'マルシェ出店', is_default: false }),
+      schedule('2026-09-15', { schedule_type: 'external_event', capacity: 0, event_name: 'マルシェ出店', is_default: false }),
     );
     await renderLoaded();
 
@@ -226,7 +226,7 @@ describe('ScheduleCalendar', () => {
     expect(within(dialog).getByText('タイプ: 通常')).toBeInTheDocument();
     expect(within(dialog).getByText('提供可能数: 10食')).toBeInTheDocument();
 
-    listSchedulesMock.mockResolvedValue([schedule('2026-09-15'), schedule('2026-09-16'), schedule('2026-09-17', { type: 'closed', capacity: 0 })]);
+    listSchedulesMock.mockResolvedValue([schedule('2026-09-15'), schedule('2026-09-16'), schedule('2026-09-17', { schedule_type: 'closed', capacity: 0 })]);
     await user.click(within(dialog).getByRole('button', { name: '定例に戻す' }));
 
     await waitFor(() => {
@@ -241,7 +241,7 @@ describe('ScheduleCalendar', () => {
   it('定休日に戻る場合はその旨をプレビューに表示する', async () => {
     const user = userEvent.setup();
     listSchedulesMock.mockResolvedValue([
-      schedule('2026-09-18', { type: 'event', capacity: 5, event_name: '金曜特別営業', is_default: false }),
+      schedule('2026-09-18', { schedule_type: 'event', capacity: 5, event_name: '金曜特別営業', is_default: false }),
     ]);
     await renderLoaded();
 
@@ -252,6 +252,74 @@ describe('ScheduleCalendar', () => {
     expect(within(dialog).getByText('タイプ: 定休日')).toBeInTheDocument();
     expect(within(dialog).getByText('提供可能数: 予約不可')).toBeInTheDocument();
     expect(within(dialog).getByText('この日は定休日として扱われます')).toBeInTheDocument();
+  });
+
+  it('店舗定例の木・金（is_default の closed）はタイプを「定休日」と表示する', async () => {
+    const user = userEvent.setup();
+    await renderLoaded();
+
+    // 2026-09-17 は木曜・定例
+    await user.click(getDayCell(17));
+
+    expect(screen.getByDisplayValue('定休日')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '定例に戻す' })).not.toBeInTheDocument();
+  });
+
+  it('個別設定の closed はタイプを「臨時休」と表示する', async () => {
+    const user = userEvent.setup();
+    listSchedulesMock.mockResolvedValue([
+      schedule('2026-09-15', { schedule_type: 'closed', capacity: 0, is_default: false }),
+    ]);
+    await renderLoaded();
+
+    await user.click(getDayCell(15));
+
+    expect(screen.getByDisplayValue('臨時休')).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: '定休日' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '定例に戻す' })).toBeInTheDocument();
+  });
+
+  it('通常日の選択肢で closed は「臨時休」と表示し、選ぶと closed で保存する', async () => {
+    const user = userEvent.setup();
+    setScheduleMock.mockResolvedValue(
+      schedule('2026-09-15', { schedule_type: 'closed', capacity: 0, is_default: false }),
+    );
+    await renderLoaded();
+
+    await user.click(getDayCell(15));
+    expect(screen.getByRole('option', { name: '臨時休' })).toHaveValue('closed');
+    expect(screen.queryByRole('option', { name: '定休日' })).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByDisplayValue('通常'), 'closed');
+    await user.selectOptions(screen.getByDisplayValue('10'), '0');
+    await user.click(screen.getByRole('button', { name: '保存する' }));
+
+    await waitFor(() => {
+      expect(setScheduleMock).toHaveBeenCalledWith('2026-09-15', 'closed', 0, '', '');
+    });
+    expect(await screen.findByDisplayValue('臨時休')).toBeInTheDocument();
+  });
+
+  it('特別メニューは special_menu として説明付きで保存する', async () => {
+    const user = userEvent.setup();
+    setScheduleMock.mockResolvedValue(
+      schedule('2026-09-15', {
+        schedule_type: 'special_menu',
+        event_description: '秋のラム',
+        is_default: false,
+      }),
+    );
+    await renderLoaded();
+
+    await user.click(getDayCell(15));
+    await user.selectOptions(screen.getByDisplayValue('通常'), 'special_menu');
+    await user.type(document.querySelector('textarea')!, '秋のラム');
+    await user.click(screen.getByRole('button', { name: '保存する' }));
+
+    await waitFor(() => {
+      expect(setScheduleMock).toHaveBeenCalledWith('2026-09-15', 'special_menu', 10, '', '秋のラム');
+    });
+    expect(within(getDayCell(15)).getByText('特')).toBeInTheDocument();
   });
 
   it('削除の NOT_FOUND は「すでに店舗定例です」と表示する', async () => {

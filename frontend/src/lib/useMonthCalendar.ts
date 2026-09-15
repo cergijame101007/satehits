@@ -75,7 +75,7 @@ function buildMonthDays(
     const dateStr = `${viewYear}-${String(viewMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const schedule = schedules.find((s) => s.date === dateStr) ?? {
       date: dateStr,
-      type: 'normal' as const,
+      schedule_type: 'normal' as const,
       capacity: 10,
       is_default: true,
     };

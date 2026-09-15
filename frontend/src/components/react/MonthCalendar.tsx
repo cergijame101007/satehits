@@ -1,5 +1,5 @@
 import type { DailySchedule, ScheduleType } from '@/types/reservation';
-import { scheduleTypeShort, scheduleTypeLabels } from '@/lib/calendarTheme';
+import { scheduleTypeShort, getScheduleLegendLabel } from '@/lib/calendarTheme';
 import { editableScheduleTypes } from '@/lib/schedule';
 import { typeColors, typeTextColors, WEEKDAYS, isClosedScheduleType } from '@/lib/calendarTheme';
 import { buildMonthDates, formatDate, shiftMonth } from '@/lib/calendarUtils';
@@ -132,13 +132,13 @@ export default function MonthCalendar({
               const dayData = dayMap.get(dateStr);
               const schedule = dayData?.schedule ?? {
                 date: dateStr,
-                type: 'normal' as ScheduleType,
+                schedule_type: 'normal' as ScheduleType,
                 capacity: 10,
                 is_default: true,
               };
               const isSelected = selectedDate === dateStr;
               const isToday = dateStr === todayStr;
-              const isClosed = isClosedScheduleType(schedule.type);
+              const isClosed = isClosedScheduleType(schedule.schedule_type);
               const isFull =
                 !isClosed &&
                 !!dayData?.reservation &&
@@ -170,7 +170,7 @@ export default function MonthCalendar({
                   <span className={`text-gray-600 ${compact ? 'text-[10px]' : 'text-xs'}`}>{day}</span>
 
                   {(variant === 'schedule' || variant === 'reservation' || variant === 'picker') && (
-                    <ScheduleTypeBadge type={schedule.type} compact={compact} />
+                    <ScheduleTypeBadge type={schedule.schedule_type} compact={compact} />
                   )}
 
                   {variant === 'reservation' && dayData?.reservation && !isClosed && (
@@ -208,7 +208,7 @@ export default function MonthCalendar({
               {legendTypes.map((key) => (
                 <span key={key} className="inline-flex items-center gap-1">
                   <ScheduleTypeBadge type={key} compact />
-                  {scheduleTypeLabels[key]}
+                  {getScheduleLegendLabel(key)}
                 </span>
               ))}
             </div>

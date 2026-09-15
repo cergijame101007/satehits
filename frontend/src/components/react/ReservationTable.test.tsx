@@ -58,7 +58,7 @@ function availability(date: string, overrides: Partial<AvailabilityResponse> = {
 }
 
 function schedule(date: string, overrides: Partial<DailySchedule> = {}): DailySchedule {
-  return { date, type: 'normal', capacity: 10, is_default: true, ...overrides };
+  return { date, schedule_type: 'normal', capacity: 10, is_default: true, ...overrides };
 }
 
 function getDayCell(dayNumber: number): HTMLButtonElement {
@@ -161,12 +161,12 @@ describe('ReservationTable', () => {
   it('定休日は残り食数の代わりに定休日と表示する', async () => {
     listReservationsMock.mockResolvedValue([]);
     getAvailabilityMock.mockResolvedValue(availability(today, { is_holiday: true, capacity: 0, available: 0 }));
-    listSchedulesMock.mockResolvedValue([schedule(today, { type: 'closed', capacity: 0 })]);
+    listSchedulesMock.mockResolvedValue([schedule(today, { schedule_type: 'closed', capacity: 0 })]);
     await renderLoaded();
 
     expect(await screen.findByText('この日は定休日です')).toBeInTheDocument();
-    // カレンダー凡例の「定休日」に加え、空き状況カードにも「定休日」が出る
-    expect(screen.getAllByText('定休日')).toHaveLength(2);
+    // カレンダー凡例は「定休日・臨時休」なので、「定休日」単独は空き状況カードのみ
+    expect(screen.getByText('定休日')).toBeInTheDocument();
     expect(screen.queryByText('予約済み: 3食')).not.toBeInTheDocument();
   });
 
