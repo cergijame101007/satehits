@@ -373,13 +373,15 @@ paths:
         リフレッシュトークンをサーバ側で revoke し、Cookie を削除します。
         `Authorization: Bearer` に有効なアクセストークンを付与してください。
         `Origin` / `Referer` は `refresh` と同様に検証します。
+        Cookie 無し / 未登録トークンでも 204（冪等）。
       operationId: logout
       security:
         - BearerAuth: []
       parameters:
         - name: refresh_token
           in: cookie
-          required: true
+          required: false
+          description: revoke 対象のリフレッシュトークン。Cookie 無し / 未登録トークンでも 204（冪等）
           schema:
             type: string
       responses:

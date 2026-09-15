@@ -479,7 +479,7 @@ Cookie の RT を revoke し、同名 Cookie を削除する。リクエスト�
 #### リクエスト
 
 - `Authorization: Bearer {AT}` 必須
-- `Cookie: refresh_token=<opaque>`
+- `Cookie: refresh_token=<opaque>`（任意。Cookie 無し / 未登録トークンでも 204（冪等））
 - `Origin` / `Referer` 検証（`refresh` と同様）
 
 #### レスポンス
