@@ -69,6 +69,24 @@ erDiagram
         timestamp attempted_at "試行日時"
     }
 
+    email_outbox {
+        uuid id PK "Outbox ID"
+        uuid reservation_id FK "予約ID"
+        string mail_type "論理メール種別"
+        string from_address "From"
+        string to_address "To"
+        string subject "件名"
+        string body_html "HTML本文"
+        string body_text "テキスト本文"
+        string status "送信状態"
+        int attempt_count "claim回数"
+        timestamp next_attempt_at "次回試行時刻・lease期限"
+        string last_error "直近のエラー"
+        timestamp sent_at "送信成功時刻"
+        timestamp created_at "作成日時"
+        timestamp updated_at "更新日時"
+    }
+
     schema_migrations {
         bigint version PK "マイグレーション番号"
         timestamp applied_at "適用日時"
@@ -76,6 +94,7 @@ erDiagram
 
     daily_schedules ||--o{ reservations : "date"
     admin_users ||--o{ refresh_tokens : "has"
+    reservations ||--o{ email_outbox : "has"
 ```
 
 ## 2. テーブル定義
@@ -439,6 +458,31 @@ CREATE INDEX IF NOT EXISTS idx_login_attempts_email
 CREATE INDEX IF NOT EXISTS idx_login_attempts_ip
     ON login_attempts (ip, attempted_at DESC);
 
+-- メール送信 Outbox（予約 INSERT / ステータス更新と同一トランザクションで記録する）
+CREATE TABLE IF NOT EXISTS email_outbox (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    reservation_id   UUID NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+    mail_type        TEXT NOT NULL
+                     CHECK (mail_type IN ('reservation_received', 'reservation_approved', 'reservation_rejected')),
+    from_address     TEXT NOT NULL,
+    to_address       TEXT NOT NULL,
+    subject          TEXT NOT NULL,
+    body_html        TEXT NOT NULL,
+    body_text        TEXT NOT NULL,
+    status           TEXT NOT NULL DEFAULT 'pending'
+                     CHECK (status IN ('pending', 'sent', 'failed')),
+    attempt_count    INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_error       TEXT,
+    sent_at          TIMESTAMPTZ,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT email_outbox_logical_event_unique UNIQUE (reservation_id, mail_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_outbox_dispatch
+    ON email_outbox (next_attempt_at) WHERE status = 'pending';
+
 -- updated_at 自動更新用のトリガー関数
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -468,6 +512,11 @@ CREATE TRIGGER update_suppliers_updated_at
 
 CREATE TRIGGER update_admin_users_updated_at
     BEFORE UPDATE ON admin_users
+    FOR EACH ROW
+    EXECUTE PROCEDURE update_updated_at_column();
+
+CREATE TRIGGER update_email_outbox_updated_at
+    BEFORE UPDATE ON email_outbox
     FOR EACH ROW
     EXECUTE PROCEDURE update_updated_at_column();
 ```
