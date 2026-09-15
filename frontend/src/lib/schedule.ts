@@ -1,28 +1,19 @@
 import { authedFetch } from '@/lib/api';
 import type { DailySchedule, ScheduleType } from '@/types/reservation';
 
-/** API が受け付ける schedule_type（docs/api_design.md） */
-export type ApiScheduleType =
-  | 'normal'
-  | 'morning'
-  | 'event'
-  | 'external_event'
-  | 'special_menu'
-  | 'closed';
-
-/** フォームで選択可能なタイプ（API 未対応の temporary_closed は除外） */
+/** フォームで選択可能なタイプ */
 export const editableScheduleTypes: ScheduleType[] = [
   'normal',
   'morning',
   'event',
   'external_event',
-  'special',
+  'special_menu',
   'closed',
 ];
 
 interface ScheduleResponse {
   date: string;
-  schedule_type: ApiScheduleType;
+  schedule_type: ScheduleType;
   capacity: number;
   event_name?: string;
   event_description?: string;
@@ -36,7 +27,7 @@ interface ScheduleListResponse {
 }
 
 interface SetScheduleRequest {
-  schedule_type: ApiScheduleType;
+  schedule_type: ScheduleType;
   capacity: number;
   event_name?: string;
   event_description?: string;
@@ -77,30 +68,10 @@ async function parseError(res: Response): Promise<ScheduleApiError> {
   });
 }
 
-function toApiScheduleType(type: ScheduleType): ApiScheduleType {
-  if (type === 'special') return 'special_menu';
-  if (type === 'temporary_closed') return 'closed';
-  return type;
-}
-
-function fromApiScheduleType(type: string): ScheduleType {
-  if (type === 'special_menu') return 'special';
-  if (
-    type === 'normal' ||
-    type === 'morning' ||
-    type === 'event' ||
-    type === 'external_event' ||
-    type === 'closed'
-  ) {
-    return type;
-  }
-  return 'normal';
-}
-
 function toDailySchedule(item: ScheduleResponse): DailySchedule {
   return {
     date: item.date,
-    type: fromApiScheduleType(item.schedule_type),
+    type: item.schedule_type,
     capacity: item.capacity,
     event_name: item.event_name || undefined,
     description: item.event_description || undefined,
@@ -114,9 +85,8 @@ function buildSetScheduleRequest(
   eventName: string,
   description: string,
 ): SetScheduleRequest {
-  const schedule_type = toApiScheduleType(type);
   const body: SetScheduleRequest = {
-    schedule_type,
+    schedule_type: type,
     capacity: type === 'external_event' ? 0 : capacity,
   };
 
@@ -125,7 +95,7 @@ function buildSetScheduleRequest(
     if (description.trim()) {
       body.event_description = description.trim();
     }
-  } else if (type === 'special') {
+  } else if (type === 'special_menu') {
     if (eventName.trim()) body.event_name = eventName.trim();
     if (description.trim()) body.event_description = description.trim();
   }

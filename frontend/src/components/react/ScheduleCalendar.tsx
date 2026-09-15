@@ -271,7 +271,7 @@ export default function ScheduleCalendar() {
                 </div>
               )}
 
-              {(editType === 'event' || editType === 'external_event' || editType === 'special') && (
+              {(editType === 'event' || editType === 'external_event' || editType === 'special_menu') && (
                 <div>
                   <label className="block text-sm font-medium mb-2">
                     説明（顧客に表示）
