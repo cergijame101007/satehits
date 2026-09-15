@@ -92,10 +92,12 @@ erDiagram
         timestamp applied_at "適用日時"
     }
 
-    daily_schedules ||--o{ reservations : "date"
+    daily_schedules ||--o{ reservations : "date 論理関連のみ FK なし"
     admin_users ||--o{ refresh_tokens : "has"
     reservations ||--o{ email_outbox : "has"
 ```
+
+`daily_schedules` と `reservations`（`visit_date`）は**論理関連のみで外部キーは張らない**。`daily_schedules` に行が無い日も店舗定例の合成で予約できるため、FK を張ると定例合成日の予約が作れなくなる（意図的）。
 
 ## 2. テーブル定義
 
