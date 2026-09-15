@@ -1096,7 +1096,10 @@ components:
         available:
           type: integer
         schedule_type:
-          $ref: "#/components/schemas/ScheduleType"
+          allOf:
+            - $ref: "#/components/schemas/ScheduleType"
+          nullable: true
+          description: 休業相当日（`is_holiday: true`。`external_event` を除く）は `null`
         event_name:
           type: string
           nullable: true
@@ -1206,7 +1209,10 @@ components:
           type: string
           format: date
         schedule_type:
-          $ref: "#/components/schemas/ScheduleType"
+          allOf:
+            - $ref: "#/components/schemas/ScheduleType"
+          nullable: true
+          description: 休業相当日（`is_holiday: true`。`external_event` を除く）は `null`（キーは常に含まれる）
         capacity:
           type: integer
         available:
