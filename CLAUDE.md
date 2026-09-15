@@ -275,6 +275,7 @@ Presentation  →  Application  →  Domain  ←  Infrastructure
 | `GET` | `/api/v1/suppliers` | 取引先一覧（公開） | 実装済み |
 | `GET` | `/api/v1/admin/suppliers` | 取引先一覧取得 | 実装済み |
 | `POST` | `/api/v1/admin/suppliers` | 取引先作成 | 実装済み |
+| `GET` | `/api/v1/admin/suppliers/:id` | 取引先取得 | 実装済み |
 | `PUT` | `/api/v1/admin/suppliers/:id` | 取引先更新 | 実装済み |
 | `DELETE` | `/api/v1/admin/suppliers/:id` | 取引先削除 | 実装済み |
 | `PUT` | `/api/v1/admin/suppliers/order` | 取引先並び順更新 | 実装済み |
