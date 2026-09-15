@@ -78,6 +78,7 @@ func (u *SetScheduleUseCase) Execute(ctx context.Context, cmd SetScheduleCommand
 
 	eventName := strings.TrimSpace(cmd.EventName)
 	eventDescription := strings.TrimSpace(cmd.EventDescription)
+	// 検証で拒否済みのため通常は到達しない。二重防御として残す
 	if scheduleTypeForbidsEventText(scheduleType) {
 		eventName = ""
 		eventDescription = ""
