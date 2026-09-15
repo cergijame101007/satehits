@@ -295,6 +295,7 @@ func TestCORS(t *testing.T) {
 		"Access-Control-Allow-Credentials",
 		"Access-Control-Allow-Methods",
 		"Access-Control-Allow-Headers",
+		"Access-Control-Expose-Headers",
 	}
 
 	tests := []struct {
@@ -346,6 +347,9 @@ func TestCORS(t *testing.T) {
 			}
 			if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
 				t.Fatalf("Access-Control-Allow-Credentials = %q, want true", got)
+			}
+			if got := rec.Header().Get("Access-Control-Expose-Headers"); !strings.Contains(got, "Retry-After") {
+				t.Fatalf("Access-Control-Expose-Headers = %q, want Retry-After", got)
 			}
 			if got := rec.Header().Get("Vary"); !strings.Contains(got, "Origin") {
 				t.Fatalf("Vary = %q, want Origin", got)
