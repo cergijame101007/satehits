@@ -396,6 +396,8 @@ Set-Cookie: refresh_token=<opaque>; HttpOnly; Secure; SameSite=None; Path=/api/v
 
 **認証失敗時（401 Unauthorized）**
 
+メールアドレス未登録とパスワード不一致で応答は同一（ステータス・`code`・`message`）。未登録の場合もダミーハッシュとの bcrypt 比較を行い、応答時間から登録有無を推定できないようにする。
+
 ```json
 {
   "error": {
@@ -409,7 +411,7 @@ Set-Cookie: refresh_token=<opaque>; HttpOnly; Secure; SameSite=None; Path=/api/v
 
 スライディングウィンドウ（デフォルト 15 分）内で、正規化メール単位（デフォルト 5 回）またはクライアント IP 単位（デフォルト 20 回）の認証失敗が上限に達した場合。制限中は bcrypt 前に拒否し、失敗行は増やさない。しきい値は `LOGIN_RATE_LIMIT_*` / `TRUSTED_PROXY_HOPS` で変更可能。
 
-レスポンスヘッダに `Retry-After`（秒）を付与する。待ち時間は `message` 本文にも含める。
+レスポンスヘッダに `Retry-After`（秒。残り時間の端数は切り上げ、最小 1）を付与する。待ち時間は `message` 本文にも含める。
 
 ```json
 {

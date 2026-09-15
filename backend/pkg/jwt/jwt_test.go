@@ -484,3 +484,76 @@ func mustTamperedToken(t *testing.T, valid string) string {
 	parts[1] = base64.RawURLEncoding.EncodeToString(raw)
 	return strings.Join(parts, ".")
 }
+
+// exp / nbf は秒精度（NumericDate）なので、境界は「現在時刻ちょうど」と「±1〜2 秒」で確認する
+func TestJWTService_VerifyAccessToken_timeBoundaries(t *testing.T) {
+	svc := testJWTService(t, time.Hour)
+
+	tests := []struct {
+		name    string
+		edit    func(c *Claims)
+		wantErr bool
+	}{
+		{
+			name:    "accepts exp 2 seconds in the future",
+			edit:    func(c *Claims) { c.ExpiresAt = jwt.NewNumericDate(time.Now().Add(2 * time.Second)) },
+			wantErr: false,
+		},
+		{
+			name:    "rejects exp equal to now",
+			edit:    func(c *Claims) { c.ExpiresAt = jwt.NewNumericDate(time.Now()) },
+			wantErr: true,
+		},
+		{
+			name:    "rejects exp 1 second in the past",
+			edit:    func(c *Claims) { c.ExpiresAt = jwt.NewNumericDate(time.Now().Add(-time.Second)) },
+			wantErr: true,
+		},
+		{
+			name:    "rejects nbf 2 seconds in the future",
+			edit:    func(c *Claims) { c.NotBefore = jwt.NewNumericDate(time.Now().Add(2 * time.Second)) },
+			wantErr: true,
+		},
+		{
+			name:    "accepts nbf 1 second in the past",
+			edit:    func(c *Claims) { c.NotBefore = jwt.NewNumericDate(time.Now().Add(-time.Second)) },
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := svc.VerifyAccessToken(mustSignedToken(t, tt.edit))
+			if tt.wantErr && err == nil {
+				t.Fatal("VerifyAccessToken() err = nil, want error")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("VerifyAccessToken() err = %v, want nil", err)
+			}
+		})
+	}
+}
+
+func TestJWTService_GenerateAccessToken_expiresAtMatchesTTL(t *testing.T) {
+	const ttl = time.Hour
+	svc := testJWTService(t, ttl)
+	before := time.Now()
+
+	token, expiresAt, err := svc.GenerateAccessToken(1, "owner@example.com", "owner")
+	if err != nil {
+		t.Fatalf("GenerateAccessToken() err = %v", err)
+	}
+
+	remaining := expiresAt.Sub(before)
+	if remaining < ttl-2*time.Second || remaining > ttl+2*time.Second {
+		t.Fatalf("expiresAt is %v from now, want about %v", remaining, ttl)
+	}
+
+	claims, err := svc.VerifyAccessToken(token)
+	if err != nil {
+		t.Fatalf("VerifyAccessToken() err = %v", err)
+	}
+	if claims.ExpiresAt == nil || claims.ExpiresAt.Unix() != expiresAt.Unix() {
+		t.Fatalf("exp claim = %v, want %v", claims.ExpiresAt, expiresAt.Unix())
+	}
+}

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -37,37 +36,133 @@ func (r *authTestAdminRepo) FindByEmail(context.Context, string) (domain.AdminUs
 	return r.user, nil
 }
 
-func (r *authTestAdminRepo) FindByID(context.Context, int64) (domain.AdminUser, error) {
-	return domain.AdminUser{}, errors.New("not implemented")
+func (r *authTestAdminRepo) FindByID(_ context.Context, id int64) (domain.AdminUser, error) {
+	if r.user.ID == 0 || r.user.ID != id {
+		return domain.AdminUser{}, domain.ErrAdminUserNotFound
+	}
+	return r.user, nil
 }
 
-type authTestRefreshRepo struct{}
+// authTestRefreshRepo は token_hash をキーにした RT のインメモリ実装
+// login / refresh / logout を同じインスタンスで続けて実行し、セッション状態の遷移を検証する
+type authTestRefreshRepo struct {
+	tokens map[string]*domain.RefreshToken
+	nextID int64
+
+	issueErr     error
+	findErr      error
+	revokeErr    error
+	revokeAllErr error
+	// nil なら保存状態から判定。並行ローテーションで先に revoke された状況の再現用
+	revokeIfActiveResult *bool
+
+	calls             []string
+	issueInputs       []domain.CreateRefreshTokenInput
+	findHashes        []string
+	revokeIDs         []int64
+	revokeIfActiveIDs []int64
+	revokeAllUserIDs  []int64
+}
+
+func (r *authTestRefreshRepo) seed(rt domain.RefreshToken) {
+	if r.tokens == nil {
+		r.tokens = make(map[string]*domain.RefreshToken)
+	}
+	stored := rt
+	r.tokens[rt.TokenHash] = &stored
+	if rt.ID > r.nextID {
+		r.nextID = rt.ID
+	}
+}
+
+func (r *authTestRefreshRepo) findByID(id int64) *domain.RefreshToken {
+	for _, rt := range r.tokens {
+		if rt.ID == id {
+			return rt
+		}
+	}
+	return nil
+}
 
 func (r *authTestRefreshRepo) Issue(_ context.Context, input domain.CreateRefreshTokenInput) (domain.RefreshToken, error) {
-	return domain.RefreshToken{
-		ID:          1,
+	r.calls = append(r.calls, "Issue")
+	r.issueInputs = append(r.issueInputs, input)
+	if r.issueErr != nil {
+		return domain.RefreshToken{}, r.issueErr
+	}
+	r.nextID++
+	rt := domain.RefreshToken{
+		ID:          r.nextID,
 		AdminUserID: input.AdminUserID,
 		TokenHash:   input.TokenHash,
 		ExpiresAt:   input.ExpiresAt,
-	}, nil
+	}
+	r.seed(rt)
+	return rt, nil
 }
 
-func (r *authTestRefreshRepo) FindByTokenHash(context.Context, string) (domain.RefreshToken, error) {
-	return domain.RefreshToken{}, errors.New("not implemented")
+func (r *authTestRefreshRepo) FindByTokenHash(_ context.Context, tokenHash string) (domain.RefreshToken, error) {
+	r.calls = append(r.calls, "FindByTokenHash")
+	r.findHashes = append(r.findHashes, tokenHash)
+	if r.findErr != nil {
+		return domain.RefreshToken{}, r.findErr
+	}
+	rt, ok := r.tokens[tokenHash]
+	if !ok {
+		return domain.RefreshToken{}, domain.ErrRefreshTokenNotFound
+	}
+	return *rt, nil
 }
 
-func (r *authTestRefreshRepo) Revoke(context.Context, int64) error { return nil }
+func (r *authTestRefreshRepo) Revoke(_ context.Context, id int64) error {
+	r.calls = append(r.calls, "Revoke")
+	r.revokeIDs = append(r.revokeIDs, id)
+	if r.revokeErr != nil {
+		return r.revokeErr
+	}
+	if rt := r.findByID(id); rt != nil && rt.RevokedAt == nil {
+		now := time.Now()
+		rt.RevokedAt = &now
+	}
+	return nil
+}
 
-func (r *authTestRefreshRepo) RevokeIfActive(context.Context, int64) (bool, error) {
+func (r *authTestRefreshRepo) RevokeIfActive(_ context.Context, id int64) (bool, error) {
+	r.calls = append(r.calls, "RevokeIfActive")
+	r.revokeIfActiveIDs = append(r.revokeIfActiveIDs, id)
+	if r.revokeIfActiveResult != nil {
+		return *r.revokeIfActiveResult, nil
+	}
+	rt := r.findByID(id)
+	if rt == nil || rt.RevokedAt != nil {
+		return false, nil
+	}
+	now := time.Now()
+	rt.RevokedAt = &now
 	return true, nil
 }
 
-func (r *authTestRefreshRepo) RevokeAllByUser(context.Context, int64) error { return nil }
+func (r *authTestRefreshRepo) RevokeAllByUser(_ context.Context, adminUserID int64) error {
+	r.calls = append(r.calls, "RevokeAllByUser")
+	r.revokeAllUserIDs = append(r.revokeAllUserIDs, adminUserID)
+	if r.revokeAllErr != nil {
+		return r.revokeAllErr
+	}
+	now := time.Now()
+	for _, rt := range r.tokens {
+		if rt.AdminUserID == adminUserID && rt.RevokedAt == nil {
+			rt.RevokedAt = &now
+		}
+	}
+	return nil
+}
 
 type authTestLoginAttemptRepo struct {
-	counts    domain.LoginAttemptCounts
-	countErr  error
-	recordErr error
+	counts      domain.LoginAttemptCounts
+	countErr    error
+	recordErr   error
+	recordCalls int
+	clearCalls  int
 }
 
 func (r *authTestLoginAttemptRepo) CountRecent(context.Context, string, string, time.Time) (domain.LoginAttemptCounts, error) {
@@ -78,10 +173,12 @@ func (r *authTestLoginAttemptRepo) CountRecent(context.Context, string, string, 
 }
 
 func (r *authTestLoginAttemptRepo) RecordFailure(context.Context, string, string, time.Time) error {
+	r.recordCalls++
 	return r.recordErr
 }
 
 func (r *authTestLoginAttemptRepo) ClearByEmail(context.Context, string) error {
+	r.clearCalls++
 	return nil
 }
 

@@ -127,6 +127,8 @@ sequenceDiagram
 
 ## 4. ログイン（オーナー）
 
+メールアドレスが未登録の場合も、固定のダミーハッシュに対して bcrypt 比較を 1 回実行してから 401 を返す。登録済みメールの誤パスワードと処理時間を揃え、応答時間からメールの登録有無を推定できないようにするため。応答（ステータス・`code`・`message`）も両者で同一。
+
 ```mermaid
 sequenceDiagram
     participant Owner as オーナー

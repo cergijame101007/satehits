@@ -18,6 +18,11 @@ import (
 
 const refreshTokenTTL = 30 * 24 * time.Hour
 
+// dummyPasswordHash は未登録メールに対する bcrypt 比較用のハッシュ
+// 実在ユーザーの誤パスワードと処理時間を揃え、応答時間からメールの登録有無を推定されないようにする
+// cost は admin_users.password_hash と同じ 12（docs/table_design.md）でないと時間差が残る
+var dummyPasswordHash = []byte("$2a$12$vrhtaxqK9/UdrxGKiQQat.6aYxHNVLUNKqWB9jblHW4DjTfYlQ/oK")
+
 // FieldViolation はフィールド単位のバリデーションエラー
 // handler.ErrorDetail と同形の別定義（handler 非依存のため）
 type FieldViolation struct {
@@ -102,6 +107,7 @@ func (u *LoginUseCase) Execute(ctx context.Context, cmd LoginCommand) (*LoginRes
 	user, err := u.adminUserRepo.FindByEmail(ctx, strings.TrimSpace(cmd.Email))
 	if err != nil {
 		if errors.Is(err, domain.ErrAdminUserNotFound) {
+			compareDummyPassword(cmd.Password)
 			if recErr := u.loginAttemptRepo.RecordFailure(ctx, emailKey, cmd.ClientIP, now); recErr != nil {
 				return nil, fmt.Errorf("failed to record login failure: %w", recErr)
 			}
@@ -199,4 +205,12 @@ func generateRefreshToken() (token string, tokenHash string, err error) {
 	tokenHash = hashRefreshTokenPlain(token)
 
 	return token, tokenHash, nil
+}
+
+// compareDummyPassword は未登録メールでも bcrypt 比較を 1 回実行し、登録済みメールの誤パスワードと所要時間を揃える
+// 結果は認証に使わない（呼び出し元は常に認証失敗を返す）
+func compareDummyPassword(password string) {
+	if err := bcrypt.CompareHashAndPassword(dummyPasswordHash, []byte(password)); err != nil {
+		return
+	}
 }
