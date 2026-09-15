@@ -2,10 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { statusLabels, statusBadgeBg, statusBadgeText } from '@/lib/reservationStatusTheme';
 import { getAvailability, toAvailabilityErrorMessage } from '@/lib/availability';
 import { listReservations, toReservationErrorMessage } from '@/lib/adminReservation';
+import { UnauthorizedError } from '@/lib/api';
+import { cx } from '@/lib/cx';
 import {
   fetchActionablePendingCount,
   formatBadgeCount,
+  pendingBadgeClassName,
   pendingBadgeLabel,
+  subscribePendingCountRefresh,
 } from '@/lib/pendingReservations';
 import { formatDate, formatDateJa } from '@/lib/calendarUtils';
 import type { AvailabilityResponse, Reservation } from '@/types/reservation';
@@ -148,16 +152,16 @@ function DaySummary({ title, date }: DaySummaryProps) {
   );
 }
 
-/** 未対応 pending 件数の赤バッジ（0 件は描画しない） */
+/** 未対応 pending 件数の赤バッジ（0 件は描画しない）。数字は aria-hidden にして件数は sr-only で読ませる */
 function PendingCountBadge({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <span
-      aria-label={pendingBadgeLabel(count)}
-      className="ml-1 align-middle inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-red-600 text-white text-[11px] font-medium leading-none tabular-nums"
-    >
-      {formatBadgeCount(count)}
-    </span>
+    <>
+      <span aria-hidden="true" className={cx(pendingBadgeClassName, 'text-[11px]')}>
+        {formatBadgeCount(count)}
+      </span>
+      <span className="sr-only">（{pendingBadgeLabel(count)}）</span>
+    </>
   );
 }
 
@@ -173,17 +177,30 @@ export default function DashboardSummary() {
 
   useEffect(() => {
     let cancelled = false;
+    let latestRequest = 0;
 
-    fetchActionablePendingCount()
-      .then((count) => {
-        if (!cancelled) setPendingCount(count);
-      })
-      .catch((err: unknown) => {
-        console.error('未対応予約件数の取得に失敗しました', err);
-      });
+    // ステータス更新の通知・bfcache 復帰でも取り直す。後から始めた取得の結果を優先する
+    function loadPendingCount() {
+      const request = ++latestRequest;
+      fetchActionablePendingCount()
+        .then((count) => {
+          if (!cancelled && request === latestRequest) setPendingCount(count);
+        })
+        .catch((err: unknown) => {
+          if (!cancelled && request === latestRequest) setPendingCount(0);
+          // ログイン画面へリダイレクト中はログを出さない
+          if (!(err instanceof UnauthorizedError)) {
+            console.error('未対応予約件数の取得に失敗しました', err);
+          }
+        });
+    }
+
+    loadPendingCount();
+    const unsubscribe = subscribePendingCountRefresh(loadPendingCount);
 
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, []);
 
