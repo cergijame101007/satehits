@@ -6,27 +6,30 @@
 sequenceDiagram
     participant Customer as 顧客
     participant Frontend as フロントエンド
-    participant Handler as Handler
-    participant UseCase as UseCase
+    participant Handler as AvailabilityHandler
+    participant UseCase as GetAvailabilityUseCase
     participant AvailService as AvailabilityService
+    participant Resolver as ScheduleResolver
     participant ScheduleRepo as ScheduleRepository
     participant ReservationRepo as ReservationRepository
     participant DB as Supabase
 
     Customer->>Frontend: 日付を選択
     Frontend->>Handler: GET /reservations/availability?date=2026-02-10
-    Handler->>UseCase: GetAvailability(date)
+    Handler->>UseCase: Execute(ctx, date)
     
-    UseCase->>AvailService: GetAvailability(date)
+    UseCase->>AvailService: ResolveForDate(ctx, date)
     
-    AvailService->>ScheduleRepo: FindByDate(date)
+    AvailService->>Resolver: ResolveForDate(ctx, date)
+    Resolver->>ScheduleRepo: FindByDate(ctx, date)
     ScheduleRepo->>DB: SELECT * FROM daily_schedules WHERE date = ?
-    DB-->>ScheduleRepo: schedule (or null)
-    ScheduleRepo-->>AvailService: Schedule row or null
+    DB-->>ScheduleRepo: schedule (or none)
+    ScheduleRepo-->>Resolver: schedule, found
     
-    AvailService->>AvailService: その日の営業設定（有効なスケジュール）の解決（DB行を正、無ければドメイン既定で合成）
+    Resolver->>Resolver: その日の営業設定（有効なスケジュール）の解決（DB行を正、無ければ店舗定例を合成）
+    Resolver-->>AvailService: EffectiveSchedule
     
-    AvailService->>ReservationRepo: SumReservedPeopleByDate(date)
+    AvailService->>ReservationRepo: SumReservedPeopleByDate(ctx, date)
     ReservationRepo->>DB: SELECT SUM(people) FROM reservations WHERE visit_date = ? AND status IN ('pending', 'approved')
     DB-->>ReservationRepo: 6
     ReservationRepo-->>AvailService: 6
@@ -34,8 +37,8 @@ sequenceDiagram
     AvailService->>AvailService: available = capacity - reserved
     AvailService-->>UseCase: Availability{capacity: 10, reserved: 6, available: 4}
     
-    UseCase-->>Handler: AvailabilityResponse
-    Handler-->>Frontend: 200 OK { available: 4, schedule_type: "normal" }
+    UseCase-->>Handler: Availability
+    Handler-->>Frontend: 200 OK { date, capacity: 10, reserved: 6, available: 4,<br/>schedule_type: "normal", event_name, event_description, is_holiday: false }
     Frontend-->>Customer: 残り4食と表示
 ```
 
@@ -47,13 +50,12 @@ sequenceDiagram
     participant Frontend as フロントエンド
     participant Handler as Handler
     participant UseCase as CreateUseCase
-    participant ReCaptcha as reCAPTCHA
+    participant Turnstile as Turnstile
     participant AvailService as AvailabilityService
     participant Locker as VisitDateLocker
     participant ReservationRepo as ReservationRepository
-    participant MailService as MailService
+    participant Outbox as MailEnqueuer（Outbox）
     participant DB as Supabase
-    participant Resend as Resend
 
     Customer->>Frontend: 予約情報を入力して送信
     Frontend->>Frontend: Turnstile実行
@@ -61,10 +63,10 @@ sequenceDiagram
     
     Handler->>UseCase: Execute(request)
     
-    UseCase->>ReCaptcha: Verify(token)
-    ReCaptcha-->>UseCase: OK
-    
     UseCase->>UseCase: バリデーション（人数、日付範囲、営業時間）
+    
+    UseCase->>Turnstile: verifier.Verify(token)
+    Turnstile-->>UseCase: OK
     
     UseCase->>AvailService: ResolveForDate(date) 楽観チェック
     AvailService-->>UseCase: OK（空きあり）
@@ -82,18 +84,18 @@ sequenceDiagram
     UseCase->>ReservationRepo: Create(reservation)
     ReservationRepo->>DB: INSERT INTO reservations
     DB-->>ReservationRepo: OK
-    Note right of DB: COMMIT で advisory lock 解放
     ReservationRepo-->>UseCase: reservation
     
-    UseCase->>MailService: SendReservationReceived(reservation)
-    Note right of UseCase: インプロセス非同期キューへ投入（fire-and-forget）
+    UseCase->>Outbox: EnqueueReservationReceived(reservation)
+    Outbox->>DB: INSERT INTO email_outbox (reservation_received)
+    DB-->>Outbox: OK
+    Note right of DB: COMMIT で advisory lock 解放<br>enqueue 失敗時は予約ごとロールバック
+    
     UseCase-->>Handler: ReservationResponse
     Handler-->>Frontend: 201 Created
     Frontend-->>Customer: 完了画面へ遷移
 
-    MailService->>Resend: POST /emails（予約申請受付メール）
-    Resend-->>MailService: OK
-    Note right of MailService: 宛先: 顧客メールアドレス<br>失敗時はログのみ
+    Note over Outbox,DB: メール送信は Outbox Dispatcher が非同期に行う（§8 参照）
 ```
 
 ## 3. 予約申請失敗（空きなし）
@@ -104,7 +106,7 @@ sequenceDiagram
     participant Frontend as フロントエンド
     participant Handler as Handler
     participant UseCase as CreateUseCase
-    participant ReCaptcha as reCAPTCHA
+    participant Turnstile as Turnstile
     participant AvailService as AvailabilityService
 
     Customer->>Frontend: 予約情報を入力して送信
@@ -112,13 +114,14 @@ sequenceDiagram
     
     Handler->>UseCase: Execute(request)
     
-    UseCase->>ReCaptcha: Verify(token)
-    ReCaptcha-->>UseCase: OK
-    
     UseCase->>UseCase: バリデーション OK
     
-    UseCase->>AvailService: CanReserve(date, people)
-    AvailService-->>UseCase: Error: CAPACITY_EXCEEDED
+    UseCase->>Turnstile: verifier.Verify(token)
+    Turnstile-->>UseCase: OK
+    
+    UseCase->>AvailService: ResolveForDate(date)
+    AvailService-->>UseCase: Availability{available: 2}
+    UseCase->>UseCase: cmd.People > avail.Available → ErrCapacityExceeded
     
     UseCase-->>Handler: Error
     Handler-->>Frontend: 409 Conflict { code: "CAPACITY_EXCEEDED" }
@@ -126,6 +129,8 @@ sequenceDiagram
 ```
 
 ## 4. ログイン（オーナー）
+
+ログインの失敗試行は `login_attempts` にメール単位・IP 単位で記録し、直近の窓内で上限を超えている場合は **bcrypt 比較の前に** 429 `TOO_MANY_REQUESTS`（`Retry-After` 付き）を返す。失敗時は `RecordFailure`、成功時は当該メールの試行を `ClearByEmail` で消す。
 
 メールアドレスが未登録の場合も、固定のダミーハッシュに対して bcrypt 比較を 1 回実行してから 401 を返す。登録済みメールの誤パスワードと処理時間を揃え、応答時間からメールの登録有無を推定できないようにするため。応答（ステータス・`code`・`message`）も両者で同一。
 
@@ -135,6 +140,7 @@ sequenceDiagram
     participant Frontend as フロントエンド
     participant Handler as AuthHandler
     participant UseCase as LoginUseCase
+    participant AttemptRepo as LoginAttemptRepository
     participant AdminUserRepo as AdminUserRepository
     participant RefreshRepo as RefreshTokenRepository
     participant JWT as JWTService
@@ -143,35 +149,61 @@ sequenceDiagram
     Owner->>Frontend: メールアドレス・パスワードを入力
     Frontend->>Handler: POST /admin/login {email, password} (credentials: include)
     
-    Handler->>UseCase: Execute(email, password)
+    Handler->>UseCase: Execute(email, password, client_ip)
     
-    UseCase->>AdminUserRepo: FindByEmail(email)
-    AdminUserRepo->>DB: SELECT * FROM admin_users WHERE email = ?
-    DB-->>AdminUserRepo: user
-    AdminUserRepo-->>UseCase: AdminUser
+    UseCase->>AttemptRepo: CountRecent(email_key, client_ip, since=now-window)
+    AttemptRepo->>DB: SELECT ... FROM login_attempts
+    DB-->>AttemptRepo: メール単位・IP 単位の件数
+    AttemptRepo-->>UseCase: counts
     
-    UseCase->>UseCase: bcrypt.Compare(password, hash)
-    UseCase->>JWT: Generate(user_id, email, role)
-    JWT-->>UseCase: access_token, expires_at
-    UseCase->>UseCase: リフレッシュトークン生成 (crypto/rand)
-    UseCase->>RefreshRepo: Issue(user_id, sha256(rt), expires_at=now+30d)
-    RefreshRepo->>DB: INSERT INTO refresh_tokens
-    DB-->>RefreshRepo: OK
-    RefreshRepo-->>UseCase: OK
-    UseCase->>RefreshRepo: DeleteExpired(now) ※ベストエフォート。失敗してもログインは成功
-    RefreshRepo->>DB: DELETE FROM refresh_tokens WHERE expires_at < now
-    
-    UseCase-->>Handler: LoginResult{access_token, refresh_token, user}
-    Handler-->>Frontend: 200 OK JSON {token, expires_at, user}<br/>Set-Cookie: refresh_token (HttpOnly)
-    Frontend->>Frontend: アクセストークンをメモリに保持（localStorage は使わない）
-    Frontend-->>Owner: ダッシュボードへ遷移
+    alt 上限超過（メール単位 or IP 単位）
+        UseCase-->>Handler: RateLimitedError{RetryAfter}
+        Handler-->>Frontend: 429 { code: "TOO_MANY_REQUESTS" }<br/>Retry-After: 待機秒数
+        Note right of UseCase: FindByEmail・bcrypt 比較は実行しない
+    else 上限内
+        UseCase->>AdminUserRepo: FindByEmail(email)
+        AdminUserRepo->>DB: SELECT * FROM admin_users WHERE email = ?
+        DB-->>AdminUserRepo: user / none
+        
+        alt 未登録
+            AdminUserRepo-->>UseCase: ErrAdminUserNotFound
+            UseCase->>UseCase: ダミーハッシュと bcrypt 比較
+            UseCase->>AttemptRepo: RecordFailure(email_key, client_ip, now)
+            UseCase-->>Handler: ErrAdminUserUnauthorized
+            Handler-->>Frontend: 401 { code: "UNAUTHORIZED" }
+        else パスワード不一致
+            AdminUserRepo-->>UseCase: AdminUser
+            UseCase->>UseCase: bcrypt.Compare(password, hash) → 不一致
+            UseCase->>AttemptRepo: RecordFailure(email_key, client_ip, now)
+            UseCase-->>Handler: ErrAdminUserUnauthorized
+            Handler-->>Frontend: 401 { code: "UNAUTHORIZED" }
+        else パスワード一致
+            AdminUserRepo-->>UseCase: AdminUser
+            UseCase->>UseCase: bcrypt.Compare(password, hash)
+            UseCase->>AttemptRepo: ClearByEmail(email_key)
+            UseCase->>JWT: GenerateAccessToken(user_id, email, role)
+            JWT-->>UseCase: access_token, expires_at
+            UseCase->>UseCase: リフレッシュトークン生成 (crypto/rand)
+            UseCase->>RefreshRepo: Issue(user_id, sha256(rt), expires_at=now+30d)
+            RefreshRepo->>DB: INSERT INTO refresh_tokens
+            DB-->>RefreshRepo: OK
+            RefreshRepo-->>UseCase: OK
+            UseCase->>RefreshRepo: DeleteExpired(now) ※ベストエフォート。失敗してもログインは成功
+            RefreshRepo->>DB: DELETE FROM refresh_tokens WHERE expires_at < now
+            
+            UseCase-->>Handler: LoginResult{access_token, refresh_token, user}
+            Handler-->>Frontend: 200 OK JSON {token, expires_at, user}<br/>Set-Cookie: refresh_token (HttpOnly)
+            Frontend->>Frontend: アクセストークンをメモリに保持（localStorage は使わない）
+            Frontend-->>Owner: ダッシュボードへ遷移
+        end
+    end
 ```
 
 ## 4.1. アクセストークン更新（リフレッシュ）
 
 ページ再読み込みや AT 期限切れ（401）時に、Cookie の RT で新しい AT を取得する。
 
-正常系は **検証 → 読み取り（ユーザー取得・AT 生成）→ 旧 RT の Revoke と新 RT の Issue を 1 トランザクション** の順で行う。副作用のない処理を先に済ませ、状態を変える Revoke / Issue を最後にまとめることで、途中失敗でセッションを壊さない。
+正常系は **検証 → 読み取り（ユーザー取得・AT 生成）→ 旧 RT の `RevokeIfActive` と新 RT の Issue を 1 トランザクション** の順で行う。副作用のない処理を先に済ませ、状態を変える Revoke / Issue を最後にまとめることで、途中失敗でセッションを壊さない。
 
 ```mermaid
 sequenceDiagram
@@ -208,14 +240,25 @@ sequenceDiagram
     else 正常
         UseCase->>AdminRepo: FindByID(user_id)
         AdminRepo-->>UseCase: admin_user
-        UseCase->>JWT: Generate(user_id, email, role)
+        UseCase->>JWT: GenerateAccessToken(user_id, email, role)
         JWT-->>UseCase: 新 access_token
-        UseCase->>RefreshRepo: 1 トランザクションで Revoke(旧 RT) → Issue(新 RT, expires_at=now+30d)
-        RefreshRepo->>DB: BEGIN → UPDATE revoked_at → INSERT → COMMIT
-        DB-->>RefreshRepo: OK
-        UseCase-->>Handler: RefreshResult
-        Handler-->>Frontend: 200 {token, expires_at}<br/>Set-Cookie: 新 refresh_token
-        Frontend->>Frontend: メモリ上の AT を更新
+        UseCase->>RefreshRepo: 1 トランザクションで RevokeIfActive(旧 RT)
+        RefreshRepo->>DB: BEGIN → UPDATE revoked_at（未失効の行のみ）
+        DB-->>RefreshRepo: 更新件数
+        alt RevokeIfActive が false（並行リクエストで先に失効済み）
+            RefreshRepo-->>UseCase: false
+            UseCase->>RefreshRepo: ROLLBACK → RevokeAllByUser(user_id)
+            UseCase-->>Handler: INVALID_TOKEN
+            Handler-->>Frontend: 401
+        else RevokeIfActive が true
+            RefreshRepo-->>UseCase: true
+            UseCase->>RefreshRepo: Issue(新 RT, expires_at=now+30d)
+            RefreshRepo->>DB: INSERT → COMMIT
+            DB-->>RefreshRepo: OK
+            UseCase-->>Handler: RefreshResult
+            Handler-->>Frontend: 200 {token, expires_at}<br/>Set-Cookie: 新 refresh_token
+            Frontend->>Frontend: メモリ上の AT を更新
+        end
     end
 ```
 
@@ -250,9 +293,15 @@ sequenceDiagram
             UseCase->>RefreshRepo: FindByTokenHash(sha256(rt))
             RefreshRepo->>DB: SELECT WHERE token_hash = $1（revoked は絞らない）
             DB-->>RefreshRepo: row / none
-            UseCase->>RefreshRepo: Revoke(該当 RT) ※未登録・失効済みでも成功扱い
-            RefreshRepo->>DB: UPDATE refresh_tokens SET revoked_at = NOW()
-            DB-->>RefreshRepo: OK
+            alt 未登録（Cookie 無し・空の場合は検索もしない）
+                RefreshRepo-->>UseCase: not found
+                Note right of UseCase: Revoke を呼ばずに return（成功扱い）
+            else 該当行あり（失効済みを含む）
+                RefreshRepo-->>UseCase: row
+                UseCase->>RefreshRepo: Revoke(該当 RT)
+                RefreshRepo->>DB: UPDATE refresh_tokens SET revoked_at = NOW()
+                DB-->>RefreshRepo: OK
+            end
             UseCase-->>Handler: OK
             Handler-->>Frontend: 204 No Content<br/>Set-Cookie: refresh_token (Max-Age=0 で削除)
             Frontend->>Frontend: メモリ上の AT を破棄
@@ -280,10 +329,10 @@ sequenceDiagram
     Middleware->>Handler: Request (with user context)
     
     Handler->>UseCase: Execute(date, status, source)
-    UseCase->>ReservationRepo: FindByDate(date)
-    ReservationRepo->>DB: SELECT * FROM reservations WHERE visit_date = ?
+    UseCase->>ReservationRepo: List(ctx, ListReservationsFilter{Date, Status, Source})
+    ReservationRepo->>DB: SELECT * FROM reservations WHERE visit_date = ?（指定された条件のみ）
     DB-->>ReservationRepo: [reservation1, reservation2, ...]
-    ReservationRepo-->>UseCase: []*Reservation
+    ReservationRepo-->>UseCase: []Reservation
     
     UseCase-->>Handler: ReservationListResponse
     Handler-->>Frontend: 200 OK {reservations: [...], total: 5}
@@ -300,9 +349,8 @@ sequenceDiagram
     participant Handler as ReservationHandler
     participant UseCase as UpdateStatusUseCase
     participant ReservationRepo as ReservationRepository
-    participant MailService as MailService
+    participant Outbox as MailEnqueuer（Outbox）
     participant DB as Supabase
-    participant Resend as Resend
 
     Owner->>Frontend: 「承認」ボタンをクリック
     Frontend->>Middleware: PATCH /admin/reservations/123/status (with JWT)
@@ -312,27 +360,31 @@ sequenceDiagram
     
     Handler->>UseCase: Execute(id=123, status="approved")
     
-    UseCase->>ReservationRepo: FindByID(123)
+    UseCase->>UseCase: validateUpdateStatusTarget / validateUpdateStatusReason
+    
+    UseCase->>ReservationRepo: GetByID(123)
     ReservationRepo->>DB: SELECT * FROM reservations WHERE id = 123
     DB-->>ReservationRepo: reservation
     ReservationRepo-->>UseCase: Reservation{status: "pending"}
     
-    UseCase->>UseCase: reservation.CanTransitionTo("approved") → true
-    UseCase->>UseCase: reservation.TransitionTo("approved")
+    UseCase->>UseCase: domain.CanTransition("pending", "approved") → true
     
-    UseCase->>ReservationRepo: Update(reservation)
+    Note over UseCase,DB: DoInTx
+    UseCase->>ReservationRepo: UpdateStatus(ctx, 123, "approved")
     ReservationRepo->>DB: UPDATE reservations SET status = 'approved' WHERE id = 123
     DB-->>ReservationRepo: OK
+    ReservationRepo-->>UseCase: reservation
     
-    UseCase->>MailService: SendReservationApproved(reservation)
-    Note right of UseCase: インプロセス非同期キューへ投入
+    UseCase->>Outbox: EnqueueReservationApproved(reservation)
+    Outbox->>DB: INSERT INTO email_outbox (reservation_approved)
+    DB-->>Outbox: OK
+    Note right of DB: COMMIT<br>enqueue 失敗時はステータス更新ごとロールバック
+    
     UseCase-->>Handler: UpdateStatusResponse
     Handler-->>Frontend: 200 OK {id: 123, status: "approved"}
     Frontend-->>Owner: ステータス更新を反映
 
-    MailService->>Resend: POST /emails（予約承認メール）
-    Resend-->>MailService: OK
-    Note right of MailService: 宛先: 顧客メールアドレス<br>内容: 予約確定、来店日時、キャンセルポリシー<br>失敗時はログのみ
+    Note over Outbox,DB: メール送信は Outbox Dispatcher が非同期に行う（§8.2 参照）
 ```
 
 ## 7. 予約拒否（オーナー）
@@ -345,9 +397,8 @@ sequenceDiagram
     participant Handler as ReservationHandler
     participant UseCase as UpdateStatusUseCase
     participant ReservationRepo as ReservationRepository
-    participant MailService as MailService
+    participant Outbox as MailEnqueuer（Outbox）
     participant DB as Supabase
-    participant Resend as Resend
 
     Owner->>Frontend: 「拒否」ボタンをクリック（任意で理由入力）
     Frontend->>Middleware: PATCH /admin/reservations/123/status {status, reason?} (with JWT)
@@ -357,34 +408,39 @@ sequenceDiagram
     
     Handler->>UseCase: Execute(id=123, status="rejected", reason?)
     
-    UseCase->>ReservationRepo: FindByID(123)
+    UseCase->>UseCase: validateUpdateStatusTarget / validateUpdateStatusReason
+    
+    UseCase->>ReservationRepo: GetByID(123)
     ReservationRepo->>DB: SELECT * FROM reservations WHERE id = 123
     DB-->>ReservationRepo: reservation
     ReservationRepo-->>UseCase: Reservation{status: "pending"}
     
-    UseCase->>UseCase: reservation.CanTransitionTo("rejected") → true
-    UseCase->>UseCase: reservation.TransitionTo("rejected")
+    UseCase->>UseCase: domain.CanTransition("pending", "rejected") → true
     
-    UseCase->>ReservationRepo: Update(reservation)
+    Note over UseCase,DB: DoInTx
+    UseCase->>ReservationRepo: UpdateStatus(ctx, 123, "rejected")
     ReservationRepo->>DB: UPDATE reservations SET status = 'rejected' WHERE id = 123
     DB-->>ReservationRepo: OK
+    ReservationRepo-->>UseCase: reservation
     
-    UseCase->>MailService: SendReservationRejected(reservation, reason?)
-    Note right of UseCase: reason あり時のみメール本文に「理由：」行を含める
+    UseCase->>Outbox: EnqueueReservationRejected(reservation, reason?)
+    Note right of Outbox: reason あり時のみメール本文に「理由：」行を含める
+    Outbox->>DB: INSERT INTO email_outbox (reservation_rejected)
+    DB-->>Outbox: OK
+    Note right of DB: COMMIT<br>enqueue 失敗時はステータス更新ごとロールバック
+    
     UseCase-->>Handler: UpdateStatusResponse
     Handler-->>Frontend: 200 OK {id: 123, status: "rejected"}
     Frontend-->>Owner: ステータス更新を反映
 
-    MailService->>Resend: POST /emails（予約拒否メール）
-    Resend-->>MailService: OK
-    Note right of MailService: 宛先: 顧客メールアドレス<br>内容: 予約不可の旨、Instagramへの誘導<br>失敗時はログのみ
+    Note over Outbox,DB: メール送信は Outbox Dispatcher が非同期に行う（§8.3 参照）
 ```
 
 ## 8. メール送信シーケンス
 
 予約関連メールは、予約 INSERT / ステータス更新と**同一トランザクション**で `email_outbox` に送信意図を記録する（送信意図の記録は予約操作の必須条件）。HTTP レスポンスは DB コミット後に返却し、メール送信自体は予約成立の必須条件としない。Cloud Scheduler（1 分ごと）が private Cloud Run の `POST /internal/outbox/flush` を呼び、Dispatcher が `MailSender`（本番は Resend）へ送信する。
 
-Dispatcher は lease 方式で、claim（`attempt_count + 1`、`next_attempt_at = 今 + 5 分` を単一 UPDATE で確定）→ 送信（DB Tx 外、30 秒タイムアウト）→ 結果記録（独立コンテキスト）の順に進める。失敗時は指数バックオフで再送し、上限到達または恒久エラーで `failed` にする。Resend の 401 / 403 は行の試行を戻してバッチを中断する（ADR-014）。
+Dispatcher は lease 方式で、claim（`attempt_count + 1`、`next_attempt_at = 今 + 5 分` を単一 UPDATE で確定）→ 送信（DB Tx 外、30 秒タイムアウト）→ 結果記録（独立コンテキスト）の順に進める。失敗時は claim 時の `attempt_count` に応じた固定テーブル（1m / 5m / 15m / 1h / 4h）で `next_attempt_at` を後退させて再送し、上限到達または恒久エラーで `failed` にする。Resend の 401 / 403 は行の試行を戻してバッチを中断する（ADR-014）。
 
 ### 8.1 予約申請受付メール（顧客へ）
 
@@ -489,7 +545,7 @@ sequenceDiagram
     
     Handler->>UseCase: Execute(request)
     
-    UseCase->>UseCase: バリデーション（reCAPTCHA不要）
+    UseCase->>UseCase: バリデーション（Turnstile不要）
     UseCase->>UseCase: Reservationエンティティ生成（source, statusを設定）
     
     UseCase->>ReservationRepo: Create(reservation)
@@ -512,10 +568,13 @@ sequenceDiagram
 
     Client->>Middleware: GET /admin/reservations (トークンなし or 無効)
     
-    Middleware->>Middleware: JWT検証
-    Middleware->>Middleware: 検証失敗
-    
-    Middleware-->>Client: 401 Unauthorized { code: "UNAUTHORIZED" }
+    alt Authorization ヘッダ無し・Bearer 以外・トークン空
+        Middleware-->>Client: 401 Unauthorized { code: "UNAUTHORIZED" }
+    else JWT 検証失敗（署名不正・期限切れ等）
+        Middleware->>Middleware: VerifyAccessToken → error
+        Middleware-->>Client: 401 Unauthorized { code: "INVALID_TOKEN" }
+    end
+    Note over Handler: いずれの場合も Handler は呼ばれない
 ```
 
 ## 12. 取引先登録（オーナー）

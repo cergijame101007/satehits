@@ -12,25 +12,35 @@
 
 ### テストカバレッジ目標
 
-| レイヤー / 対象 | カバレッジ目標 | 備考 |
-|----------------|---------------|------|
-| Domain Layer（Entity, Domain Service） | 90% 以上 | ビジネスロジックの中核。最優先でテスト |
-| Application Layer（UseCase） | 80% 以上 | 正常系・異常系の主要パスをカバー |
-| Infrastructure Layer（Repository） | 結合テストで担保 | モックではなく実 DB 接続でテスト |
-| Presentation Layer（Handler） | 結合テストで担保 | HTTP リクエスト/レスポンスの検証 |
-| フロントエンド（React コンポーネント） | 70% 以上 | ユーザー操作・表示ロジックをテスト |
+| レイヤー / 対象 | カバレッジ目標 | 実測（2026-09-15） | 備考 |
+|----------------|---------------|-------------------|------|
+| Domain Layer（Entity, Domain Service） | 90% 以上 | `domain` 12.5%、`domain/service` 90.9% | ビジネスロジックの中核。最優先でテスト |
+| Application Layer（UseCase） | 80% 以上 | `usecase/reservation` 80.2%、`usecase/auth` 93.3%、`usecase/schedule` 90.3%、`usecase/supplier` 98.5% | 正常系・異常系の主要パスをカバー |
+| Infrastructure Layer（Repository） | 結合テストで担保 | `repository` 9.5% | モックではなく実 DB 接続でテスト（結合テストは `TEST_DATABASE_URL` 必須） |
+| Presentation Layer（Handler） | 結合テストで担保 | `handler` 41.2% | HTTP リクエスト/レスポンスの検証 |
+| フロントエンド（React コンポーネント） | 70% 以上 | 未計測 | ユーザー操作・表示ロジックをテスト。coverage provider は未導入（別 PR で追加予定） |
+
+計測方法（バックエンド）:
+
+```bash
+# パッケージ別のカバレッジを表示
+cd backend && go test -cover ./...
+
+# coverage.out / coverage.html を生成
+make test-coverage
+```
 
 ## 2. 使用ツール
 
 ### バックエンド（Go）
 
+標準 `testing` + 手書き fake + `httptest`（方針は `docs/coding_rule/go_testing.md`）。
+
 | ツール | 用途 |
 |--------|------|
-| Go 標準 `testing` パッケージ | テストの基盤 |
-| `testify/assert` | アサーション（簡潔な検証記述） |
-| `testify/mock` | モック生成（Repository / External API） |
-| `testify/suite` | テストスイート（セットアップ・ティアダウン） |
-| `httptest` | HTTP ハンドラーのテスト |
+| Go 標準 `testing` パッケージ | テストの基盤（`testify` 等は導入しない） |
+| 手書き fake | Repository / 外部 API のインターフェースをテストファイル内の構造体で差し替える |
+| `httptest` | HTTP ハンドラー・ミドルウェアのテスト |
 
 ### フロントエンド（Astro + React）
 
@@ -45,7 +55,7 @@
 
 - **配置**: 対象コンポーネントと同じディレクトリに `Foo.test.tsx` を置く（`src/components/react/`、`src/components/react/ui/`）。`src/lib` のロジックは `foo.test.ts`
 - **セットアップ**: `vitest.config.ts`（`environment: jsdom`、`globals: true`、`passWithNoTests: false`）と `src/test/setup.ts`（`@testing-library/jest-dom/vitest` と `afterEach(cleanup)`）
-- **API モック**: `vi.mock('@/lib/xxx', async (importOriginal) => ({ ...(await importOriginal()), listXxx: vi.fn() }))` の形で関数だけ差し替え、`XxxApiError` などのクラスは実物を使う（`instanceof` 分岐を検証するため）。`fetch` を直接使う箇所は `vi.stubGlobal('fetch', ...)`
+- **API モック**: `vi.mock('@/lib/xxx', async (importOriginal) => ({ ...(await importOriginal()), listXxx: vi.fn() }))` の形で関数だけ差し替え、`XxxApiError` などのクラスは実物を使う（`instanceof` 分岐を検証するため）。`fetch` を直接モックする場合は `vi.stubGlobal('fetch', ...)` を使う
 - **子コンポーネント**: 単体でテスト済みの重い子（`DatePickerField`、`TurnstileWidget`）は親のテストでは最小限のスタブに差し替えてよい
 - **ブラウザ API**: `window.location` は `vi.stubGlobal('location', { href })`、`window.confirm` は `vi.spyOn`、日付は `vi.useFakeTimers({ toFake: ['Date'] })` + `vi.setSystemTime` で固定する（`setTimeout` は偽装しないので `user-event` / `waitFor` がそのまま動く）
 - **検証する観点**: 表示（取得中 → 表示 / 空 / エラー）、バリデーション、API 呼び出し引数、成功時の遷移・表示、送信中の二重送信防止、確認モーダルの経路。スナップショットは使わず、`describe` / `it` は日本語で「何を検証するか」を書く
@@ -61,15 +71,15 @@
 | # | テストケース | テスト種別 | 期待結果 |
 |---|-------------|-----------|----------|
 | 1 | 正常な予約申請 | 単体 | 予約が作成され、ステータスが `pending` |
-| 2 | reCAPTCHA 検証失敗 | 単体 | `INVALID_RECAPTCHA` エラー |
-| 3 | その日の営業設定（有効なスケジュール）において予約不可の日に予約 | 単体 | `HOLIDAY` エラー |
+| 2 | Turnstile 検証失敗 | 単体 | `CAPTCHA_FAILED` エラー（400） |
+| 3 | その日の営業設定（有効なスケジュール）において予約不可の日に予約 | 単体 | `VALIDATION_ERROR`（400、field `visit_date`「この日は予約できません」） |
 | 4 | 残り食数を超える人数で予約 | 単体 | `CAPACITY_EXCEEDED` エラー |
 | 5 | 過去日付に予約 | 単体 | バリデーションエラー |
 | 6 | 2 週間以上先の日付に予約 | 単体 | バリデーションエラー |
 | 7 | 8 名以上で予約 | 単体 | バリデーションエラー |
 | 8 | 必須項目が未入力 | 単体 | バリデーションエラー |
 | 9 | メールアドレスの形式不正 | 単体 | バリデーションエラー |
-| 10 | 予約申請後に受付メールが送信される | 単体 | MailService が呼び出される |
+| 10 | 予約申請後に受付メールが送信される | 単体 | MailEnqueuer（Outbox）に enqueue される |
 | 11 | 同一 visit_date の同時申請でオーバーブッキングしない | 単体 | Lock → 再 SUM → Create の順。満席時は `CAPACITY_EXCEEDED`（実 DB 並行は未実施） |
 
 #### 予約承認（オーナー）
@@ -77,8 +87,8 @@
 | # | テストケース | テスト種別 | 期待結果 |
 |---|-------------|-----------|----------|
 | 1 | pending → approved に遷移 | 単体 | ステータスが `approved` に更新 |
-| 2 | 承認後に承認メールが送信される | 単体 | MailService が呼び出される |
-| 3 | rejected → approved への不正遷移 | 単体 | `INVALID_TRANSITION` エラー |
+| 2 | 承認後に承認メールが送信される | 単体 | MailEnqueuer（Outbox）に enqueue される |
+| 3 | rejected → approved への不正遷移 | 単体 | `VALIDATION_ERROR`（field `status`） |
 | 4 | 存在しない予約 ID を承認 | 単体 | `NOT_FOUND` エラー |
 
 #### 予約拒否（オーナー）
@@ -86,8 +96,8 @@
 | # | テストケース | テスト種別 | 期待結果 |
 |---|-------------|-----------|----------|
 | 1 | pending → rejected に遷移 | 単体 | ステータスが `rejected` に更新 |
-| 2 | 拒否後に拒否メールが送信される | 単体 | MailService が呼び出される |
-| 3 | approved → rejected への不正遷移 | 単体 | `INVALID_TRANSITION` エラー |
+| 2 | 拒否後に拒否メールが送信される | 単体 | MailEnqueuer（Outbox）に enqueue される |
+| 3 | approved → rejected への不正遷移 | 単体 | `VALIDATION_ERROR`（field `status`） |
 
 #### 予約一覧（オーナー）
 
@@ -95,7 +105,7 @@
 |---|-------------|-----------|----------|
 | 1 | 日付指定で予約一覧取得 | 単体 | 該当日の予約リストが返る |
 | 2 | 予約がない日付で取得 | 単体 | 空のリストが返る |
-| 3 | 認証なしでアクセス | 結合 | 401 Unauthorized |
+| 3 | 認証なしでアクセス | 単体（httptest） | 401 Unauthorized |
 
 ### 3.2 スケジュール機能
 
@@ -116,14 +126,14 @@
 | 2 | イベント営業の設定（イベント名・説明付き） | 単体 | イベント情報を含めて保存 |
 | 3 | 臨時休業の設定 | 単体 | 提供可能数 0 で保存 |
 | 4 | 既存スケジュールの上書き（Upsert） | 単体 | 既存データが更新される |
-| 5 | 認証なしでアクセス | 結合 | 401 Unauthorized |
+| 5 | 認証なしでアクセス | 単体（httptest） | 401 Unauthorized |
 
 #### スケジュール削除（オーナー）
 
 | # | テストケース | テスト種別 | 期待結果 |
 |---|-------------|-----------|----------|
 | 1 | 設定済みスケジュールの削除 | 単体 | デフォルトスケジュールに戻る |
-| 2 | 未設定の日付を削除 | 単体 | エラーなし（冪等） |
+| 2 | 未設定の日付を削除 | 単体 | 404 `NOT_FOUND` |
 
 ### 3.3 取引先機能
 
@@ -132,10 +142,10 @@
 | 1 | 取引先の新規作成 | 単体 | 取引先が保存される |
 | 2 | 取引先の更新 | 単体 | 指定した項目が更新される |
 | 3 | 取引先の削除 | 単体 | 取引先が削除される |
-| 4 | 取引先一覧の取得（顧客向け: 表示中のみ） | 単体 | `is_visible = true` の取引先のみ返る |
+| 4 | 取引先一覧の取得（顧客向け: 表示中のみ） | 単体 | `is_active = true` の取引先のみ返る |
 | 5 | 取引先一覧の取得（管理者: 全件） | 単体 | 全取引先が返る |
 | 6 | 必須項目（名前）未入力で作成 | 単体 | バリデーションエラー |
-| 7 | 認証なしでCUD操作 | 結合 | 401 Unauthorized |
+| 7 | 認証なしでCUD操作 | 単体（httptest） | 401 Unauthorized |
 
 ### 3.4 認証機能
 
@@ -144,9 +154,9 @@
 | 1 | 正しい認証情報でログイン | 単体 | JWT トークンが返る |
 | 2 | 存在しないメールアドレス | 単体 | `UNAUTHORIZED` エラー（失敗試行を記録） |
 | 3 | パスワード不一致 | 単体 | `UNAUTHORIZED` エラー（失敗試行を記録） |
-| 4 | 有効な JWT でアクセス | 結合 | 認証成功、リクエスト続行 |
-| 5 | 期限切れの JWT でアクセス | 結合 | 401 Unauthorized |
-| 6 | 不正な JWT でアクセス | 結合 | 401 Unauthorized |
+| 4 | 有効な JWT でアクセス | 単体（httptest） | 認証成功、リクエスト続行 |
+| 5 | 期限切れの JWT でアクセス | 単体（httptest） | 401 Unauthorized |
+| 6 | 不正な JWT でアクセス | 単体（httptest） | 401 Unauthorized |
 | 7 | ログアウト | 単体 | トークン無効化 |
 | 8 | メール単位の失敗上限超過 | 単体 | 429 `TOO_MANY_REQUESTS`、`FindByEmail` 未呼出、`Retry-After` 付与 |
 | 9 | IP 単位の失敗上限超過 | 単体 | 429 `TOO_MANY_REQUESTS`、認証処理未実行 |
@@ -196,18 +206,18 @@
 |---|--------------|-------------|----------|
 | 1 | ReservationForm | 必須項目未入力で送信 | バリデーションエラーが表示される |
 | 2 | ReservationForm | 正常な入力で送信 | API が呼ばれ、完了画面に遷移 |
-| 3 | ReservationForm | 予約不可日がカレンダーで選択不可 | `GET /schedules` 等の予約可否に従う |
+| 3 | ReservationForm | 予約不可日がカレンダーで選択不可 | `GET /reservations/availability`（月次）の `is_holiday` / `available` に従う |
 | 4 | ReservationForm | 残り食数が表示される | 日付選択後に残り食数を表示 |
 | 5 | LoginForm | 正しい認証情報で送信 | ダッシュボードに遷移 |
 | 6 | LoginForm | 認証失敗 | エラーメッセージが表示される |
 | 6a | LoginForm | 429 `TOO_MANY_REQUESTS` | サーバの待ち時間入りメッセージが表示される |
-| 7 | ReservationTable | 予約一覧が表示される | 予約データがテーブルに描画される |
+| 7 | ReservationTable | 予約一覧が表示される | 予約データがカードで表示される |
 | 8 | ReservationTable | 承認ボタンクリック | ステータスが更新される |
 | 9 | ReservationTable | 拒否ボタンクリック | ステータスが更新される |
 | 10 | ScheduleCalendar | 月間スケジュールが表示される | 各日のスケジュールタイプが描画される |
 | 11 | SupplierManager | 取引先の追加・編集・削除 | CRUD 操作が正常に動作する |
 | 12 | SupplierManager | ドラッグ＆ドロップで並び替え | 新しい順序で並び順更新 API が呼ばれる。失敗時は一覧を取り直す |
-| 13 | ReservationCreateForm | 提供数超過の登録 | `window.confirm` で確認し、キャンセルなら登録しない（空き取得失敗時の挙動は別途決定中のため未固定） |
+| 13 | ReservationCreateForm | 提供数超過の登録 | `window.confirm` で確認し、キャンセルなら登録しない。空き取得失敗時も `window.confirm('空き状況を確認できませんでした…このまま登録しますか？')` で確認する。`is_holiday` の日は確認なし |
 | 14 | ScheduleCalendar | 保存・定例に戻す | `PUT` / `DELETE` が呼ばれ、外部イベントは capacity 0、戻り先の定例をプレビュー表示 |
 | 15 | DashboardSummary | 今日・明日のサマリー | 残り提供数・承認待ち／承認済み件数・直近 3 件。片方の API 失敗でも他方は表示 |
 | 16 | PublicScheduleCalendar / SupplierList | 公開ページの表示 | 取得中 → 表示 / 空 / エラーの切り替え、休・Event バー・Event Info |
@@ -217,6 +227,8 @@
 実装済みのテストファイルは各コンポーネントと同じディレクトリの `*.test.tsx` を参照（`cd frontend && bun run test:run` で全件実行）。
 
 ## 5. E2E テストシナリオ
+
+> **未実装**（手動確認用シナリオ。Playwright 等は未導入）
 
 ### 5.1 顧客の予約フロー
 
@@ -228,7 +240,7 @@
 5. 来店時間を選択
 6. 人数を選択
 7. 名前・電話番号・メールアドレスを入力
-8. reCAPTCHA を通過
+8. Turnstile を通過
 9. 「予約を申請する」ボタンをクリック
 10. 完了ページが表示されることを確認
 11. 予約内容が正しく表示されることを確認
