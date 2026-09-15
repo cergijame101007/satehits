@@ -238,8 +238,10 @@ flowchart TB
 
 - 件数の定義: `status = pending` かつ `visit_date` が今日以降（ローカル日付）。過去日の pending は数えない
 - 取得: 認証確認後に `GET /admin/reservations?status=pending` を非同期で呼び、ページ描画はブロックしない
+- 再取得: 予約一覧でのステータス更新後（`pending-count-changed` イベント）と bfcache 復帰時（`pageshow` の `persisted`）に取り直す。ナビとダッシュボードの同時取得は 1 リクエストにまとめる
 - 0 件または取得失敗時はバッジを出さない
-- ロジックは `lib/pendingReservations.ts`（`countActionablePending` / `formatBadgeCount` / `fetchActionablePendingCount`）
+- 読み上げ: バッジの数字は `aria-hidden`、リンク名は「予約一覧（未対応の予約 N 件）」（件数は 9+ に丸めない）
+- ロジックは `lib/pendingReservations.ts`（`countActionablePending` / `formatBadgeCount` / `fetchActionablePendingCount` / `notifyPendingCountChanged` / `subscribePendingCountRefresh`）
 
 ### 3.2 ログインページ
 
