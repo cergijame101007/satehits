@@ -180,12 +180,15 @@ stateDiagram-v2
 
     pending --> approved: オーナー承認
     pending --> rejected: オーナー拒否
+    pending --> cancelled: メール連絡後オーナーが手動更新
 
-    approved --> no_show: 無断キャンセル記録
+    approved --> no_show: 当日来店なし
+    approved --> cancelled: メール連絡後オーナーが手動更新
 
     rejected --> [*]
+    cancelled --> [*]
     no_show --> [*]
-    approved --> [*]: 来店完了（ステータス変更なし）
+    approved --> [*]: 来店完了（状態変更なし）
 ```
 
 ## 6. スケジュールタイプと予約可否
