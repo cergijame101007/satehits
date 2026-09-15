@@ -181,7 +181,7 @@ sequenceDiagram
             AdminUserRepo-->>UseCase: AdminUser
             UseCase->>UseCase: bcrypt.Compare(password, hash)
             UseCase->>AttemptRepo: ClearByEmail(email_key)
-            UseCase->>JWT: Generate(user_id, email, role)
+            UseCase->>JWT: GenerateAccessToken(user_id, email, role)
             JWT-->>UseCase: access_token, expires_at
             UseCase->>UseCase: リフレッシュトークン生成 (crypto/rand)
             UseCase->>RefreshRepo: Issue(user_id, sha256(rt), expires_at=now+30d)
@@ -240,7 +240,7 @@ sequenceDiagram
     else 正常
         UseCase->>AdminRepo: FindByID(user_id)
         AdminRepo-->>UseCase: admin_user
-        UseCase->>JWT: Generate(user_id, email, role)
+        UseCase->>JWT: GenerateAccessToken(user_id, email, role)
         JWT-->>UseCase: 新 access_token
         UseCase->>RefreshRepo: 1 トランザクションで RevokeIfActive(旧 RT)
         RefreshRepo->>DB: BEGIN → UPDATE revoked_at（未失効の行のみ）
@@ -360,7 +360,9 @@ sequenceDiagram
     
     Handler->>UseCase: Execute(id=123, status="approved")
     
-    UseCase->>ReservationRepo: FindByID(123)
+    UseCase->>UseCase: validateUpdateStatusTarget / validateUpdateStatusReason
+    
+    UseCase->>ReservationRepo: GetByID(123)
     ReservationRepo->>DB: SELECT * FROM reservations WHERE id = 123
     DB-->>ReservationRepo: reservation
     ReservationRepo-->>UseCase: Reservation{status: "pending"}
@@ -406,7 +408,9 @@ sequenceDiagram
     
     Handler->>UseCase: Execute(id=123, status="rejected", reason?)
     
-    UseCase->>ReservationRepo: FindByID(123)
+    UseCase->>UseCase: validateUpdateStatusTarget / validateUpdateStatusReason
+    
+    UseCase->>ReservationRepo: GetByID(123)
     ReservationRepo->>DB: SELECT * FROM reservations WHERE id = 123
     DB-->>ReservationRepo: reservation
     ReservationRepo-->>UseCase: Reservation{status: "pending"}
