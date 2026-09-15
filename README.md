@@ -44,6 +44,10 @@
 | [シーケンス図](./docs/sequence.md) | 主要機能のシーケンス図 |
 | [画面遷移図](./docs/screen_transition.md) | 画面一覧、遷移図、ワイヤーフレーム |
 | [インフラ構成](./docs/infrastructure.md) | 技術スタック、環境構成、CI/CD |
+| [Cloud Run デプロイ](./docs/deploy_cloud_run.md) | バックエンド CD 手順、Secrets / Variables、ロールバック |
+| [ユースケース](./docs/use_case.md) | ユースケース一覧 |
+| [データフロー](./docs/data_flow.md) | データフロー図 |
+| [祝日データ](./docs/holidays.md) | 祝日データの出典・合成ルール・年次更新手順 |
 | [テスト設計](./docs/test_design.md) | テスト方針、テストケース一覧 |
 | [技術選定理由書](./docs/architecture_decision_records.md) | ADR（Architecture Decision Records） |
 
@@ -62,7 +66,7 @@ cp backend/.env.example backend/.env
 make dev
 ```
 
-フロント単体やリポジトリ全体の変数一覧は、リポジトリ直下の [`.env.example`](./.env.example) も参照してください。手順の詳細は [セットアップガイド](./docs/setup.md) にあります。
+フロントエンドを動かす場合は [`frontend/.env.example`](./frontend/.env.example) を `frontend/.env` にコピーしてください。手順の詳細は [セットアップガイド](./docs/setup.md) にあります。
 
 ## 関連リンク
 

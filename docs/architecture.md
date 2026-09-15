@@ -62,9 +62,9 @@ Astro の Islands Architecture は、ページの大部分を静的 HTML とし�
 
 | ディレクティブ | 用途 | 使用例 |
 |---------------|------|--------|
-| `client:load` | ページ読み込み時に即座にハイドレーション | 予約フォーム、ログインフォーム |
-| `client:visible` | 要素が画面内に入った時にハイドレーション | 取引先カード（スクロール後に表示） |
-| `client:idle` | ブラウザがアイドル状態になった時にハイドレーション | ダッシュボードのウィジェット |
+| `client:load` | ページ読み込み時に即座にハイドレーション | 予約フォーム、ログインフォーム、トップのスケジュールカレンダー、管理画面全般（ダッシュボード含む） |
+| `client:visible` | 要素が画面内に入った時にハイドレーション | 取引先一覧（`SupplierList`） |
+| `client:idle` | ブラウザがアイドル状態になった時にハイドレーション | 現状未使用（採用是非は Issue で検討） |
 
 ### フロントエンドディレクトリ構成
 
@@ -74,26 +74,45 @@ frontend/
 │   ├── components/
 │   │   ├── astro/           # 静的コンポーネント（.astro）
 │   │   └── react/           # React コンポーネント（Islands）
+│   │       └── ui/          # 共通 UI 部品（Button / Modal / Card 等）
 │   ├── layouts/
 │   │   ├── BaseLayout.astro     # 顧客向けレイアウト
 │   │   └── AdminLayout.astro    # 管理者向けレイアウト
 │   ├── pages/
-│   │   ├── index.astro          # トップページ
-│   │   ├── schedule.astro       # スケジュール確認
+│   │   ├── index.astro          # トップページ（公開スケジュールカレンダーを含む）
 │   │   ├── reservation.astro    # 予約フォーム
+│   │   ├── reservation/
+│   │   │   └── complete.astro   # 予約申請完了
 │   │   ├── suppliers.astro      # 取引先紹介
 │   │   └── admin/
 │   │       ├── index.astro      # ダッシュボード
 │   │       ├── login.astro
 │   │       ├── reservations.astro
+│   │       ├── reservations/
+│   │       │   └── new.astro    # 予約手動登録
 │   │       ├── schedules.astro
 │   │       └── suppliers.astro
 │   ├── styles/
 │   │   └── global.css
 │   ├── lib/
-│   │   └── api.ts               # API クライアント
+│   │   ├── api.ts               # 保護 API 用 fetch（Bearer 付与・401 時 refresh）
+│   │   ├── auth.ts              # ログイン・refresh・ログアウト
+│   │   ├── reservation.ts / adminReservation.ts / availability.ts
+│   │   ├── publicSchedule.ts / schedule.ts / publicSuppliers.ts / suppliers.ts
+│   │   │                        # 各 API クライアントとエラーメッセージ変換
+│   │   ├── calendarUtils.ts / useMonthCalendar.ts / publicScheduleCell.ts
+│   │   │                        # カレンダー共通ロジック
+│   │   ├── holidays.ts / storeDefaultSchedule.ts / storeHours.ts
+│   │   │                        # 祝日判定・店舗定例プレビュー
+│   │   ├── calendarTheme.ts / reservationStatusTheme.ts / japaneseMonth.ts / cx.ts
+│   │   │                        # 表示ラベル・色・className ユーティリティ
+│   │   └── ui/                  # UI 部品の共通スタイル・型
+│   ├── data/
+│   │   └── holidays.json        # 祝日データ（docs/holidays.md）
+│   ├── test/                    # Vitest セットアップ・ヘルパー
 │   └── types/
-│       └── index.ts             # 型定義
+│       ├── reservation.ts       # 予約・スケジュール・認証の型
+│       └── supplier.ts          # 取引先の型
 ├── astro.config.mjs
 ├── tsconfig.json
 ├── vitest.config.ts
@@ -106,13 +125,14 @@ frontend/
 
 | ページ | ファイル | 動的部分（React Islands） |
 |--------|----------|--------------------------|
-| トップページ | `index.astro` | なし（静的） |
-| スケジュール確認 | `schedule.astro` | カレンダー表示（`client:load`） |
-| 予約フォーム | `reservation.astro` | 予約フォーム全体（`client:load`） |
-| 取引先紹介 | `suppliers.astro` | なし（静的） |
+| トップページ | `index.astro` | 公開スケジュールカレンダー（`AttentionSection.astro` 経由で `PublicScheduleCalendar client:load`） |
+| 予約フォーム | `reservation.astro` | 予約フォーム全体（`ReservationForm client:load`） |
+| 予約申請完了 | `reservation/complete.astro` | なし（静的） |
+| 取引先紹介 | `suppliers.astro` | 取引先一覧（`SupplierList client:visible`） |
 | ログイン | `admin/login.astro` | ログインフォーム（`client:load`） |
-| ダッシュボード | `admin/index.astro` | サマリーウィジェット（`client:load`） |
+| ダッシュボード | `admin/index.astro` | サマリーウィジェット（`DashboardSummary client:load`） |
 | 予約一覧 | `admin/reservations.astro` | 予約テーブル・操作（`client:load`） |
+| 予約手動登録 | `admin/reservations/new.astro` | 登録フォーム（`client:load`） |
 | スケジュール設定 | `admin/schedules.astro` | カレンダー・設定フォーム（`client:load`） |
 | 取引先管理 | `admin/suppliers.astro` | CRUD 操作（`client:load`） |
 
@@ -171,7 +191,7 @@ graph TB
     DomainService --> RepoInterface
     RepoInterface -.->|実装| RepoImpl
     RepoImpl --> DB
-    ExternalAPI --> reCAPTCHA[reCAPTCHA API]
+    ExternalAPI --> Turnstile[Cloudflare Turnstile API]
     MailClient --> ResendAPI[Resend API]
 ```
 
@@ -206,15 +226,15 @@ Q: そのロジックは「エンティティ1つ」で完結する？
 │  CreateReservationUseCase（UseCase）                        │
 │  「顧客が予約を申請する」という操作全体を調整               │
 ├─────────────────────────────────────────────────────────────┤
-│  1. reCAPTCHA検証        → 外部API                         │
+│  1. Turnstile検証        → 外部API                         │
 │  2. 入力バリデーション    → DTO / Validator                │
 │  3. 空き確認（楽観）      → AvailabilityService に委譲      │
 │  4. トランザクション内:                                      │
 │     - 同一 visit_date の advisory lock（VisitDateLocker）  │
 │     - 空き再確認           → AvailabilityService           │
 │     - 予約作成             → ReservationRepository         │
-│  5. 受付メール送信        → MailService に委譲（非同期）    │
-│  6. レスポンス組み立て    → DTO                            │
+│     - 受付メール記録       → MailEnqueuer（email_outbox）  │
+│  5. レスポンス組み立て    → DTO                            │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
@@ -232,23 +252,17 @@ Q: そのロジックは「エンティティ1つ」で完結する？
 │  「オーナーが予約ステータスを更新する」操作全体を調整       │
 ├─────────────────────────────────────────────────────────────┤
 │  1. 予約取得             → ReservationRepository           │
-│  2. ステータス遷移可否    → Reservation.CanTransitionTo()  │
-│  3. ステータス更新        → ReservationRepository          │
-│  4. メール送信            → MailService に委譲（非同期）    │
-│     - approved → 予約承認メール                            │
-│     - rejected → 予約拒否メール                            │
-│  5. レスポンス組み立て    → DTO                            │
-└─────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
-│  Reservation.CanTransitionTo()（Entity メソッド）           │
-│  「このステータスに遷移できるか」という単一エンティティの判定│
-├─────────────────────────────────────────────────────────────┤
-│  - pending → approved, rejected のみ可                     │
-│  - approved → no_show のみ可                               │
-│  - rejected, no_show → 遷移不可                            │
+│  2. ステータス遷移可否    → domain.CanTransition()         │
+│  3. トランザクション内:                                      │
+│     - ステータス更新      → ReservationRepository          │
+│     - メール記録          → MailEnqueuer（email_outbox）   │
+│       - approved → 予約承認メール                          │
+│       - rejected → 予約拒否メール                          │
+│  4. レスポンス組み立て    → DTO                            │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+メールは UseCase のトランザクション内で `email_outbox` に記録するだけで、送信は Dispatcher が後から行う（§10）。許可されるステータス遷移は `docs/table_design.md` §4 と `docs/api_design.md` の `PATCH /admin/reservations/{id}/status` を正とし、ここには持たない。
 
 ## 6. DI（依存性注入）
 
@@ -270,115 +284,83 @@ graph LR
 
 ## 7. バックエンドディレクトリ構成
 
+### 現状
+
 ```
 backend/
 ├── cmd/
-│   └── server/
-│       └── main.go                 # エントリーポイント、DI設定
+│   ├── api/main.go                 # エントリーポイント、DI、ルーティング
+│   ├── migrate/main.go             # マイグレーション適用（schema_migrations で管理）
+│   └── seed/main.go                # 開発用シード（admin_users）
 │
 ├── internal/
-│   ├── presentation/
-│   │   ├── handler/
-│   │   │   ├── reservation.go      # 予約関連ハンドラー
-│   │   │   ├── schedule.go         # スケジュール関連ハンドラー
-│   │   │   ├── supplier.go         # 取引先関連ハンドラー
-│   │   │   ├── auth.go             # 認証ハンドラー
-│   │   │   └── health.go           # ヘルスチェック
-│   │   ├── middleware/
-│   │   │   ├── auth.go             # JWT認証
-│   │   │   ├── cors.go             # CORS設定
-│   │   │   ├── logging.go          # リクエストログ
-│   │   │   └── recovery.go         # パニックリカバリ
-│   │   ├── router/
-│   │   │   └── router.go           # ルーティング定義
-│   │   └── response/
-│   │       └── response.go         # レスポンスヘルパー
+│   ├── handler/                    # Presentation: HTTP ハンドラーとミドルウェア
+│   │   ├── reservation.go / admin_reservation.go / availability.go
+│   │   ├── schedule.go / schedule_public.go / schedule_errors.go
+│   │   ├── supplier.go / admin_supplier.go
+│   │   ├── auth.go / cookie.go / client_ip.go
+│   │   ├── outbox.go               # POST /internal/outbox/flush
+│   │   ├── middleware.go           # JWT 認証（RequireAuth）・CORS
+│   │   └── response.go             # JSON / エラーレスポンスヘルパー
 │   │
-│   ├── application/
-│   │   ├── usecase/
-│   │   │   ├── reservation/
-│   │   │   │   ├── create.go       # 予約作成（顧客）
-│   │   │   │   ├── create_by_admin.go  # 予約作成（オーナー）
-│   │   │   │   ├── list.go         # 予約一覧
-│   │   │   │   └── update_status.go    # ステータス更新
-│   │   │   ├── schedule/
-│   │   │   │   ├── get.go          # スケジュール取得
-│   │   │   │   ├── set.go          # スケジュール設定
-│   │   │   │   └── list.go         # 月間スケジュール
-│   │   │   ├── supplier/
-│   │   │   │   ├── create.go
-│   │   │   │   ├── update.go
-│   │   │   │   ├── delete.go
-│   │   │   │   └── list.go
-│   │   │   └── auth/
-│   │   │       ├── login.go
-│   │   │       └── logout.go
-│   │   └── dto/
-│   │       ├── reservation.go
-│   │       ├── schedule.go
-│   │       ├── supplier.go
-│   │       └── auth.go
+│   ├── application/                # Application
+│   │   ├── transaction.go          # TxManager（トランザクション境界の抽象）
+│   │   ├── visit_date_lock.go      # VisitDateLocker（同一来店日の直列化）
+│   │   └── usecase/
+│   │       ├── auth/               # ログイン・refresh・ログアウト・レートリミット
+│   │       ├── reservation/        # 予約作成（顧客 / 管理者）・一覧・ステータス更新・空き確認
+│   │       ├── schedule/           # スケジュール取得・一覧・設定・削除
+│   │       └── supplier/           # 取引先 CRUD・並び替え・画像アップロード
 │   │
-│   ├── domain/
-│   │   ├── entity/
-│   │   │   ├── reservation.go      # 予約エンティティ
-│   │   │   ├── schedule.go         # スケジュールエンティティ
-│   │   │   ├── supplier.go         # 取引先エンティティ
-│   │   │   └── admin_user.go       # 管理者エンティティ
-│   │   ├── repository/
-│   │   │   ├── reservation.go      # インターフェース
-│   │   │   ├── schedule.go
-│   │   │   ├── supplier.go
-│   │   │   ├── admin_user.go
-│   │   │   └── mail.go            # メール送信インターフェース
-│   │   ├── service/
-│   │   │   ├── availability.go     # 空き状況計算
-│   │   │   └── business_hours.go   # 営業時間判定
-│   │   └── errors/
-│   │       └── errors.go           # ドメインエラー定義
+│   ├── domain/                     # Domain（フラット）: エンティティ、Repository / 外部サービスのインターフェース、sentinel エラー
+│   │   ├── reservation.go / schedule.go / supplier.go / admin_user.go
+│   │   ├── refresh_token.go / login_attempt.go / email_outbox.go
+│   │   ├── mail.go / captcha.go / storage.go
+│   │   ├── holiday/                # 祝日判定（内閣府 CSV を go:embed）
+│   │   └── service/                # 空き状況・営業時刻・店舗定例の合成
 │   │
-│   └── infrastructure/
-│       ├── persistence/
-│       │   └── supabase/
-│       │       ├── client.go       # Supabaseクライアント
-│       │       ├── reservation.go  # Repository実装
-│       │       ├── schedule.go
-│       │       ├── supplier.go
-│       │       └── admin_user.go
-│       └── external/
-│           ├── turnstile/
-│           │   └── verifier.go
-│           └── resend/
-│               └── client.go       # Resend API client (MailSender)
-│       └── mail/
-│           ├── outbox_enqueuer.go
-│           ├── dispatcher.go
-│           └── templates.go
+│   ├── infrastructure/             # Infrastructure: 外部 API・メール
+│   │   ├── external/
+│   │   │   ├── resend/             # MailSender 実装（Resend API を net/http で呼ぶ）
+│   │   │   ├── storage/            # ImageStorage 実装（S3 互換 / NoOp）
+│   │   │   └── turnstile/          # Cloudflare Turnstile 検証
+│   │   └── mail/                   # Outbox enqueue・Dispatcher・テンプレート
+│   │
+│   ├── repository/                 # Infrastructure: Repository 実装（PostgreSQL）
+│   ├── datetime/                   # Date / Time 型（JSON・SQL 対応）
+│   └── privacy/                    # ログ出力用の個人情報マスク
 │
 ├── pkg/
-│   ├── config/
-│   │   └── config.go               # 環境変数読み込み
-│   ├── jwt/
-│   │   └── jwt.go                  # JWT生成・検証
-│   └── logger/
-│       └── logger.go               # ロガー設定
+│   ├── config/config.go            # 環境変数読み込み（一覧は backend/.env.example）
+│   └── jwt/jwt.go                  # JWT 生成・検証
 │
-├── migrations/
-│   ├── 001_create_reservations.sql
-│   ├── 002_create_schedules.sql
-│   ├── 003_create_suppliers.sql
-│   └── 004_create_admin_users.sql
-│
+├── migrations/                     # 000001_*.sql からの連番 SQL（適用済みファイルは編集しない）
 ├── docker/
-│   ├── Dockerfile
-│   ├── docker-compose.local.yml
-│   └── docker-compose.prod.yml
-│
+│   ├── Dockerfile                  # 本番用（api / migrate / seed の 3 バイナリ）
+│   └── Dockerfile.dev              # 開発用（Air ホットリロード）
 ├── go.mod
-├── go.sum
-├── Makefile
-└── README.md
+└── go.sum
 ```
+
+`docker-compose.yml` / `docker-compose.prod.yml` / `Makefile` はリポジトリ直下に置く。
+
+### 移行予定
+
+方針: レイヤード + Repository + DI に絞り、DDD 由来の要素は目標から外す（ADR-005）。
+
+予定として残すもの:
+
+- `handler` パッケージからミドルウェアを `presentation/middleware` に分離する（`internal/handler/middleware.go` 冒頭の NOTE。非公開ヘルパーの export か複製が必要）
+- logging / recovery ミドルウェアを追加する（現状はハンドラー内の `log.Printf` のみで、HTTP の panic recovery は無い）
+
+目標から外す候補（採否は要判断）:
+
+| 候補 | 現状 |
+|------|------|
+| `domain/entity` / `domain/repository` / `domain/errors` へのサブパッケージ分割 | フラットな `domain` パッケージ |
+| `application/dto` 層 | usecase パッケージの入出力型と handler 内のリクエスト / レスポンス型で変換 |
+| `infrastructure/persistence/supabase` への改名 | `internal/repository` |
+| `pkg/logger` | 標準 `log` パッケージ |
 
 ## 8. 依存関係図
 
@@ -433,18 +415,20 @@ graph TB
 
 ### ドメインエラー
 
-ドメイン固有のエラーを `Code`（識別用文字列）と `Message`（日本語メッセージ）を持つ `DomainError` 型として定義する。予約不在（`NOT_FOUND`）、定員超過（`CAPACITY_EXCEEDED`）、休業・予約不可日への予約（`HOLIDAY`）、不正なステータス遷移（`INVALID_TRANSITION`）、reCAPTCHA失敗（`INVALID_RECAPTCHA`）、未認証（`UNAUTHORIZED`）などを事前定義しておく。
+Domain 層は `errors.New` の sentinel エラーを各ファイルに定義する（例: `ErrReservationNotFound`、`ErrCapacityExceeded`、`ErrCaptchaFailed`。`internal/domain/*.go`）。入力バリデーション違反は各 usecase パッケージの `ValidationError`（違反フィールドの一覧）で返す。
 
 ### エラーレスポンス変換
 
-Presentation 層の `HandleError` 関数で、`DomainError` の `Code` に応じて適切な HTTP ステータスコードにマッピングする。`NOT_FOUND` → 404、`CAPACITY_EXCEEDED` / `HOLIDAY` → 409、`INVALID_TRANSITION` / `INVALID_RECAPTCHA` → 400、`UNAUTHORIZED` → 401 とし、想定外のエラーは 500 を返す。
+各 handler が `errors.Is` / `errors.As` でエラーを判定し、HTTP ステータスとエラーコードに変換する（例: `internal/handler/reservation.go` の予約作成）。想定外のエラーはログに出して 500（`INTERNAL_ERROR`）を返す。エラーコードの一覧は `docs/api_design.md` §3 を正とする。
+
+共通の `HandleError` / `DomainError` 型の導入は Issue で検討中。
 
 ## 10. 外部サービス連携
 
 | サービス | 用途 | 連携レイヤー |
 |----------|------|-------------|
 | Supabase (PostgreSQL) | データベース | Infrastructure Layer（Repository実装） |
-| Google reCAPTCHA v3 / Turnstile | Bot対策 | Infrastructure Layer（External API Client） |
+| Cloudflare Turnstile | Bot対策 | Infrastructure Layer（`infrastructure/external/turnstile`） |
 | Resend | メール配信（予約受付・承認・拒否通知） | Infrastructure Layer（Mail Sender 実装） |
 
 ### メール送信（Mail Sender + Outbox）

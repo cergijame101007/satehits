@@ -22,7 +22,7 @@ flowchart TB
     end
 
     subgraph External[外部サービス]
-        ReCaptcha[Google reCAPTCHA v3]
+        Turnstile[Cloudflare Turnstile]
         Supabase[(Supabase<br>PostgreSQL)]
         Resend[Resend<br>メール配信]
     end
@@ -42,8 +42,8 @@ flowchart TB
     Scheduler -->|OIDC| CloudRunInternal
     CloudRunInternal --> Supabase
     CloudRunInternal --> Resend
-    CFPages -->|Client Side| ReCaptcha
-    CloudRun -->|Verify| ReCaptcha
+    CFPages -->|Client Side| Turnstile
+    CloudRun -->|Verify| Turnstile
 
     GitHub --> Actions
     Actions -->|Deploy Frontend| CFPages
@@ -76,14 +76,14 @@ flowchart TB
 | ホスティング | Google Cloud Run |
 | 認証 | JWT (golang-jwt/jwt) |
 | パスワードハッシュ | bcrypt |
-| バリデーション | go-playground/validator |
+| バリデーション | 手書き（各 usecase パッケージの `login_validate.go` / `set_schedule_validation.go` / `validate.go` 等） |
 
 ### データベース
 
 | 項目 | 技術 |
 |------|------|
 | サービス | Supabase |
-| DB | PostgreSQL 15 |
+| DB | PostgreSQL 16（CI・ローカルの結合テストは `postgres:16-alpine`。Supabase 側のバージョンは未確認） |
 | 接続 | pgx / database/sql |
 
 ### メール配信
@@ -91,7 +91,7 @@ flowchart TB
 | 項目 | 技術 |
 |------|------|
 | サービス | Resend |
-| Go SDK | github.com/resend/resend-go/v2 |
+| API クライアント | SDK は使わず `net/http` で直接呼ぶ（§11） |
 | 無料枠 | 3,000通/月（このプロダクトでは十分） |
 | 送信元ドメイン | satehits.com（Cloudflare DNSでSPF/DKIM/DMARC設定） |
 
@@ -109,7 +109,7 @@ flowchart TB
 |------|------|
 | コンテナ | Docker |
 | CI/CD | GitHub Actions |
-| Bot対策 | Google reCAPTCHA v3 |
+| Bot対策 | Cloudflare Turnstile |
 
 ## 3. 環境構成
 
@@ -118,22 +118,24 @@ flowchart TB
 ```mermaid
 flowchart LR
     subgraph Local[ローカルマシン]
-        Frontend[Astro + React<br>localhost:4321]
-        Backend[Go API<br>localhost:8080]
+        Frontend[Astro + React<br>make dev-front<br>localhost:4321]
     end
 
     subgraph Docker[Docker Compose]
-        FrontendContainer[frontend]
-        BackendContainer[backend]
+        Backend[backend<br>Go API + Air<br>localhost:8080]
+        MinIO[minio<br>S3 互換ストレージ<br>localhost:9000]
+        CreateBuckets[createbuckets<br>バケット初期化]
+        PostgresTest[(postgres-test<br>結合テスト用<br>localhost:5433)]
     end
 
     subgraph Remote[リモート]
         Supabase[(Supabase<br>開発用プロジェクト)]
     end
 
-    FrontendContainer --> Frontend
-    BackendContainer --> Backend
+    Frontend -->|API Request| Backend
     Backend --> Supabase
+    Backend --> MinIO
+    CreateBuckets --> MinIO
 ```
 
 ### 本番環境
@@ -166,85 +168,14 @@ flowchart LR
 
 ## 4. Docker構成
 
-### docker-compose.local.yml
+設定の中身は各ファイルを正とし、ここには要点だけを書く。
 
-```yaml
-version: '3.8'
-
-services:
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.dev
-    ports:
-      - "4321:4321"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    environment:
-      - PUBLIC_API_URL=http://localhost:8080
-      - PUBLIC_RECAPTCHA_SITE_KEY=${RECAPTCHA_SITE_KEY}
-    depends_on:
-      - backend
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.dev
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./backend:/app
-    environment:
-      - DATABASE_URL=${SUPABASE_DATABASE_URL}
-      - JWT_SECRET=${JWT_SECRET}
-      - RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_KEY}
-      - RESEND_API_KEY=${RESEND_API_KEY}
-      - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}
-      - ENVIRONMENT=development
-```
-
-### docker-compose.prod.yml
-
-```yaml
-version: '3.8'
-
-services:
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    environment:
-      - DATABASE_URL=${SUPABASE_DATABASE_URL}
-      - JWT_SECRET=${JWT_SECRET}
-      - RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_KEY}
-      - RESEND_API_KEY=${RESEND_API_KEY}
-      - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}
-      - ENVIRONMENT=production
-```
-
-### Backend Dockerfile
-
-```dockerfile
-# Build stage
-FROM golang:1.22-alpine AS builder
-
-WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/server
-
-# Runtime stage
-FROM alpine:3.19
-
-RUN apk --no-cache add ca-certificates tzdata
-WORKDIR /app
-COPY --from=builder /app/main .
-
-EXPOSE 8080
-CMD ["./main"]
-```
+| ファイル | 要点 |
+|----------|------|
+| `docker-compose.yml` | 開発用。`backend`（`backend/docker/Dockerfile.dev`、`env_file: ./backend/.env`、`ENVIRONMENT=development` で上書き）、`minio`（S3 互換ストレージ。9000 / 9001）、`createbuckets`（`satehits-images` バケットを作成して公開読み取りに設定）、`postgres-test`（`postgres:16-alpine`、5433。`make test-integration` 用で永続化なし）。フロントエンドのコンテナは無く、ホスト上で `make dev-front` を使う |
+| `docker-compose.prod.yml` | 本番シミュレーション用。`backend` のみ（`backend/docker/Dockerfile`、`env_file: ./backend/.env`、`ENVIRONMENT=production`） |
+| `backend/docker/Dockerfile` | マルチステージ。`golang:1.24` で `api` / `migrate` / `seed` の 3 バイナリをビルドし、`alpine:3.19` に `migrations/` と一緒にコピーして非 root で実行する。同じイメージを Cloud Run サービスと Cloud Run Job（migrate / seed）で使い回す |
+| `backend/docker/Dockerfile.dev` | `golang:1.24` + Air によるホットリロード |
 
 ## 5. CI/CD パイプライン
 
@@ -273,53 +204,16 @@ flowchart TB
 
 ### GitHub Actions ワークフロー
 
-#### `.github/workflows/ci.yml`
+ワークフローの中身は実ファイルを正とし、ここには要点だけを書く。
 
-```yaml
-name: CI
+#### `.github/workflows/backend.yml` / `frontend.yml`（CI）
 
-on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main]
+| ファイル | トリガー | ジョブ（`needs` なし・並列） |
+|----------|----------|------------------------------|
+| `backend.yml` | `backend/**` か自身の変更を `main` / `develop` に push / PR | lint（golangci-lint。版は `tools/golangci-lint.version` と同期）、test（`postgres:16-alpine` サービスで結合テストを含む `go test -race`、coverage をアーティファクト化）、build（`go build ./cmd/api`）、docker-build（`backend/docker/Dockerfile`） |
+| `frontend.yml` | `frontend/**` か自身の変更を `main` / `develop` に push / PR | lint、test、build（`frontend/dist/` を `frontend-dist` アーティファクトとしてアップロード） |
 
-jobs:
-  lint-backend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v4
-
-  test-backend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-      - run: go test -v ./...
-
-  lint-frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: cd frontend && bun install --frozen-lockfile
-      - run: cd frontend && bun run lint
-
-  build-frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: cd frontend && bun install --frozen-lockfile
-      - run: cd frontend && bun run build
-```
+Go は `1.24`、bun は `oven-sh/setup-bun` の latest を使う。
 
 #### `.github/workflows/deploy-backend.yml`（バックエンド CD）
 
@@ -394,18 +288,11 @@ jobs:
 
 - 管理者認証: JWT (有効期限付き)
 - パスワード: bcryptでハッシュ化
-- Bot対策: reCAPTCHA v3
+- Bot対策: Cloudflare Turnstile
 
 ### CORS
 
-```go
-// 許可するオリジン
-allowedOrigins := []string{
-    "https://satehits.com",             // 本番
-    "https://www.satehits.com",         // 本番（www）
-    "http://localhost:4321",            // 開発
-}
-```
+許可オリジンは環境変数 `CORS_ORIGINS`（カンマ区切り・必須）で渡し、`internal/handler/middleware.go` の `CORS` ミドルウェアが判定する。本番は `https://satehits.com,https://www.satehits.com`、ローカルは `http://localhost:4321`（§6）。
 
 ## 8. 監視・ログ
 
@@ -416,6 +303,8 @@ allowedOrigins := []string{
 | エラートラッキング | (将来: Sentry) |
 | 稼働監視 | (将来: Cloud Monitoring) |
 
+現状、構造化ログと HTTP の recovery ミドルウェアは未導入で、標準 `log` パッケージの出力を Cloud Logging が収集している。
+
 ## 9. コスト概算
 
 | サービス | プラン | 想定コスト |
@@ -425,7 +314,7 @@ allowedOrigins := []string{
 | Cloud Run | 無料枠内 | $0 |
 | Supabase | Free tier | $0 |
 | Resend | 無料枠（3,000通/月） | $0 |
-| reCAPTCHA | 無料 | $0 |
+| Cloudflare Turnstile | 無料 | $0 |
 | GitHub Actions | 無料枠 | $0 |
 
 ※ トラフィックが増えた場合は要見直し
@@ -449,17 +338,10 @@ allowedOrigins := []string{
 | 画像最適化 | Astro の `<Image>` コンポーネントはビルド時最適化 | 静的ビルドでは問題なし。SSR時は外部サービスを検討 |
 | Node.js API | Cloudflare Workers ランタイムでは Node.js API が制限される | SSR を使う場合は `@astrojs/cloudflare` で互換レイヤーを利用 |
 
-### Astro 設定ファイル（`astro.config.mjs`）
+### Astro 設定ファイル（`frontend/astro.config.mjs`）
 
-```javascript
-import { defineConfig } from 'astro/config';
-import react from '@astrojs/react';
-import tailwindcss from '@astrojs/tailwind';
-
-export default defineConfig({
-  integrations: [react(), tailwindcss()],
-});
-```
+- `output: 'static'`（SSG。Cloudflare Pages で静的配信）
+- インテグレーションは `@astrojs/react`。Tailwind CSS v4 は `@tailwindcss/vite` を Vite プラグインとして読み込む
 
 ### カスタムドメイン設定手順
 
@@ -535,19 +417,6 @@ Resend でカスタムドメイン（`satehits.com`）からメールを送信�
 | 予約承認メール | オーナーが予約を承認した時 | 顧客 | 予約確定の通知、来店日時、キャンセルポリシー |
 | 予約拒否メール | オーナーが予約を拒否した時 | 顧客 | 予約できなかった旨、Instagramへの誘導 |
 
-### Go SDK の使用例
+### API クライアント
 
-```go
-import "github.com/resend/resend-go/v2"
-
-client := resend.NewClient(os.Getenv("RESEND_API_KEY"))
-
-params := &resend.SendEmailRequest{
-    From:    os.Getenv("MAIL_FROM_ADDRESS"),
-    To:      []string{customerEmail},
-    Subject: "【さて、羊に戻るとしよう】ご予約を受け付けました",
-    Html:    htmlContent,
-}
-
-sent, err := client.Emails.Send(params)
-```
+SDK は使わず、`internal/infrastructure/external/resend/client.go` が `net/http` で `POST https://api.resend.com/emails` を呼ぶ（タイムアウト 30 秒）。HTTP ステータスを一時失敗 / 恒久失敗（`ErrMailPermanent`）/ 認証エラー（`ErrMailAuth`）に分類し、Dispatcher が再送・中断を判断する（`docs/architecture.md` §10）。`RESEND_API_KEY` 未設定時は `NoOpSender` を使う。

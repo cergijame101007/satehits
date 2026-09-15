@@ -4,6 +4,7 @@
 
 - Docker & Docker Compose
 - Go 1.24+（ローカル開発時）
+- bun（フロントエンド開発時）
 - curl（`make lint` 初回に golangci-lint バイナリを取得するため）
 
 ## セットアップ手順
@@ -23,17 +24,17 @@ cd satehits
 cp backend/.env.example backend/.env
 ```
 
-`backend/.env` を編集して実際の値を設定：
+`backend/.env` を編集して実際の値を設定する。変数の一覧・既定値・必須条件は [`backend/.env.example`](../backend/.env.example) のコメントを正とする。少なくとも次を満たさないと API が起動しない。
 
-| 変数名 | 説明 |
-|--------|------|
-| `DATABASE_URL` | Supabase の接続URL |
-| `JWT_SECRET` | JWT署名用のシークレットキー |
-| `RECAPTCHA_SECRET_KEY` | Google reCAPTCHA v3 のシークレットキー |
-| `ENVIRONMENT` | `development` または `production` |
-| `MIGRATIONS_DIR` | （任意）マイグレーション SQL のディレクトリで未設定時は `migrations`（実行時のカレントディレクトリ基準） |
+- `DATABASE_URL` と `CORS_ORIGINS` が設定されている
+- `JWT_SECRET` が 32 バイト以上
+- `ENVIRONMENT` が `development` 以外なら `TURNSTILE_SECRET_KEY` が設定されている
 
-フロントエンド用の `PUBLIC_*`（Astro のクライアント公開用プレフィックス）などは、リポジトリ直下の [`.env.example`](../.env.example) に記載があります。`frontend/` で `bun run dev` する場合は、必要な変数を `frontend/.env` などに置いてください。
+フロントエンドは `frontend/` 直下の環境変数ファイルを Astro が読む。`frontend/` で `bun run dev` する場合はテンプレートをコピーする。
+
+```bash
+cp frontend/.env.example frontend/.env
+```
 
 ### 3. 開発サーバーの起動
 
@@ -90,9 +91,13 @@ make seed
 | `make prod-down` | 本番 compose の停止 |
 | `make dev-front` | フロントエンド開発サーバー（`frontend/` で `bun run dev`） |
 | `make run` | バックエンドをローカルで直接起動（Docker なし、`cd backend` 相当） |
-| `make build` | バイナリをビルド |
+| `make build` | バイナリをビルド（`backend/bin/api`） |
 | `make test` | テスト実行 |
+| `make test-coverage` | カバレッジ付きテスト（`backend/coverage.html` を生成） |
+| `make test-integration` | `postgres-test` コンテナを起動して repository の DB 結合テストを実行 |
+| `make outbox-flush` | ローカルの `POST /internal/outbox/flush` を呼ぶ（`OUTBOX_FLUSH_ENDPOINT_ENABLED=true` が必要） |
 | `make lint` | golangci-lint 実行 |
+| `make tools-install` | golangci-lint を `tools/bin` に取得 |
 | `make update-holidays` | 祝日データ（内閣府 CSV）を取得して backend / frontend の同梱データを再生成（年 1 回。[`holidays.md`](./holidays.md)） |
 | `make clean` | ビルド成果物の削除 |
 
