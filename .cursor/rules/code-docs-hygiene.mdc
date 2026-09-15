@@ -10,6 +10,7 @@ alwaysApply: true
 - コメントには、必要な場合に WHY を書く。自明な WHAT コメントは追加しない。
 - コメントや DOCS に、ユーザーとの会話、依頼経緯、今回の作業、AI / Agent の編集履歴を残さない。
 - DOCS は会話の流れではなく現在の確定仕様として記述する。
+- 設計 DOCS に設定ファイル・ワークフローのコード（docker-compose、Dockerfile、GitHub Actions、ビルド設定など）を転記しない。実ファイルへの参照と要点に留める。
 - 完了前に `python ~/.cursor/skills/code-docs-hygiene/scripts/check_artifact_hygiene.py --all --strict` を実行する。
 
 対話・編集履歴を残す必要がある場合でも、それが本来の目的である CHANGELOG、ADR、migration guide、release notes などに限定する。
