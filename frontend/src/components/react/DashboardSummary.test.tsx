@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import DashboardSummary from '@/components/react/DashboardSummary';
 import { listReservations, ReservationApiError } from '@/lib/adminReservation';
 import { AvailabilityApiError, getAvailability } from '@/lib/availability';
+import { formatBadgeCount, notifyPendingCountChanged } from '@/lib/pendingReservations';
 import type { AvailabilityResponse, Reservation } from '@/types/reservation';
 
 vi.mock('@/lib/adminReservation', async (importOriginal) => {
@@ -164,12 +165,98 @@ describe('DashboardSummary', () => {
   it('管理画面へのクイックリンクとサイト確認リンクを表示する', async () => {
     await renderLoaded();
 
-    expect(screen.getByRole('link', { name: '予約一覧' })).toHaveAttribute('href', '/admin/reservations');
+    expect(screen.getByRole('link', { name: /予約一覧/ })).toHaveAttribute('href', '/admin/reservations');
     expect(screen.getByRole('link', { name: '予約登録' })).toHaveAttribute('href', '/admin/reservations/new');
     expect(screen.getByRole('link', { name: 'スケジュール' })).toHaveAttribute('href', '/admin/schedules');
     expect(screen.getByRole('link', { name: '取引先' })).toHaveAttribute('href', '/admin/suppliers');
     const site = screen.getByRole('link', { name: 'サイト確認' });
     expect(site).toHaveAttribute('href', '/');
     expect(site).toHaveAttribute('target', '_blank');
+  });
+
+  describe('未対応予約の注意帯とバッジ', () => {
+    function mockPending(pending: Reservation[]) {
+      listReservationsMock.mockImplementation(async (date, status) => {
+        if (status === 'pending') return pending;
+        return date === today ? todayReservations : [];
+      });
+    }
+
+    function pendingOn(visitDate: string, count: number): Reservation[] {
+      return Array.from({ length: count }, (_, i) =>
+        reservation({ id: `p-${visitDate}-${i}`, visit_date: visitDate, status: 'pending' }),
+      );
+    }
+
+    it('今日以降の pending があれば注意帯と予約一覧リンクのバッジを表示する', async () => {
+      mockPending([...pendingOn(today, 1), ...pendingOn(tomorrow, 1), ...pendingOn('2026-09-09', 3)]);
+      await renderLoaded();
+
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent('未対応の予約が 2 件あります');
+      expect(within(alert).getByRole('link', { name: '予約一覧へ' })).toHaveAttribute('href', '/admin/reservations');
+      expect(listReservationsMock).toHaveBeenCalledWith(undefined, 'pending');
+
+      const link = screen.getByRole('link', { name: '予約一覧（未対応の予約 2 件）' });
+      expect(link).toHaveAttribute('href', '/admin/reservations');
+      expect(within(link).getByText(formatBadgeCount(2))).toHaveAttribute('aria-hidden', 'true');
+    });
+
+    it('10 件以上はバッジを「9+」にし、読み上げは正確な件数にする', async () => {
+      mockPending(pendingOn(tomorrow, 12));
+      await renderLoaded();
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('未対応の予約が 12 件あります');
+      const link = screen.getByRole('link', { name: '予約一覧（未対応の予約 12 件）' });
+      expect(within(link).getByText('9+')).toHaveAttribute('aria-hidden', 'true');
+    });
+
+    it('過去日の pending だけなら注意帯もバッジも出さない', async () => {
+      mockPending(pendingOn('2026-09-09', 2));
+      await renderLoaded();
+
+      await waitFor(() => {
+        expect(listReservationsMock).toHaveBeenCalledWith(undefined, 'pending');
+      });
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(screen.queryByText(/未対応の予約/)).not.toBeInTheDocument();
+      expect(screen.getByRole('link', { name: '予約一覧' })).toHaveAttribute('href', '/admin/reservations');
+    });
+
+    it('未対応件数の取得に失敗しても日別サマリーとクイックリンクは表示する', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      listReservationsMock.mockImplementation(async (date, status) => {
+        if (status === 'pending') {
+          throw new ReservationApiError({ code: 'INTERNAL_ERROR', message: '予約一覧を取得できません' });
+        }
+        return date === today ? todayReservations : [];
+      });
+      await renderLoaded();
+
+      await waitFor(() => {
+        expect(consoleError).toHaveBeenCalled();
+      });
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(within(getCard('今日の予約')).getByText('12:00 山田太郎（2名）')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: '予約一覧' })).toHaveAttribute('href', '/admin/reservations');
+      expect(screen.getByRole('link', { name: '予約登録' })).toBeInTheDocument();
+      consoleError.mockRestore();
+    });
+
+    it('件数変更の通知で取り直し、0 件になったら注意帯を消す', async () => {
+      mockPending(pendingOn(today, 1));
+      await renderLoaded();
+      expect(await screen.findByRole('alert')).toHaveTextContent('未対応の予約が 1 件あります');
+
+      mockPending([]);
+      act(() => {
+        notifyPendingCountChanged();
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      });
+      expect(screen.getByRole('link', { name: '予約一覧' })).toBeInTheDocument();
+    });
   });
 });

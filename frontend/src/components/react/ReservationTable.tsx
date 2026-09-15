@@ -3,6 +3,7 @@ import type { Reservation, ReservationStatus, AvailabilityResponse } from '../..
 import { statusLabels, statusColors, statusBadgeBg, statusBadgeText } from '@/lib/reservationStatusTheme';
 import { getAvailability, toAvailabilityErrorMessage } from '@/lib/availability';
 import { listReservations, updateReservationStatus, toReservationErrorMessage } from '@/lib/adminReservation';
+import { notifyPendingCountChanged } from '@/lib/pendingReservations';
 import {
   getStatusActionDialogContent,
   statusActionLabels,
@@ -148,6 +149,8 @@ export default function ReservationTable() {
     setActionError(null);
     try {
       await updateReservationStatus(id, newStatus, reason);
+      // 一覧の再取得に失敗してもナビのバッジは更新させる
+      notifyPendingCountChanged();
       const [data, avail] = await Promise.all([listReservations(), getAvailability(selectedDate)]);
       setMonthReservations(data);
       setAvailability(avail);

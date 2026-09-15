@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import ReservationTable from '@/components/react/ReservationTable';
 import { listReservations, ReservationApiError, updateReservationStatus } from '@/lib/adminReservation';
 import { getAvailability } from '@/lib/availability';
+import { notifyPendingCountChanged } from '@/lib/pendingReservations';
 import { listSchedules } from '@/lib/schedule';
 import type { AvailabilityResponse, DailySchedule, Reservation } from '@/types/reservation';
 
@@ -17,6 +18,11 @@ vi.mock('@/lib/availability', async (importOriginal) => {
   return { ...actual, getAvailability: vi.fn() };
 });
 
+vi.mock('@/lib/pendingReservations', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/pendingReservations')>();
+  return { ...actual, notifyPendingCountChanged: vi.fn() };
+});
+
 vi.mock('@/lib/schedule', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/schedule')>();
   return { ...actual, listSchedules: vi.fn() };
@@ -26,6 +32,7 @@ const listReservationsMock = vi.mocked(listReservations);
 const updateStatusMock = vi.mocked(updateReservationStatus);
 const getAvailabilityMock = vi.mocked(getAvailability);
 const listSchedulesMock = vi.mocked(listSchedules);
+const notifyPendingCountChangedMock = vi.mocked(notifyPendingCountChanged);
 
 function reservation(overrides: Partial<Reservation>): Reservation {
   return {
@@ -230,6 +237,19 @@ describe('ReservationTable', () => {
     expect(within(getReservationCard('山田太郎（2名）')).getByText('承認済み')).toBeInTheDocument();
   });
 
+  it('ステータス更新に成功したら未対応件数の変更を通知する', async () => {
+    const user = userEvent.setup();
+    await renderLoaded();
+    expect(notifyPendingCountChangedMock).not.toHaveBeenCalled();
+
+    await user.click(within(getReservationCard('山田太郎（2名）')).getByRole('button', { name: '承認' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '承認する' }));
+
+    await waitFor(() => {
+      expect(notifyPendingCountChangedMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('拒否は理由を入力でき、入力した理由付きで API を呼ぶ', async () => {
     const user = userEvent.setup();
     await renderLoaded();
@@ -269,5 +289,6 @@ describe('ReservationTable', () => {
     expect(await screen.findByText('このステータスには変更できません')).toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: '予約を承認' })).toBeInTheDocument();
     expect(within(screen.getByRole('dialog')).getByRole('button', { name: '承認する' })).toBeEnabled();
+    expect(notifyPendingCountChangedMock).not.toHaveBeenCalled();
   });
 });

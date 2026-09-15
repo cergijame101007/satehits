@@ -2,6 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { statusLabels, statusBadgeBg, statusBadgeText } from '@/lib/reservationStatusTheme';
 import { getAvailability, toAvailabilityErrorMessage } from '@/lib/availability';
 import { listReservations, toReservationErrorMessage } from '@/lib/adminReservation';
+import { UnauthorizedError } from '@/lib/api';
+import { cx } from '@/lib/cx';
+import {
+  fetchActionablePendingCount,
+  formatBadgeCount,
+  pendingBadgeClassName,
+  pendingBadgeLabel,
+  subscribePendingCountRefresh,
+} from '@/lib/pendingReservations';
 import { formatDate, formatDateJa } from '@/lib/calendarUtils';
 import type { AvailabilityResponse, Reservation } from '@/types/reservation';
 import Alert from '@/components/react/ui/Alert';
@@ -143,6 +152,19 @@ function DaySummary({ title, date }: DaySummaryProps) {
   );
 }
 
+/** 未対応 pending 件数の赤バッジ（0 件は描画しない）。数字は aria-hidden にして件数は sr-only で読ませる */
+function PendingCountBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <>
+      <span aria-hidden="true" className={cx(pendingBadgeClassName, 'text-[11px]')}>
+        {formatBadgeCount(count)}
+      </span>
+      <span className="sr-only">（{pendingBadgeLabel(count)}）</span>
+    </>
+  );
+}
+
 export default function DashboardSummary() {
   const today = useMemo(() => new Date(), []);
   const tomorrow = useMemo(() => {
@@ -150,10 +172,56 @@ export default function DashboardSummary() {
     d.setDate(d.getDate() + 1);
     return d;
   }, []);
+  // 取得失敗時は 0 扱いにして注意帯・バッジを出さない（日別サマリー側でエラーは見える）
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    let latestRequest = 0;
+
+    // ステータス更新の通知・bfcache 復帰でも取り直す。後から始めた取得の結果を優先する
+    function loadPendingCount() {
+      const request = ++latestRequest;
+      fetchActionablePendingCount()
+        .then((count) => {
+          if (!cancelled && request === latestRequest) setPendingCount(count);
+        })
+        .catch((err: unknown) => {
+          if (!cancelled && request === latestRequest) setPendingCount(0);
+          // ログイン画面へリダイレクト中はログを出さない
+          if (!(err instanceof UnauthorizedError)) {
+            console.error('未対応予約件数の取得に失敗しました', err);
+          }
+        });
+    }
+
+    loadPendingCount();
+    const unsubscribe = subscribePendingCountRefresh(loadPendingCount);
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-medium">ダッシュボード</h1>
+
+      {pendingCount > 0 && (
+        <Alert variant="error" className="flex flex-wrap items-center justify-between gap-2">
+          <span>
+            未対応の予約が <span className="font-medium tabular-nums">{pendingCount}</span>{' '}
+            件あります。承認または拒否を行ってください。
+          </span>
+          <a
+            href="/admin/reservations"
+            className="shrink-0 font-medium underline underline-offset-2 hover:opacity-80 transition-opacity"
+          >
+            予約一覧へ
+          </a>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <DaySummary title="今日の予約" date={today} />
@@ -176,7 +244,10 @@ export default function DashboardSummary() {
             <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={link.icon} />
             </svg>
-            <span className="text-sm font-medium">{link.label}</span>
+            <span className="text-sm font-medium">
+              {link.label}
+              {link.href === '/admin/reservations' && <PendingCountBadge count={pendingCount} />}
+            </span>
           </a>
         ))}
         <a
