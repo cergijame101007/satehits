@@ -71,10 +71,10 @@ async function parseError(res: Response): Promise<ScheduleApiError> {
 function toDailySchedule(item: ScheduleResponse): DailySchedule {
   return {
     date: item.date,
-    type: item.schedule_type,
+    schedule_type: item.schedule_type,
     capacity: item.capacity,
     event_name: item.event_name || undefined,
-    description: item.event_description || undefined,
+    event_description: item.event_description || undefined,
     is_default: item.is_default,
   };
 }

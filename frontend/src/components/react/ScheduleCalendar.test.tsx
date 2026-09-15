@@ -15,20 +15,20 @@ const setScheduleMock = vi.mocked(setSchedule);
 const deleteScheduleMock = vi.mocked(deleteSchedule);
 
 function schedule(date: string, overrides: Partial<DailySchedule> = {}): DailySchedule {
-  return { date, type: 'normal', capacity: 10, is_default: true, ...overrides };
+  return { date, schedule_type: 'normal', capacity: 10, is_default: true, ...overrides };
 }
 
 /** 2026 年 9 月: 15 日は通常（定例）、16 日はイベント（個別設定）、17 日は定休（定例） */
 const septemberSchedules: DailySchedule[] = [
   schedule('2026-09-15'),
   schedule('2026-09-16', {
-    type: 'event',
+    schedule_type: 'event',
     capacity: 8,
     event_name: '羊の夜会',
-    description: 'ラム尽くしのコース',
+    event_description: 'ラム尽くしのコース',
     is_default: false,
   }),
-  schedule('2026-09-17', { type: 'closed', capacity: 0 }),
+  schedule('2026-09-17', { schedule_type: 'closed', capacity: 0 }),
 ];
 
 function getDayCell(dayNumber: number): HTMLButtonElement {
@@ -138,10 +138,10 @@ describe('ScheduleCalendar', () => {
     const user = userEvent.setup();
     setScheduleMock.mockResolvedValue(
       schedule('2026-09-15', {
-        type: 'event',
+        schedule_type: 'event',
         capacity: 6,
         event_name: '限定ランチ',
-        description: '説明文',
+        event_description: '説明文',
         is_default: false,
       }),
     );
@@ -164,7 +164,7 @@ describe('ScheduleCalendar', () => {
   it('外部イベントは提供数の入力を隠し、0 で保存する', async () => {
     const user = userEvent.setup();
     setScheduleMock.mockResolvedValue(
-      schedule('2026-09-15', { type: 'external_event', capacity: 0, event_name: 'マルシェ出店', is_default: false }),
+      schedule('2026-09-15', { schedule_type: 'external_event', capacity: 0, event_name: 'マルシェ出店', is_default: false }),
     );
     await renderLoaded();
 
@@ -226,7 +226,7 @@ describe('ScheduleCalendar', () => {
     expect(within(dialog).getByText('タイプ: 通常')).toBeInTheDocument();
     expect(within(dialog).getByText('提供可能数: 10食')).toBeInTheDocument();
 
-    listSchedulesMock.mockResolvedValue([schedule('2026-09-15'), schedule('2026-09-16'), schedule('2026-09-17', { type: 'closed', capacity: 0 })]);
+    listSchedulesMock.mockResolvedValue([schedule('2026-09-15'), schedule('2026-09-16'), schedule('2026-09-17', { schedule_type: 'closed', capacity: 0 })]);
     await user.click(within(dialog).getByRole('button', { name: '定例に戻す' }));
 
     await waitFor(() => {
@@ -241,7 +241,7 @@ describe('ScheduleCalendar', () => {
   it('定休日に戻る場合はその旨をプレビューに表示する', async () => {
     const user = userEvent.setup();
     listSchedulesMock.mockResolvedValue([
-      schedule('2026-09-18', { type: 'event', capacity: 5, event_name: '金曜特別営業', is_default: false }),
+      schedule('2026-09-18', { schedule_type: 'event', capacity: 5, event_name: '金曜特別営業', is_default: false }),
     ]);
     await renderLoaded();
 

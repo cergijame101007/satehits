@@ -14,7 +14,7 @@ const useMonthCalendarDataMock = vi.mocked(useMonthCalendarData);
 const septemberDays: MonthCalendarDay[] = [
   {
     date: '2026-09-15',
-    schedule: { date: '2026-09-15', type: 'normal', capacity: 10, is_default: true },
+    schedule: { date: '2026-09-15', schedule_type: 'normal', capacity: 10, is_default: true },
     reservation: { count: 1, reservedMeals: 3 },
   },
 ];
@@ -109,7 +109,7 @@ describe('DatePickerField', () => {
       days: [
         {
           date: '2026-09-17',
-          schedule: { date: '2026-09-17', type: 'closed', capacity: 0, is_default: true },
+          schedule: { date: '2026-09-17', schedule_type: 'closed', capacity: 0, is_default: true },
         },
       ],
       isLoading: false,

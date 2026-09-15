@@ -11,7 +11,7 @@ function day(
 ): MonthCalendarDay {
   return {
     date,
-    schedule: { date, type: 'normal', capacity: 10, is_default: true, ...schedule },
+    schedule: { date, schedule_type: 'normal', capacity: 10, is_default: true, ...schedule },
     reservation,
   };
 }
@@ -27,8 +27,8 @@ function getDayCell(dayNumber: number): HTMLButtonElement {
 
 const days: MonthCalendarDay[] = [
   day('2026-09-15'),
-  day('2026-09-16', { type: 'closed', capacity: 0 }),
-  day('2026-09-17', { type: 'event', capacity: 8, event_name: '夜会', is_default: false }),
+  day('2026-09-16', { schedule_type: 'closed', capacity: 0 }),
+  day('2026-09-17', { schedule_type: 'event', capacity: 8, event_name: '夜会', is_default: false }),
   day('2026-09-18', {}, { count: 2, reservedMeals: 10 }),
   day('2026-09-19', {}, { count: 1, reservedMeals: 4 }),
 ];

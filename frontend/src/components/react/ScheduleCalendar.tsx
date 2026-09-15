@@ -80,7 +80,7 @@ export default function ScheduleCalendar() {
         const dateStr = `${viewYear}-${String(viewMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         return {
           date: dateStr,
-          schedule: { date: dateStr, type: 'normal' as ScheduleType, capacity: 10, is_default: true },
+          schedule: { date: dateStr, schedule_type: 'normal' as ScheduleType, capacity: 10, is_default: true },
         };
       });
 
@@ -89,15 +89,15 @@ export default function ScheduleCalendar() {
       schedules.find((s) => s.date === dateStr) ??
       ({
         date: dateStr,
-        type: 'normal' as ScheduleType,
+        schedule_type: 'normal' as ScheduleType,
         capacity: 10,
         is_default: true,
       } satisfies DailySchedule);
     setSelectedSchedule(schedule);
-    setEditType(schedule.type);
+    setEditType(schedule.schedule_type);
     setEditCapacity(schedule.capacity);
     setEditEventName(schedule.event_name ?? '');
-    setEditDescription(schedule.description ?? '');
+    setEditDescription(schedule.event_description ?? '');
     setSaveError('');
     setDeleteError('');
     setDeleteModalOpen(false);
@@ -129,10 +129,10 @@ export default function ScheduleCalendar() {
 
       setSchedules((prev) => prev.map((s) => (s.date === saved.date ? saved : s)));
       setSelectedSchedule(saved);
-      setEditType(saved.type);
+      setEditType(saved.schedule_type);
       setEditCapacity(saved.capacity);
       setEditEventName(saved.event_name ?? '');
-      setEditDescription(saved.description ?? '');
+      setEditDescription(saved.event_description ?? '');
     } catch (err) {
       if (err instanceof ScheduleApiError && err.code === 'VALIDATION_ERROR' && err.details?.length) {
         setSaveError(err.details.map((d) => d.message).join(' '));
@@ -172,15 +172,15 @@ export default function ScheduleCalendar() {
         data.find((s) => s.date === selectedSchedule.date) ??
         ({
           date: selectedSchedule.date,
-          type: 'normal' as ScheduleType,
+          schedule_type: 'normal' as ScheduleType,
           capacity: 10,
           is_default: true,
         } satisfies DailySchedule);
       setSelectedSchedule(restored);
-      setEditType(restored.type);
+      setEditType(restored.schedule_type);
       setEditCapacity(restored.capacity);
       setEditEventName(restored.event_name ?? '');
-      setEditDescription(restored.description ?? '');
+      setEditDescription(restored.event_description ?? '');
       setDeleteModalOpen(false);
     } catch (err) {
       if (err instanceof ScheduleApiError && err.code === 'NOT_FOUND') {

@@ -98,10 +98,10 @@ export interface LoginResponse {
 /** 日別スケジュール */
 export interface DailySchedule {
   date: string;
-  type: ScheduleType;
+  schedule_type: ScheduleType;
   capacity: number;
   event_name?: string;
-  description?: string;
+  event_description?: string;
   /** true = 店舗定例合成（daily_schedules 行なし） */
   is_default: boolean;
 }

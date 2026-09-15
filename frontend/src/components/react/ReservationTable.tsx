@@ -186,7 +186,7 @@ export default function ReservationTable() {
   };
 
   const isHoliday =
-    selectedDaySchedule && isClosedScheduleType(selectedDaySchedule.type);
+    selectedDaySchedule && isClosedScheduleType(selectedDaySchedule.schedule_type);
 
   const statusActionDialog = statusActionTarget
     ? getStatusActionDialogContent(statusActionTarget)
