@@ -7,7 +7,7 @@ flowchart TB
     subgraph External[外部]
         Customer[顧客]
         Owner[オーナー]
-        ReCaptcha[reCAPTCHA]
+        Turnstile[Cloudflare Turnstile]
     end
 
     subgraph Frontend[フロントエンド - Cloudflare Pages]
@@ -28,9 +28,9 @@ flowchart TB
     end
 
     Customer -->|予約情報入力| CustomerUI
-    CustomerUI -->|reCAPTCHAトークン| ReCaptcha
-    ReCaptcha -->|検証結果| API
-    CustomerUI -->|予約申請・空き確認・スケジュール| API
+    CustomerUI -->|ウィジェットでトークン取得| Turnstile
+    CustomerUI -->|予約申請 turnstile_token 付き・空き確認・スケジュール| API
+    API -->|トークン検証| Turnstile
 
     Owner -->|ログイン・予約管理・スケジュール設定| AdminUI
     AdminUI -->|JWT認証付きリクエスト| API
@@ -55,7 +55,7 @@ flowchart LR
         Phone[電話番号]
         Email[メールアドレス]
         Note[備考]
-        Token[reCAPTCHAトークン]
+        Token[turnstile_token]
     end
 
     subgraph Validation[バリデーション]
@@ -67,7 +67,7 @@ flowchart LR
     end
 
     subgraph Process[処理]
-        ReCaptcha[reCAPTCHA検証]
+        Turnstile[Turnstile検証]
         AvailService[AvailabilityService]
         Create[予約作成]
         SendMail[受付メール送信]
@@ -78,8 +78,8 @@ flowchart LR
         Response[APIレスポンス]
     end
 
-    Input --> ReCaptcha
-    ReCaptcha --> Validation
+    Input --> Turnstile
+    Turnstile --> Validation
     V5 --> AvailService
     AvailService --> Create
     Create --> Reservation
@@ -255,7 +255,7 @@ flowchart TB
 flowchart TB
     subgraph WebReservation[Webからの予約]
         WebInput[顧客入力]
-        ReCaptcha[reCAPTCHA検証]
+        Turnstile[Turnstile検証]
         WebValidation[厳密なバリデーション]
         WebCreate[予約作成 source=web, status=pending]
         WebMail[受付メール送信]
@@ -275,7 +275,7 @@ flowchart TB
         Resend[Resend]
     end
 
-    WebInput --> ReCaptcha --> WebValidation --> WebCreate --> ReservationsTable
+    WebInput --> Turnstile --> WebValidation --> WebCreate --> ReservationsTable
     WebCreate --> WebMail --> Resend
     AdminInput --> AdminValidation --> AdminCreate --> ReservationsTable
 ```
