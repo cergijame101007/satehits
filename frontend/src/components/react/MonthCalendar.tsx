@@ -1,5 +1,5 @@
 import type { DailySchedule, ScheduleType } from '@/types/reservation';
-import { scheduleTypeShort, scheduleTypeLabels } from '@/lib/calendarTheme';
+import { scheduleTypeShort, getScheduleLegendLabel } from '@/lib/calendarTheme';
 import { editableScheduleTypes } from '@/lib/schedule';
 import { typeColors, typeTextColors, WEEKDAYS, isClosedScheduleType } from '@/lib/calendarTheme';
 import { buildMonthDates, formatDate, shiftMonth } from '@/lib/calendarUtils';
@@ -208,7 +208,7 @@ export default function MonthCalendar({
               {legendTypes.map((key) => (
                 <span key={key} className="inline-flex items-center gap-1">
                   <ScheduleTypeBadge type={key} compact />
-                  {scheduleTypeLabels[key]}
+                  {getScheduleLegendLabel(key)}
                 </span>
               ))}
             </div>

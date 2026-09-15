@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { DailySchedule, ScheduleType } from '@/types/reservation';
-import { scheduleTypeLabels } from '@/lib/calendarTheme';
+import { getScheduleTypeLabel } from '@/lib/calendarTheme';
 import {
   deleteSchedule,
   editableScheduleTypes,
@@ -252,7 +252,10 @@ export default function ScheduleCalendar() {
                 >
                   {editableScheduleTypes.map((key) => (
                     <option key={key} value={key}>
-                      {scheduleTypeLabels[key]}
+                      {getScheduleTypeLabel(
+                        key,
+                        selectedSchedule.is_default && selectedSchedule.schedule_type === key,
+                      )}
                     </option>
                   ))}
                 </select>

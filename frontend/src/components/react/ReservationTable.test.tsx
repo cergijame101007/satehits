@@ -165,8 +165,8 @@ describe('ReservationTable', () => {
     await renderLoaded();
 
     expect(await screen.findByText('この日は定休日です')).toBeInTheDocument();
-    // カレンダー凡例の「定休日」に加え、空き状況カードにも「定休日」が出る
-    expect(screen.getAllByText('定休日')).toHaveLength(2);
+    // カレンダー凡例は「定休日・臨時休」なので、「定休日」単独は空き状況カードのみ
+    expect(screen.getByText('定休日')).toBeInTheDocument();
     expect(screen.queryByText('予約済み: 3食')).not.toBeInTheDocument();
   });
 

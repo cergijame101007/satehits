@@ -205,7 +205,7 @@ describe('MonthCalendar', () => {
     expect(onSelectDate).toHaveBeenCalledWith('2026-09-16');
   });
 
-  it('凡例は schedule では編集可能な全種別、picker では通常・朝営業・定休日のみ', () => {
+  it('凡例は schedule では編集可能な全種別、picker では通常・朝営業・休業のみ', () => {
     const { rerender } = render(
       <MonthCalendar viewYear={2026} viewMonth={9} onViewChange={() => {}} days={[]} variant="schedule" />,
     );
@@ -220,7 +220,7 @@ describe('MonthCalendar', () => {
 
     expect(screen.getByText('通常')).toBeInTheDocument();
     expect(screen.getByText('朝営業')).toBeInTheDocument();
-    expect(screen.getByText('定休日')).toBeInTheDocument();
+    expect(screen.getByText('定休日・臨時休')).toBeInTheDocument();
     expect(screen.queryByText('イベント')).not.toBeInTheDocument();
   });
 

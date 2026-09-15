@@ -9,7 +9,7 @@
  */
 
 import type { ScheduleType } from '@/types/reservation';
-import { scheduleTypeLabels } from '@/lib/calendarTheme';
+import { getScheduleTypeLabel } from '@/lib/calendarTheme';
 import { isNationalHoliday } from '@/lib/holidays';
 
 const DEFAULT_CAPACITY = 10;
@@ -46,7 +46,8 @@ export function getStoreDefaultSchedule(dateStr: string): { type: ScheduleType; 
 /** 確認モーダル用の店舗定例プレビュー */
 export function formatStoreDefaultPreview(dateStr: string): StoreDefaultSchedulePreview {
   const { type, capacity } = getStoreDefaultSchedule(dateStr);
-  const typeLabel = scheduleTypeLabels[type];
+  // 店舗定例のプレビューなので closed は定休日と表示する
+  const typeLabel = getScheduleTypeLabel(type, true);
   const isClosed = type === 'closed';
   const capacityLabel = isClosed ? '予約不可' : `${capacity}食`;
 
