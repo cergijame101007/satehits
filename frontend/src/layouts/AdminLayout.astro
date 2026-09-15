@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import { pendingBadgeClassName } from '@/lib/pendingReservations';
 
 interface Props {
   title: string;
@@ -14,9 +15,10 @@ const navItems = [
   { href: '/admin/suppliers', label: '取引先' },
 ];
 
-/* 未対応 pending 件数バッジ。件数はクライアントで取得し、0 件・取得失敗時は hidden のまま */
-const pendingBadgeClass =
-  'ml-1 align-middle inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-red-600 text-white font-medium leading-none tabular-nums';
+/*
+ * 未対応 pending 件数バッジ。件数はクライアントで取得し、0 件・取得失敗時は hidden のまま。
+ * 数字は aria-hidden にし、読み上げは sr-only の「（未対応の予約 N 件）」に任せる
+ */
 ---
 
 <!doctype html>
@@ -43,7 +45,14 @@ const pendingBadgeClass =
             <a href={item.href} class="hover:opacity-80 transition-opacity whitespace-nowrap">
               {item.label}
               {item.pendingBadge && (
-                <span data-pending-badge hidden class:list={[pendingBadgeClass, 'text-[11px]']}></span>
+                <span data-pending-badge hidden>
+                  <span
+                    data-pending-badge-count
+                    aria-hidden="true"
+                    class:list={[pendingBadgeClassName, 'text-[11px]']}
+                  ></span>
+                  <span data-pending-badge-label class="sr-only"></span>
+                </span>
               )}
             </a>
           ))}
@@ -96,7 +105,14 @@ const pendingBadgeClass =
           >
             {item.label}
             {item.pendingBadge && (
-              <span data-pending-badge hidden class:list={[pendingBadgeClass, 'text-xs']}></span>
+              <span data-pending-badge hidden>
+                <span
+                  data-pending-badge-count
+                  aria-hidden="true"
+                  class:list={[pendingBadgeClassName, 'text-xs']}
+                ></span>
+                <span data-pending-badge-label class="sr-only"></span>
+              </span>
             )}
           </a>
         ))}
@@ -115,30 +131,47 @@ const pendingBadgeClass =
     </main>
 
     <script>
+      import { UnauthorizedError } from '@/lib/api';
       import { ensureAccessToken, logout } from '@/lib/auth';
       import {
         fetchActionablePendingCount,
         formatBadgeCount,
         pendingBadgeLabel,
+        subscribePendingCountRefresh,
       } from '@/lib/pendingReservations';
 
-      /* 取得失敗時はバッジを出さない（ページ表示自体は妨げない） */
+      let latestPendingRequest = 0;
+
+      /* 取得失敗時はバッジを出さない（ページ表示自体は妨げない）。後から始めた取得の結果を優先する */
       async function updatePendingBadges() {
+        const request = ++latestPendingRequest;
+        let count = 0;
         try {
-          const count = await fetchActionablePendingCount();
-          document.querySelectorAll<HTMLElement>('[data-pending-badge]').forEach((badge) => {
-            badge.textContent = formatBadgeCount(count);
-            badge.setAttribute('aria-label', pendingBadgeLabel(count));
-            badge.hidden = count === 0;
-          });
+          count = await fetchActionablePendingCount();
         } catch (err) {
-          console.error('未対応予約件数の取得に失敗しました', err);
+          // ログイン画面へリダイレクト中はログを出さない
+          if (!(err instanceof UnauthorizedError)) {
+            console.error('未対応予約件数の取得に失敗しました', err);
+          }
         }
+        if (request !== latestPendingRequest) return;
+
+        document.querySelectorAll<HTMLElement>('[data-pending-badge]').forEach((badge) => {
+          const countEl = badge.querySelector('[data-pending-badge-count]');
+          const labelEl = badge.querySelector('[data-pending-badge-label]');
+          if (countEl) countEl.textContent = formatBadgeCount(count);
+          if (labelEl) labelEl.textContent = `（${pendingBadgeLabel(count)}）`;
+          badge.hidden = count === 0;
+        });
       }
 
       ensureAccessToken().then(
         () => {
           void updatePendingBadges();
+          // ステータス更新後・bfcache 復帰時に取り直す
+          subscribePendingCountRefresh(() => {
+            void updatePendingBadges();
+          });
         },
         () => {
           window.location.href = '/admin/login';
