@@ -307,7 +307,7 @@ staging で migrate が通ってから `main` へマージすれば、production
 - `--min-instances=0`（アイドル時は 0 台。コールドスタートは数百 ms 〜 1 秒程度）
 - staging は 3 リソース（サービス 2 + Job 1）増えるが、min 0 なので使わない間はほぼ無料。staging の Scheduler を作ると毎分 private サービスを起こすので、不要なら作らないか `gcloud scheduler jobs pause outbox-flush-stg` で止める
 - Scheduler の 1 分ごとの flush は private サービスを毎分起こす。無料枠内の見込みだが billing account 単位で共有されるため保証はない（`docs/infrastructure.md` §11）
-- Artifact Registry はイメージが sha ごとに溜まる（staging / production で共用。同じ sha なら 1 つ）。容量課金（数十 MB / イメージ）なので、気になったら古いタグを削除するか cleanup policy を設定する
+- Artifact Registry はイメージが sha ごとに溜まる（staging / production で共用。同じ sha なら 1 つ）。容量課金（数十 MB / イメージ）。`scripts/setup-gcp.sh` が cleanup policy（直近 5 版を保持し、30 日より古いものを削除）を設定済み
 
 ## 6. 既知の制約
 
