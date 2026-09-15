@@ -96,26 +96,26 @@ func (h *AdminSupplierHandler) HandleAdminSuppliers(w http.ResponseWriter, r *ht
 		case http.MethodPost:
 			h.handleCreate(w, r)
 		default:
-			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			respondMethodNotAllowed(w, http.MethodGet, http.MethodPost)
 		}
 		return
 	}
 
 	prefix := h.basePath + "/"
 	if !strings.HasPrefix(path, prefix) {
-		http.NotFound(w, r)
+		respondNotFound(w)
 		return
 	}
 	remainder := strings.TrimPrefix(path, prefix)
 	if remainder == "" {
-		http.NotFound(w, r)
+		respondNotFound(w)
 		return
 	}
 
 	// /admin/suppliers/order（"order" は数値 ID より先に判定する）
 	if remainder == "order" {
 		if r.Method != http.MethodPut {
-			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			respondMethodNotAllowed(w, http.MethodPut)
 			return
 		}
 		h.handleReorder(w, r)
@@ -128,12 +128,12 @@ func (h *AdminSupplierHandler) HandleAdminSuppliers(w http.ResponseWriter, r *ht
 		h.handleByID(w, r, parts[0])
 	case len(parts) == 2 && parts[1] == "image":
 		if r.Method != http.MethodPost {
-			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			respondMethodNotAllowed(w, http.MethodPost)
 			return
 		}
 		h.handleUploadImage(w, r, parts[0])
 	default:
-		http.NotFound(w, r)
+		respondNotFound(w)
 	}
 }
 
@@ -190,7 +190,7 @@ func (h *AdminSupplierHandler) handleByID(w http.ResponseWriter, r *http.Request
 	case http.MethodDelete:
 		h.handleDelete(w, r, id)
 	default:
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		respondMethodNotAllowed(w, http.MethodGet, http.MethodPut, http.MethodDelete)
 	}
 }
 

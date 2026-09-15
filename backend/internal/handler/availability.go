@@ -45,11 +45,11 @@ func NewAvailabilityHandler(getAvailability *usecase.GetAvailabilityUseCase, pat
 // HandleAvailability は GET /reservations/availability を処理する
 func (h *AvailabilityHandler) HandleAvailability(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != h.path {
-		http.NotFound(w, r)
+		respondNotFound(w)
 		return
 	}
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		respondMethodNotAllowed(w, http.MethodGet)
 		return
 	}
 

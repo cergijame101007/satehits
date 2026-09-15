@@ -99,34 +99,34 @@ func (h *AdminReservationHandler) HandleAdminReservations(w http.ResponseWriter,
 		case http.MethodPost:
 			h.handleCreate(w, r)
 		default:
-			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			respondMethodNotAllowed(w, http.MethodGet, http.MethodPost)
 		}
 		return
 	}
 
 	prefix := h.adminReservationsPath + "/"
 	if !strings.HasPrefix(path, prefix) {
-		http.NotFound(w, r)
+		respondNotFound(w)
 		return
 	}
 
 	remainder := strings.TrimPrefix(path, prefix)
 	if remainder == "" {
-		http.NotFound(w, r)
+		respondNotFound(w)
 		return
 	}
 
 	parts := strings.Split(remainder, "/")
 	if len(parts) == 2 && parts[1] == "status" {
 		if r.Method != http.MethodPatch {
-			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			respondMethodNotAllowed(w, http.MethodPatch)
 			return
 		}
 		h.handleUpdateStatus(w, r, parts[0])
 		return
 	}
 
-	http.NotFound(w, r)
+	respondNotFound(w)
 }
 
 func (h *AdminReservationHandler) handleList(w http.ResponseWriter, r *http.Request) {

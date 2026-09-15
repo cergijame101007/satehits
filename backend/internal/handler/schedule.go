@@ -87,7 +87,7 @@ func (h *ScheduleHandler) HandleSchedules(w http.ResponseWriter, r *http.Request
 	path := r.URL.Path
 	if path == h.schedulesPath {
 		if r.Method != http.MethodGet {
-			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			respondMethodNotAllowed(w, http.MethodGet)
 			return
 		}
 		h.handleList(w, r)
@@ -96,12 +96,12 @@ func (h *ScheduleHandler) HandleSchedules(w http.ResponseWriter, r *http.Request
 
 	prefix := h.schedulesPath + "/"
 	if !strings.HasPrefix(path, prefix) {
-		http.NotFound(w, r)
+		respondNotFound(w)
 		return
 	}
 	datePart := strings.TrimPrefix(path, prefix)
 	if datePart == "" || strings.Contains(datePart, "/") {
-		http.NotFound(w, r)
+		respondNotFound(w)
 		return
 	}
 	switch r.Method {
@@ -112,7 +112,7 @@ func (h *ScheduleHandler) HandleSchedules(w http.ResponseWriter, r *http.Request
 	case http.MethodDelete:
 		h.handleDelete(w, r, datePart)
 	default:
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		respondMethodNotAllowed(w, http.MethodGet, http.MethodPut, http.MethodDelete)
 	}
 }
 

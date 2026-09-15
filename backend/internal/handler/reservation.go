@@ -51,11 +51,11 @@ func NewReservationHandler(
 // HandleReservations は POST /reservations を処理する
 func (h *ReservationHandler) HandleReservations(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != h.reservationsPath {
-		http.NotFound(w, r)
+		respondNotFound(w)
 		return
 	}
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		respondMethodNotAllowed(w, http.MethodPost)
 		return
 	}
 	h.handleCreate(w, r)

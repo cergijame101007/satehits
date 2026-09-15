@@ -192,7 +192,7 @@ func main() {
 	)
 
 	// ルーティング（公開 API は /api/v1/...）
-	http.HandleFunc("/", handleRoot)
+	http.HandleFunc("/", handler.HandleRoot)
 	http.HandleFunc(availabilityPath, availabilityHandler.HandleAvailability)
 	http.HandleFunc(publicSchedulesPath, publicScheduleHandler.HandlePublicSchedules)
 	http.HandleFunc(reservationsPath, reservationHandler.HandleReservations)
@@ -248,23 +248,5 @@ func listenForShutdown(srv *http.Server) {
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Printf("Server shutdown error: %v", err)
-	}
-}
-
-func handleRoot(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write([]byte(`{"message":"Welcome to the Go API","status":"success"}`)); err != nil {
-		log.Printf("Error writing response: %v", err)
 	}
 }

@@ -20,7 +20,7 @@ func NewOutboxHandler(dispatcher *inframail.Dispatcher) *OutboxHandler {
 // HandleFlush は POST /internal/outbox/flush
 func (h *OutboxHandler) HandleFlush(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		respondWithError(w, http.StatusMethodNotAllowed, InvalidRequestCode, "メソッドが許可されていません", nil)
+		respondMethodNotAllowed(w, http.MethodPost)
 		return
 	}
 
