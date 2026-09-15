@@ -17,10 +17,15 @@ flowchart TB
 
     subgraph Backend[バックエンド - Cloud Run]
         API[Go API Server]
+        Flush[POST /internal/outbox/flush<br/>Dispatcher（private サービス・IAM 保護）]
     end
 
     subgraph Database[データベース - Supabase]
-        DB[(PostgreSQL)]
+        DB[(PostgreSQL<br/>reservations / email_outbox 等)]
+    end
+
+    subgraph Jobs[定期実行]
+        Scheduler[Cloud Scheduler]
     end
 
     subgraph Mail[メール配信]
@@ -35,13 +40,17 @@ flowchart TB
     Owner -->|ログイン・予約管理・スケジュール設定| AdminUI
     AdminUI -->|JWT認証付きリクエスト| API
 
-    API -->|CRUD| DB
+    API -->|CRUD・予約操作と同一 Tx で email_outbox へ enqueue| DB
     DB -->|データ| API
     API -->|レスポンス| CustomerUI
     API -->|レスポンス| AdminUI
-    API -->|メール送信| Resend
+    Scheduler -->|1 分ごとに起動| Flush
+    Flush -->|claim / 送信結果の記録（それぞれ独立コミット）| DB
+    Flush -->|送信（DB Tx の外）| Resend
     Resend -->|受付・承認・拒否メール| Customer
 ```
+
+API はメールを直接送らない。予約 INSERT / ステータス更新と同一トランザクションで `email_outbox` に送信意図を記録し、Cloud Scheduler が起動する `POST /internal/outbox/flush` の Dispatcher が lease 方式（claim → 送信 → 記録をそれぞれ独立コミット）で Resend に送る（ADR-014 / ADR-015）。
 
 ## 2. 予約申請のデータフロー
 
@@ -69,12 +78,12 @@ flowchart LR
     subgraph Process[処理]
         Turnstile[Turnstile検証]
         AvailService[AvailabilityService]
-        Create[予約作成]
-        SendMail[受付メール送信]
+        Create[予約作成 + 受付メール enqueue<br/>（同一トランザクション）]
     end
 
     subgraph Output[出力データ]
         Reservation[予約レコード]
+        Outbox[email_outbox 行<br/>mail_type=reservation_received]
         Response[APIレスポンス]
     end
 
@@ -83,9 +92,11 @@ flowchart LR
     V5 --> AvailService
     AvailService --> Create
     Create --> Reservation
-    Reservation --> SendMail
-    SendMail --> Response
+    Create --> Outbox
+    Reservation --> Response
 ```
+
+受付メールはレスポンス前に送信しない。`email_outbox` の行は Dispatcher が非同期に送信する（§1）。enqueue の DB エラーは予約作成ごとロールバックする。
 
 ## 3. 残り食数の計算フロー
 
@@ -233,11 +244,19 @@ flowchart TB
         SchedulesTable[(daily_schedules)]
         SuppliersTable[(suppliers)]
         AdminUsersTable[(admin_users)]
+        OutboxTable[(email_outbox)]
+    end
+
+    subgraph InternalAPI[内部API（IAM 保護）]
+        FlushOutbox[POST /internal/outbox/flush]
     end
 
     GetAvailability --> SchedulesTable
     GetAvailability --> ReservationsTable
     CreateReservation --> ReservationsTable
+    CreateReservation --> OutboxTable
+    UpdateStatus --> OutboxTable
+    FlushOutbox --> OutboxTable
     GetSchedules --> SchedulesTable
     GetSuppliers --> SuppliersTable
 
@@ -258,7 +277,7 @@ flowchart TB
         Turnstile[Turnstile検証]
         WebValidation[厳密なバリデーション]
         WebCreate[予約作成 source=web, status=pending]
-        WebMail[受付メール送信]
+        WebMail[受付メール enqueue<br/>（予約作成と同一トランザクション）]
     end
 
     subgraph AdminReservation[オーナー登録の予約]
@@ -269,16 +288,21 @@ flowchart TB
 
     subgraph DB[データベース]
         ReservationsTable[(reservations)]
+        OutboxTable[(email_outbox)]
     end
 
     subgraph MailService[メール配信]
+        Dispatcher[Dispatcher<br/>POST /internal/outbox/flush]
         Resend[Resend]
     end
 
     WebInput --> Turnstile --> WebValidation --> WebCreate --> ReservationsTable
-    WebCreate --> WebMail --> Resend
+    WebCreate --> WebMail --> OutboxTable
+    OutboxTable -->|claim| Dispatcher --> Resend
     AdminInput --> AdminValidation --> AdminCreate --> ReservationsTable
 ```
+
+オーナー登録の予約はメールを enqueue しない。承認・拒否メールは `PATCH /admin/reservations/{id}/status` のステータス更新と同一トランザクションで enqueue する（§7）。
 
 ## 9. 取引先データフロー
 
