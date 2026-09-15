@@ -69,11 +69,13 @@
 |----------------|--------|------|
 | 400 | INVALID_REQUEST | リクエスト形式が不正 |
 | 400 | VALIDATION_ERROR | バリデーションエラー |
+| 400 | CAPTCHA_FAILED | Turnstile 検証失敗（`POST /reservations`。`details` なし） |
 | 401 | UNAUTHORIZED | 認証が必要 |
 | 401 | INVALID_TOKEN | トークンが無効 |
 | 403 | FORBIDDEN | アクセス権限がない |
 | 404 | NOT_FOUND | リソースが見つからない |
 | 409 | CAPACITY_EXCEEDED | 予約可能数を超過 |
+| 409 | RESERVATION_CONFLICT | 同一電話番号・同一来店日時のアクティブ予約が既にある |
 | 429 | TOO_MANY_REQUESTS | リクエスト過多（ログイン試行上限など） |
 | 500 | INTERNAL_ERROR | サーバー内部エラー |
 

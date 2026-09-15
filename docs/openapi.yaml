@@ -178,7 +178,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ReservationResponse"
         "400":
-          description: バリデーションエラー
+          description: |
+            バリデーションエラー
+            - Turnstile 検証失敗は `CAPTCHA_FAILED`（details なし）
           content:
             application/json:
               schema:
