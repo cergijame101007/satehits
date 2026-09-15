@@ -142,7 +142,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                oneOf:
+                  - $ref: "#/components/schemas/ErrorResponse"
+                  - $ref: "#/components/schemas/ValidationErrorResponse"
 
   /reservations:
     post:
@@ -179,12 +181,14 @@ paths:
                 $ref: "#/components/schemas/ReservationResponse"
         "400":
           description: |
-            バリデーションエラー
+            リクエスト形式不正またはバリデーションエラー
             - Turnstile 検証失敗は `CAPTCHA_FAILED`（details なし）
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
+                oneOf:
+                  - $ref: "#/components/schemas/ErrorResponse"
+                  - $ref: "#/components/schemas/ValidationErrorResponse"
         "409":
           description: |
             - `CAPACITY_EXCEEDED`: 予約可能数超過
@@ -491,11 +495,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ReservationResponse"
         "400":
-          description: バリデーションエラー
+          description: リクエスト形式不正またはバリデーションエラー
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidationErrorResponse"
+                oneOf:
+                  - $ref: "#/components/schemas/ErrorResponse"
+                  - $ref: "#/components/schemas/ValidationErrorResponse"
         "401":
           description: 認証エラー
           content:
@@ -556,7 +562,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                oneOf:
+                  - $ref: "#/components/schemas/ErrorResponse"
+                  - $ref: "#/components/schemas/ValidationErrorResponse"
         "401":
           description: 認証エラー
           content:
@@ -719,7 +727,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                oneOf:
+                  - $ref: "#/components/schemas/ErrorResponse"
+                  - $ref: "#/components/schemas/ValidationErrorResponse"
         "401":
           description: 認証エラー
           content:
@@ -813,11 +823,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/SupplierResponse"
         "400":
-          description: バリデーションエラー
+          description: リクエスト形式不正またはバリデーションエラー
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                oneOf:
+                  - $ref: "#/components/schemas/ErrorResponse"
+                  - $ref: "#/components/schemas/ValidationErrorResponse"
         "401":
           description: 認証エラー
           content:
@@ -886,11 +898,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/SupplierResponse"
         "400":
-          description: バリデーションエラー
+          description: リクエスト形式不正またはバリデーションエラー
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                oneOf:
+                  - $ref: "#/components/schemas/ErrorResponse"
+                  - $ref: "#/components/schemas/ValidationErrorResponse"
         "401":
           description: 認証エラー
           content:
@@ -969,11 +983,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/SupplierImageResponse"
         "400":
-          description: バリデーションエラー
+          description: リクエスト形式不正またはバリデーションエラー
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                oneOf:
+                  - $ref: "#/components/schemas/ErrorResponse"
+                  - $ref: "#/components/schemas/ValidationErrorResponse"
         "401":
           description: 認証エラー
           content:
@@ -1013,7 +1029,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                oneOf:
+                  - $ref: "#/components/schemas/ErrorResponse"
+                  - $ref: "#/components/schemas/ValidationErrorResponse"
         "401":
           description: 認証エラー
           content:
