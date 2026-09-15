@@ -231,7 +231,7 @@ erDiagram
 
 **備考（営業可否・提供数の「正」）:**
 - **該当日付に行が存在する場合** — その行の `schedule_type`・`capacity`・時刻などが**唯一の正**（顧客向け空き・カレンダー・予約可否はこれに従う）。
-- **行が存在しない場合** — アプリケーションがドメイン既定（店の定例カレンダーに基づく曜日別の既定 `schedule_type` / `capacity` など）で**その日の営業設定（有効なスケジュール）**を合成する。臨時変更や例外は、オーナーが `PUT /admin/schedules/{date}` 等で行を作成し、`daily_schedules` に永続化する。
+- **行が存在しない場合** — アプリケーションがドメイン既定（店の定例カレンダーに基づき**祝日 → 曜日**の順で決める既定 `schedule_type` / `capacity` など。[`domain_knowledge.md`](./domain_knowledge.md) §6 参照）で**その日の営業設定（有効なスケジュール）**を合成する。臨時変更や例外は、オーナーが `PUT /admin/schedules/{date}` 等で行を作成し、`daily_schedules` に永続化する。
 
 ### 2.3 admin_users（管理者ユーザー）
 
