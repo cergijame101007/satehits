@@ -214,7 +214,12 @@ make test-coverage
 | 7 | ReservationTable | 予約一覧が表示される | 予約データがカードで表示される |
 | 8 | ReservationTable | 承認ボタンクリック | ステータスが更新される |
 | 9 | ReservationTable | 拒否ボタンクリック | ステータスが更新される |
+| 9a | ReservationTable | 全期間トグル | 既定 OFF。ON で全期間を来店日昇順・日付見出し付きで表示し、過去分は「過去の予約（N件）」の折りたたみ（既定は閉じる）。日付見出しを押すとトグル OFF + その日を選択 |
+| 9b | ReservationTable | URL クエリでの初期化と反映 | `?range=all&status=pending` でトグル ON + 申請中。不正な `range` / `status` は既定。切り替えで `replaceState`、既定状態ではクエリが消える |
+| 9c | ReservationTable | 全期間モードの空表示 | 読み込み中は空表示を出さない。取得失敗はエラー表示。成功 0 件で「未対応の予約はありません」（pending 以外は「該当する予約はありません」）+「選択日の表示に戻る」。最後の 1 件を承認して空になったらフォーカスが空表示に移る |
+| 9d | ReservationTable | カレンダーの未対応マーカー | 未対応がある日のセルに「未対応あり」が出て、承認すると消える |
 | 10 | ScheduleCalendar | 月間スケジュールが表示される | 各日のスケジュールタイプが描画される |
+| 10a | MonthCalendar | 未対応マーカー | `reservation` variant で `pendingCount ≥ 1` の日に赤点と `sr-only` の「未対応あり」。0 件・過去日（`pendingCount` 0）・`schedule` / `picker` variant では出ない |
 | 11 | SupplierManager | 取引先の追加・編集・削除 | CRUD 操作が正常に動作する |
 | 12 | SupplierManager | ドラッグ＆ドロップで並び替え | 新しい順序で並び順更新 API が呼ばれる。失敗時は一覧を取り直す |
 | 13 | ReservationCreateForm | 提供数超過の登録 | `window.confirm` で確認し、キャンセルなら登録しない。空き取得失敗時も `window.confirm('空き状況を確認できませんでした…このまま登録しますか？')` で確認する。`is_holiday` の日は確認なし |
@@ -242,6 +247,8 @@ make test-coverage
 | 9 | `pendingReservations.test.ts` | `fetchActionablePendingCount`: 同時呼び出し・失敗 | 進行中は同じ Promise を返して 1 リクエスト。完了・失敗後は取り直す |
 | 10 | `pendingReservations.test.ts` | `notifyPendingCountChanged` 後の取得 | 通知前に始まった取得を使い回さない |
 | 11 | `pendingReservations.test.ts` | `subscribePendingCountChanged` / `subscribePendingCountRefresh` | 通知で呼ばれ、`pageshow` は `persisted: true` のときだけ呼ばれる。解除後は呼ばれない |
+| 12 | `pendingReservations.test.ts` | `PENDING_LIST_HREF` | `/admin/reservations?range=all&status=pending` |
+| 13 | `useMonthCalendar.test.ts` | `buildReservationSummaryByDate` | 当月の pending / approved を日別に集計。`pendingCount` は pending だけを数え、今日より前の日は 0 |
 
 ## 5. E2E テストシナリオ
 
