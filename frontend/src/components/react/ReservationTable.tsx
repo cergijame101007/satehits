@@ -421,22 +421,27 @@ export default function ReservationTable() {
         </Card>
 
         <div className="lg:col-span-2 space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-sm font-medium text-gray-700">{formatDateJa(selectedDate)}</p>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className={inputClassName(false, 'sm')}
-            >
-              <option value="">すべてのステータス</option>
-              {statusFilterOptions.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+          {/* 表示範囲の見出しを左、全期間トグルを右端に。狭い幅では折り返す */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm font-medium text-gray-700">
+                {isAllRange ? '全期間の予約' : formatDateJa(selectedDate)}
+              </p>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className={inputClassName(false, 'sm')}
+              >
+                <option value="">すべてのステータス</option>
+                {statusFilterOptions.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <label htmlFor="range-all-toggle" className="text-sm text-gray-700">
                 全期間
               </label>

@@ -318,10 +318,15 @@ describe('ReservationTable', () => {
 
       expect(getToggle()).toHaveAttribute('aria-checked', 'false');
       expect(screen.queryByText('2026年9月26日（土）')).not.toBeInTheDocument();
+      // 選択日モードの見出しは選択日
+      expect(screen.getByText('2026年9月10日（木）')).toBeInTheDocument();
+      expect(screen.queryByText('全期間の予約')).not.toBeInTheDocument();
 
       await user.click(getToggle());
 
       expect(getToggle()).toHaveAttribute('aria-checked', 'true');
+      // 全期間モードでは見出しが表示範囲を示す文言に変わる
+      expect(screen.getByText('全期間の予約')).toBeInTheDocument();
       const todayHeading = screen.getByRole('button', { name: /2026年9月10日（木）/ });
       const futureHeading = screen.getByRole('button', { name: /2026年9月26日（土）/ });
       expect(
@@ -430,6 +435,7 @@ describe('ReservationTable', () => {
       await user.click(screen.getByRole('button', { name: /2026年9月26日（土）/ }));
 
       expect(getToggle()).toHaveAttribute('aria-checked', 'false');
+      expect(screen.queryByText('全期間の予約')).not.toBeInTheDocument();
       expect(screen.getByText('2026年9月26日（土）')).toBeInTheDocument();
       expect(screen.getByText('未来花子（2名）')).toBeInTheDocument();
       expect(screen.queryByText('山田太郎（2名）')).not.toBeInTheDocument();
