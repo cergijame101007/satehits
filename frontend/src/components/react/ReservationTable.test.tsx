@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ReservationTable from '@/components/react/ReservationTable';
 import { listReservations, ReservationApiError, updateReservationStatus } from '@/lib/adminReservation';
 import { getAvailability } from '@/lib/availability';
 import { notifyPendingCountChanged } from '@/lib/pendingReservations';
 import { listSchedules } from '@/lib/schedule';
+import { createDeferred } from '@/test/deferred';
 import type { AvailabilityResponse, DailySchedule, Reservation } from '@/types/reservation';
 
 vi.mock('@/lib/adminReservation', async (importOriginal) => {
@@ -91,6 +92,8 @@ async function renderLoaded() {
 
 describe('ReservationTable', () => {
   beforeEach(() => {
+    // 表示状態は URL に書き戻されるため、テストごとにクエリなしへ戻す
+    window.history.replaceState(null, '', '/admin/reservations');
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-09-10T10:00:00'));
     listReservationsMock.mockResolvedValue(reservations);
@@ -290,5 +293,203 @@ describe('ReservationTable', () => {
     expect(screen.getByRole('dialog', { name: '予約を承認' })).toBeInTheDocument();
     expect(within(screen.getByRole('dialog')).getByRole('button', { name: '承認する' })).toBeEnabled();
     expect(notifyPendingCountChangedMock).not.toHaveBeenCalled();
+  });
+
+  describe('全期間モード', () => {
+    const past = reservation({ id: 'r-past', name: '過去太郎', visit_date: '2026-09-05', visit_time: '12:00' });
+    const today1 = reservation({ id: 'r-today', name: '山田太郎', visit_date: today, visit_time: '12:00' });
+    const future = reservation({
+      id: 'r-future',
+      name: '未来花子',
+      visit_date: '2026-09-26',
+      visit_time: '11:30',
+      status: 'approved',
+    });
+    const allRange = [future, past, today1];
+
+    function getToggle(): HTMLElement {
+      return screen.getByRole('switch', { name: '全期間' });
+    }
+
+    it('トグルは既定で OFF、ON にすると全期間の予約を日付見出し付きで昇順に表示する', async () => {
+      const user = userEvent.setup();
+      listReservationsMock.mockResolvedValue(allRange);
+      await renderLoaded();
+
+      expect(getToggle()).toHaveAttribute('aria-checked', 'false');
+      expect(screen.queryByText('2026年9月26日（土）')).not.toBeInTheDocument();
+
+      await user.click(getToggle());
+
+      expect(getToggle()).toHaveAttribute('aria-checked', 'true');
+      const todayHeading = screen.getByRole('button', { name: /2026年9月10日（木）/ });
+      const futureHeading = screen.getByRole('button', { name: /2026年9月26日（土）/ });
+      expect(
+        todayHeading.compareDocumentPosition(futureHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(screen.getByText('山田太郎（2名）')).toBeInTheDocument();
+      expect(screen.getByText('未来花子（2名）')).toBeInTheDocument();
+    });
+
+    it('過去の予約は「過去の予約」の折りたたみにまとまり、既定で閉じている', async () => {
+      const user = userEvent.setup();
+      listReservationsMock.mockResolvedValue(allRange);
+      await renderLoaded();
+      await user.click(getToggle());
+
+      const details = screen.getByText('過去の予約（1件）').closest('details');
+      expect(details).not.toBeNull();
+      expect(details).not.toHaveAttribute('open');
+      expect(details).toContainElement(screen.getByText('過去太郎（2名）'));
+      // 今日以降の予約は折りたたみの外
+      expect(details).not.toContainElement(screen.getByText('山田太郎（2名）'));
+    });
+
+    it('?range=all&status=pending で開くとトグル ON・申請中で絞り込まれる', async () => {
+      window.history.replaceState(null, '', '/admin/reservations?range=all&status=pending');
+      listReservationsMock.mockResolvedValue(allRange);
+      await renderLoaded();
+
+      expect(getToggle()).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByDisplayValue('申請中')).toBeInTheDocument();
+      expect(screen.getByText('山田太郎（2名）')).toBeInTheDocument();
+      expect(screen.getByText('過去太郎（2名）')).toBeInTheDocument();
+      // approved は絞り込みで消える
+      expect(screen.queryByText('未来花子（2名）')).not.toBeInTheDocument();
+    });
+
+    it('不正な range / status は既定（選択日モード・すべてのステータス）にする', async () => {
+      window.history.replaceState(null, '', '/admin/reservations?range=week&status=bogus');
+      listReservationsMock.mockResolvedValue(allRange);
+      await renderLoaded();
+
+      expect(getToggle()).toHaveAttribute('aria-checked', 'false');
+      expect(screen.getByDisplayValue('すべてのステータス')).toBeInTheDocument();
+      expect(screen.getByText('山田太郎（2名）')).toBeInTheDocument();
+    });
+
+    it('読み込み中は空表示を出さず、取得に失敗したらエラーを表示する', async () => {
+      window.history.replaceState(null, '', '/admin/reservations?range=all&status=pending');
+      const deferred = createDeferred<Reservation[]>();
+      listReservationsMock.mockReturnValueOnce(deferred.promise);
+      render(<ReservationTable />);
+
+      expect(screen.getAllByText('読み込み中...').length).toBeGreaterThan(0);
+      expect(screen.queryByText('未対応の予約はありません')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '選択日の表示に戻る' })).not.toBeInTheDocument();
+
+      await act(async () => {
+        deferred.resolve([today1]);
+      });
+      await waitFor(() => {
+        expect(screen.queryAllByText('読み込み中...')).toHaveLength(0);
+      });
+      expect(screen.getByText('山田太郎（2名）')).toBeInTheDocument();
+    });
+
+    it('取得に失敗したら全期間モードでも空表示を出さずエラーを表示する', async () => {
+      window.history.replaceState(null, '', '/admin/reservations?range=all&status=pending');
+      listReservationsMock.mockRejectedValue(
+        new ReservationApiError({ code: 'INTERNAL_ERROR', message: 'サーバー内部でエラーが発生しました' }),
+      );
+      await renderLoaded();
+
+      expect(screen.getByRole('alert')).toHaveTextContent('サーバー内部でエラーが発生しました');
+      expect(screen.getByText('予約を取得できませんでした')).toBeInTheDocument();
+      expect(screen.queryByText('未対応の予約はありません')).not.toBeInTheDocument();
+    });
+
+    it('取得に成功して 0 件なら空表示と「選択日の表示に戻る」を出す', async () => {
+      const user = userEvent.setup();
+      window.history.replaceState(null, '', '/admin/reservations?range=all&status=pending');
+      listReservationsMock.mockResolvedValue([future]);
+      await renderLoaded();
+
+      expect(screen.getByText('未対応の予約はありません')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: '選択日の表示に戻る' }));
+
+      expect(getToggle()).toHaveAttribute('aria-checked', 'false');
+      expect(screen.queryByText('未対応の予約はありません')).not.toBeInTheDocument();
+    });
+
+    it('pending 以外の絞り込みで 0 件なら「該当する予約はありません」を出す', async () => {
+      window.history.replaceState(null, '', '/admin/reservations?range=all&status=no_show');
+      listReservationsMock.mockResolvedValue([future]);
+      await renderLoaded();
+
+      expect(screen.getByText('該当する予約はありません')).toBeInTheDocument();
+    });
+
+    it('日付見出しを押すとトグルが OFF になりその日が選択される', async () => {
+      const user = userEvent.setup();
+      listReservationsMock.mockResolvedValue(allRange);
+      await renderLoaded();
+      await user.click(getToggle());
+
+      await user.click(screen.getByRole('button', { name: /2026年9月26日（土）/ }));
+
+      expect(getToggle()).toHaveAttribute('aria-checked', 'false');
+      expect(screen.getByText('2026年9月26日（土）')).toBeInTheDocument();
+      expect(screen.getByText('未来花子（2名）')).toBeInTheDocument();
+      expect(screen.queryByText('山田太郎（2名）')).not.toBeInTheDocument();
+    });
+
+    it('最後の 1 件を承認して空になったら空表示にフォーカスを移す', async () => {
+      const user = userEvent.setup();
+      window.history.replaceState(null, '', '/admin/reservations?range=all&status=pending');
+      listReservationsMock.mockResolvedValue([today1]);
+      await renderLoaded();
+
+      expect(screen.getByText('山田太郎（2名）')).toBeInTheDocument();
+
+      listReservationsMock.mockResolvedValue([{ ...today1, status: 'approved' }]);
+      await user.click(within(getReservationCard('山田太郎（2名）')).getByRole('button', { name: '承認' }));
+      await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '承認する' }));
+
+      const empty = await screen.findByText('未対応の予約はありません');
+      await waitFor(() => {
+        expect(empty).toHaveFocus();
+      });
+    });
+
+    it('未対応の日はカレンダーに点が出て、承認すると消える', async () => {
+      const user = userEvent.setup();
+      listReservationsMock.mockResolvedValue([today1]);
+      await renderLoaded();
+
+      expect(within(getDayCell(10)).getByText('未対応あり')).toBeInTheDocument();
+
+      listReservationsMock.mockResolvedValue([{ ...today1, status: 'approved' }]);
+      await user.click(within(getReservationCard('山田太郎（2名）')).getByRole('button', { name: '承認' }));
+      await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '承認する' }));
+
+      await waitFor(() => {
+        expect(within(getDayCell(10)).queryByText('未対応あり')).not.toBeInTheDocument();
+      });
+    });
+
+    it('トグルとステータスを変えると replaceState で URL に反映し、既定状態ではクエリを消す', async () => {
+      const user = userEvent.setup();
+      listReservationsMock.mockResolvedValue(allRange);
+      await renderLoaded();
+      const replaceState = vi.spyOn(window.history, 'replaceState');
+
+      await user.click(getToggle());
+      expect(replaceState).toHaveBeenLastCalledWith(null, '', expect.stringContaining('range=all'));
+
+      await user.selectOptions(screen.getByDisplayValue('すべてのステータス'), 'pending');
+      expect(replaceState).toHaveBeenLastCalledWith(
+        null,
+        '',
+        expect.stringMatching(/range=all.*status=pending/),
+      );
+
+      await user.click(getToggle());
+      await user.selectOptions(screen.getByDisplayValue('申請中'), '');
+      expect(replaceState).toHaveBeenLastCalledWith(null, '', '/admin/reservations');
+
+      replaceState.mockRestore();
+    });
   });
 });
