@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import type { Reservation, DailySchedule } from '@/types/reservation';
 import { listSchedules, ScheduleApiError } from '@/lib/schedule';
 import { listReservations, ReservationApiError } from '@/lib/adminReservation';
+import { countActionablePending } from '@/lib/pendingReservations';
+import { formatDate } from '@/lib/calendarUtils';
 import type { DayReservationSummary, MonthCalendarDay } from '@/components/react/MonthCalendar';
 
 interface UseMonthCalendarDataResult {
@@ -19,7 +21,10 @@ interface UseMonthCalendarDataOptions {
   includeReservationSummary?: boolean;
 }
 
-/** 月内の pending / approved 予約から日別サマリーを組み立てる */
+/**
+ * 月内の pending / approved 予約から日別サマリーを組み立てる。
+ * pendingCount は未対応マーカー用で、ナビのバッジと同じ `countActionablePending`（今日以降のみ）で数える。
+ */
 export function buildReservationSummaryByDate(
   reservations: Reservation[],
   viewYear: number,
@@ -27,18 +32,29 @@ export function buildReservationSummaryByDate(
 ): Map<string, DayReservationSummary> {
   const monthPrefix = `${viewYear}-${String(viewMonth).padStart(2, '0')}-`;
   const activeStatuses = new Set(['pending', 'approved']);
+  const today = formatDate(new Date());
 
-  return reservations
+  const byDate = reservations
     .filter((r) => r.visit_date.startsWith(monthPrefix) && activeStatuses.has(r.status))
     .reduce((map, r) => {
-      const existing = map.get(r.visit_date) ?? { count: 0, reservedMeals: 0 };
-      existing.count += 1;
-      if (r.status === 'approved') {
-        existing.reservedMeals += r.people;
-      }
+      const existing = map.get(r.visit_date) ?? [];
+      existing.push(r);
       map.set(r.visit_date, existing);
       return map;
-    }, new Map<string, DayReservationSummary>());
+    }, new Map<string, Reservation[]>());
+
+  const summaryByDate = new Map<string, DayReservationSummary>();
+  for (const [date, dayReservations] of byDate) {
+    summaryByDate.set(date, {
+      count: dayReservations.length,
+      reservedMeals: dayReservations
+        .filter((r) => r.status === 'approved')
+        .reduce((sum, r) => sum + r.people, 0),
+      pendingCount: countActionablePending(dayReservations, today),
+    });
+  }
+
+  return summaryByDate;
 }
 
 async function loadReservationSummary(
