@@ -1,6 +1,6 @@
 ---
 import '../styles/global.css';
-import { pendingBadgeClassName } from '@/lib/pendingReservations';
+import { PENDING_LIST_HREF, pendingBadgeClassName } from '@/lib/pendingReservations';
 
 interface Props {
   title: string;
@@ -17,7 +17,8 @@ const navItems = [
 
 /*
  * 未対応 pending 件数バッジ。件数はクライアントで取得し、0 件・取得失敗時は hidden のまま。
- * 数字は aria-hidden にし、読み上げは sr-only の「（未対応の予約 N 件）」に任せる
+ * 数字は aria-hidden にし、読み上げは sr-only の「未対応の予約 N 件」に任せる。
+ * バッジ自体を全期間の申請中一覧へのリンクにするため、文字リンクとは分けて隣に置く（入れ子の a は作れない）
  */
 ---
 
@@ -42,19 +43,21 @@ const navItems = [
 
         <nav class="hidden md:flex items-center gap-4 text-sm shrink-0">
           {navItems.map((item) => (
-            <a href={item.href} class="hover:opacity-80 transition-opacity whitespace-nowrap">
-              {item.label}
+            <span class="inline-flex items-center whitespace-nowrap">
+              <a href={item.href} class="hover:opacity-80 transition-opacity">
+                {item.label}
+              </a>
               {item.pendingBadge && (
-                <span data-pending-badge hidden>
+                <a href={PENDING_LIST_HREF} data-pending-badge hidden class="hover:opacity-80 transition-opacity">
                   <span
                     data-pending-badge-count
                     aria-hidden="true"
                     class:list={[pendingBadgeClassName, 'text-[11px]']}
                   ></span>
                   <span data-pending-badge-label class="sr-only"></span>
-                </span>
+                </a>
               )}
-            </a>
+            </span>
           ))}
           <button
             type="button"
@@ -99,22 +102,29 @@ const navItems = [
 
       <nav class="flex flex-col items-center gap-6 text-center">
         {navItems.map((item) => (
-          <a
-            href={item.href}
-            class="text-xl font-medium text-white/90 hover:text-white transition-colors admin-mobile-nav-link whitespace-nowrap"
-          >
-            {item.label}
+          <span class="inline-flex items-center whitespace-nowrap">
+            <a
+              href={item.href}
+              class="text-xl font-medium text-white/90 hover:text-white transition-colors admin-mobile-nav-link"
+            >
+              {item.label}
+            </a>
             {item.pendingBadge && (
-              <span data-pending-badge hidden>
+              <a
+                href={PENDING_LIST_HREF}
+                data-pending-badge
+                hidden
+                class="admin-mobile-nav-link text-white/90 hover:text-white transition-colors"
+              >
                 <span
                   data-pending-badge-count
                   aria-hidden="true"
                   class:list={[pendingBadgeClassName, 'text-xs']}
                 ></span>
                 <span data-pending-badge-label class="sr-only"></span>
-              </span>
+              </a>
             )}
-          </a>
+          </span>
         ))}
         <div class="w-10 h-px my-1 bg-white/30"></div>
         <button
@@ -160,7 +170,7 @@ const navItems = [
           const countEl = badge.querySelector('[data-pending-badge-count]');
           const labelEl = badge.querySelector('[data-pending-badge-label]');
           if (countEl) countEl.textContent = formatBadgeCount(count);
-          if (labelEl) labelEl.textContent = `（${pendingBadgeLabel(count)}）`;
+          if (labelEl) labelEl.textContent = pendingBadgeLabel(count);
           badge.hidden = count === 0;
         });
       }

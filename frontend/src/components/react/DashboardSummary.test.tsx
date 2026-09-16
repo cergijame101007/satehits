@@ -3,7 +3,11 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import DashboardSummary from '@/components/react/DashboardSummary';
 import { listReservations, ReservationApiError } from '@/lib/adminReservation';
 import { AvailabilityApiError, getAvailability } from '@/lib/availability';
-import { formatBadgeCount, notifyPendingCountChanged } from '@/lib/pendingReservations';
+import {
+  formatBadgeCount,
+  notifyPendingCountChanged,
+  PENDING_LIST_HREF,
+} from '@/lib/pendingReservations';
 import type { AvailabilityResponse, Reservation } from '@/types/reservation';
 
 vi.mock('@/lib/adminReservation', async (importOriginal) => {
@@ -194,7 +198,11 @@ describe('DashboardSummary', () => {
 
       const alert = await screen.findByRole('alert');
       expect(alert).toHaveTextContent('未対応の予約が 2 件あります');
-      expect(within(alert).getByRole('link', { name: '予約一覧へ' })).toHaveAttribute('href', '/admin/reservations');
+      // 注意帯からは全期間の申請中一覧へ飛ばす
+      expect(within(alert).getByRole('link', { name: '予約一覧へ' })).toHaveAttribute(
+        'href',
+        PENDING_LIST_HREF,
+      );
       expect(listReservationsMock).toHaveBeenCalledWith(undefined, 'pending');
 
       const link = screen.getByRole('link', { name: '予約一覧（未対応の予約 2 件）' });

@@ -7,6 +7,7 @@ import { cx } from '@/lib/cx';
 import {
   fetchActionablePendingCount,
   formatBadgeCount,
+  PENDING_LIST_HREF,
   pendingBadgeClassName,
   pendingBadgeLabel,
   subscribePendingCountRefresh,
@@ -215,7 +216,7 @@ export default function DashboardSummary() {
             件あります。承認または拒否を行ってください。
           </span>
           <a
-            href="/admin/reservations"
+            href={PENDING_LIST_HREF}
             className="shrink-0 font-medium underline underline-offset-2 hover:opacity-80 transition-opacity"
           >
             予約一覧へ

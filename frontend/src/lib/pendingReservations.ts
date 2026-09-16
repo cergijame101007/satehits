@@ -5,6 +5,9 @@ import type { Reservation } from '@/types/reservation';
 /** バッジに出す上限。これ以上は「9+」にまとめて桁あふれでナビが崩れないようにする */
 const BADGE_MAX = 9;
 
+/** バッジ・注意帯から飛ばす先。全期間の申請中一覧を開く */
+export const PENDING_LIST_HREF = '/admin/reservations?range=all&status=pending';
+
 /** 未対応件数が変わったことを知らせる window イベント名 */
 export const PENDING_COUNT_CHANGED_EVENT = 'pending-count-changed';
 

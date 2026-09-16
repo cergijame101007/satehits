@@ -7,6 +7,7 @@ import {
   formatBadgeCount,
   notifyPendingCountChanged,
   PENDING_COUNT_CHANGED_EVENT,
+  PENDING_LIST_HREF,
   pendingBadgeLabel,
   subscribePendingCountChanged,
   subscribePendingCountRefresh,
@@ -84,6 +85,12 @@ describe('formatBadgeCount', () => {
   it('caps 10 or more as 9+', () => {
     expect(formatBadgeCount(10)).toBe('9+');
     expect(formatBadgeCount(123)).toBe('9+');
+  });
+});
+
+describe('PENDING_LIST_HREF', () => {
+  it('全期間の申請中一覧を開くクエリ付きのパスになっている', () => {
+    expect(PENDING_LIST_HREF).toBe('/admin/reservations?range=all&status=pending');
   });
 });
 
