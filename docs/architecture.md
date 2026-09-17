@@ -166,11 +166,10 @@ graph TB
 
     subgraph Application Layer
         UseCase[UseCase]
-        DTO[DTO]
     end
 
     subgraph Domain Layer
-        Entity[Entity]
+        DomainPkg[domain パッケージの型・関数]
         DomainService[Domain Service]
         RepoInterface[Repository Interface]
     end
@@ -186,8 +185,8 @@ graph TB
     Middleware --> Handler
     UseCase --> DomainService
     UseCase --> RepoInterface
-    UseCase --> Entity
-    DomainService --> Entity
+    UseCase --> DomainPkg
+    DomainService --> DomainPkg
     DomainService --> RepoInterface
     RepoInterface -.->|実装| RepoImpl
     RepoImpl --> DB
@@ -204,7 +203,7 @@ graph TB
 | **層** | Application Layer | Domain Layer |
 | **視点** | 「誰が何をしたいか」 | 「ドメインの問題をどう解決するか」 |
 | **責務** | 操作全体のオーケストレーション | ビジネスロジックの実行 |
-| **依存** | Repository, Domain Service, 外部API | Entity, Repository Interface のみ |
+| **依存** | Repository, Domain Service, 外部API | `domain` パッケージの型・関数と Repository インターフェースのみ |
 | **状態** | 持たない（ステートレス） | 持たない（ステートレス） |
 
 ### 判断フローチャート
@@ -215,7 +214,7 @@ Q: そのロジックは「特定の操作（API）」に紐づく？
    └─ No ↓
 
 Q: そのロジックは「エンティティ1つ」で完結する？
-   └─ Yes → Entity のメソッドに
+   └─ Yes → domain のパッケージ関数に（例: domain.CanTransition）
    └─ No → Domain Service
 ```
 
@@ -227,14 +226,14 @@ Q: そのロジックは「エンティティ1つ」で完結する？
 │  「顧客が予約を申請する」という操作全体を調整               │
 ├─────────────────────────────────────────────────────────────┤
 │  1. Turnstile検証        → 外部API                         │
-│  2. 入力バリデーション    → DTO / Validator                │
+│  2. 入力バリデーション    → usecase の validate 関数       │
 │  3. 空き確認（楽観）      → AvailabilityService に委譲      │
 │  4. トランザクション内:                                      │
 │     - 同一 visit_date の advisory lock（VisitDateLocker）  │
 │     - 空き再確認           → AvailabilityService           │
 │     - 予約作成             → ReservationRepository         │
 │     - 受付メール記録       → MailEnqueuer（email_outbox）  │
-│  5. レスポンス組み立て    → DTO                            │
+│  5. レスポンス組み立て    → handler のレスポンス型         │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
@@ -258,7 +257,7 @@ Q: そのロジックは「エンティティ1つ」で完結する？
 │     - メール記録          → MailEnqueuer（email_outbox）   │
 │       - approved → 予約承認メール                          │
 │       - rejected → 予約拒否メール                          │
-│  4. レスポンス組み立て    → DTO                            │
+│  4. レスポンス組み立て    → handler のレスポンス型         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -348,18 +347,18 @@ backend/
 
 方針: レイヤード + Repository + DI に絞り、DDD 由来の要素は目標から外す（ADR-005）。
 
-予定として残すもの:
+予定:
 
-- `handler` パッケージからミドルウェアを `presentation/middleware` に分離する（`internal/handler/middleware.go` 冒頭の NOTE。非公開ヘルパーの export か複製が必要）
-- logging / recovery ミドルウェアを追加する（現状はハンドラー内の `log.Printf` のみで、HTTP の panic recovery は無い）
+- #46: `internal/repository` を `internal/infrastructure/repository` へ移動する（パッケージ名 `repository` は維持）
+- #47: ミドルウェアを `handler` パッケージから兄弟パッケージ `internal/middleware` に分離し、logging / recovery ミドルウェアを追加する（現状はハンドラー内の `log.Printf` のみで、HTTP の panic recovery は無い）。`presentation/` の傘ディレクトリは作らない
 
-目標から外す候補（採否は要判断）:
+目標から外したもの（2026-09-16 決定）:
 
-| 候補 | 現状 |
+| 外した構成 | 採用する形（現状のまま） |
 |------|------|
 | `domain/entity` / `domain/repository` / `domain/errors` へのサブパッケージ分割 | フラットな `domain` パッケージ |
 | `application/dto` 層 | usecase パッケージの入出力型と handler 内のリクエスト / レスポンス型で変換 |
-| `infrastructure/persistence/supabase` への改名 | `internal/repository` |
+| `infrastructure/persistence/supabase` への改名 | `internal/repository`（#46 で `internal/infrastructure/repository` へ移動） |
 | `pkg/logger` | 標準 `log` パッケージ |
 
 ## 8. 依存関係図
@@ -380,7 +379,7 @@ graph TB
 
     subgraph Domain
         DS[Domain Service]
-        E[Entity]
+        D[domain パッケージの型・関数]
         RI[Repository Interface]
     end
 
@@ -400,7 +399,7 @@ graph TB
     UC -->|依存| RI
     UC -->|依存| EXT
     DS -->|依存| RI
-    DS -->|依存| E
+    DS -->|依存| D
     IMPL -.->|実装| RI
 ```
 
