@@ -642,7 +642,7 @@ cp frontend/.env.example frontend/.env  # Astro が frontend/ 直下から読む
 | [docs/api_design.md](docs/api_design.md) | API 仕様の概要 |
 | [docs/openapi.yaml](docs/openapi.yaml) | OpenAPI 3.0 形式の API 仕様 |
 | [docs/sequence.md](docs/sequence.md) | 主要機能のシーケンス図 |
-| [docs/screen_transition.md](docs/screen_transition.md) | 画面一覧・遷移図・ワイヤーフレーム |
+| [docs/screen_transition.md](docs/screen_transition.md) | 画面一覧・遷移図・各画面の要素と操作 |
 | [docs/table_design.md](docs/table_design.md) | テーブル設計 |
 | [docs/infrastructure.md](docs/infrastructure.md) | インフラ構成、環境設定、CI/CD 詳細 |
 | [docs/deploy_cloud_run.md](docs/deploy_cloud_run.md) | Cloud Run への CD 手順（GCP セットアップ、Secrets/Variables、初回デプロイ、ロールバック） |

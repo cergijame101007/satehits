@@ -42,7 +42,7 @@
 | [OpenAPI仕様](./docs/openapi.yaml) | OpenAPI 3.0形式のAPI仕様 |
 | [アーキテクチャ](./docs/architecture.md) | レイヤー構成、ディレクトリ構成 |
 | [シーケンス図](./docs/sequence.md) | 主要機能のシーケンス図 |
-| [画面遷移図](./docs/screen_transition.md) | 画面一覧、遷移図、ワイヤーフレーム |
+| [画面遷移図](./docs/screen_transition.md) | 画面一覧、遷移図、各画面の要素と操作 |
 | [インフラ構成](./docs/infrastructure.md) | 技術スタック、環境構成、CI/CD |
 | [Cloud Run デプロイ](./docs/deploy_cloud_run.md) | バックエンド CD 手順、Secrets / Variables、ロールバック |
 | [ユースケース](./docs/use_case.md) | ユースケース一覧 |
