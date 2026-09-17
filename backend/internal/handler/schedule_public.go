@@ -40,11 +40,11 @@ func NewPublicScheduleHandler(getAvailability *usecase.GetAvailabilityUseCase, p
 // HandlePublicSchedules は GET /schedules を処理する
 func (h *PublicScheduleHandler) HandlePublicSchedules(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != h.path {
-		http.NotFound(w, r)
+		respondNotFound(w)
 		return
 	}
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		respondMethodNotAllowed(w, http.MethodGet)
 		return
 	}
 

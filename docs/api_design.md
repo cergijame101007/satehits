@@ -63,6 +63,11 @@
 
 バリデーションエラー時は `details` 配列を含む形式（`ValidationErrorResponse`）になる。型定義は OpenAPI を参照。
 
+ルーティングで弾くエラーも同じ JSON 形式で返す（text/plain にはしない）。
+
+- **405 Method Not Allowed**: パスは存在するがメソッドを受け付けない場合。`INVALID_REQUEST`（「許可されていないメソッドです」）を返し、`Allow` ヘッダにそのパスで受け付けるメソッドを載せる（例: `POST /schedules` → `Allow: GET`）。CORS の preflight（`OPTIONS`）はミドルウェアが先に 204 を返すため `Allow` には含めない
+- **未知パス**: どのエンドポイントにも一致しないパスはメソッドにかかわらず 404 `NOT_FOUND`（「リソースが見つかりません」）。リソース単位の 404（「予約が見つかりません」等）は各エンドポイントのメッセージを使う
+
 ### エラーコード一覧
 
 | HTTPステータス | コード | 説明 |
@@ -73,7 +78,8 @@
 | 401 | UNAUTHORIZED | 認証が必要 |
 | 401 | INVALID_TOKEN | トークンが無効 |
 | 403 | FORBIDDEN | アクセス権限がない |
-| 404 | NOT_FOUND | リソースが見つからない |
+| 404 | NOT_FOUND | リソースが見つからない（未知パスを含む） |
+| 405 | INVALID_REQUEST | 許可されていないメソッド（`Allow` ヘッダ付き） |
 | 409 | CAPACITY_EXCEEDED | 予約可能数を超過 |
 | 409 | RESERVATION_CONFLICT | 同一電話番号・同一来店日時のアクティブ予約が既にある |
 | 429 | TOO_MANY_REQUESTS | リクエスト過多（ログイン試行上限など） |

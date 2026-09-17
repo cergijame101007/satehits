@@ -58,11 +58,11 @@ func NewPublicSupplierHandler(listSuppliers *usecase.ListSuppliersUseCase, publi
 // HandlePublicSuppliers は GET /api/v1/suppliers をルーティングする（is_active=true のみ）
 func (h *PublicSupplierHandler) HandlePublicSuppliers(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != h.publicSuppliersPath {
-		http.NotFound(w, r)
+		respondNotFound(w)
 		return
 	}
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		respondMethodNotAllowed(w, http.MethodGet)
 		return
 	}
 
