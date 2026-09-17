@@ -215,7 +215,7 @@ Q: そのロジックは「特定の操作（API）」に紐づく？
    └─ Yes → UseCase
    └─ No ↓
 
-Q: そのロジックは「エンティティ1つ」で完結する？
+Q: そのロジックは「1 つの型」で完結する？
    └─ Yes → domain のパッケージ関数に（例: domain.CanTransition）
    └─ No → Domain Service
 ```
