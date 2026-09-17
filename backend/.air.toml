@@ -1,11 +1,14 @@
 root = "."
 testdata_dir = "testdata"
-tmp_dir = "tmp"
+# ビルド成果物はコンテナ内の /tmp/air に置く。
+# 開発コンテナは root で動き ./backend を /app にバインドマウントしているため、
+# リポジトリ配下（tmp/）に書くとホスト側に root 所有のファイルが残る。
+tmp_dir = "/tmp/air"
 
 [build]
   args_bin = []
-  bin = "./tmp/main"
-  cmd = "go build -o ./tmp/main ./cmd/api"
+  bin = "/tmp/air/main"
+  cmd = "go build -o /tmp/air/main ./cmd/api"
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "testdata"]
   exclude_file = []
