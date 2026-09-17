@@ -6,7 +6,9 @@
 
 **Astro 5 + React 19（Islands Architecture）** を採用。
 
-- **静的部分**: Astro コンポーネント（`.astro`）で構築し、JavaScript 0KB で配信
+- **静的部分**: ページの大部分を Astro コンポーネント（`.astro`）の静的 HTML で配信する
+  - トップページ: 本文は `.astro` の静的 HTML。営業カレンダー（`PublicScheduleCalendar`）だけ Island
+  - お取り引き先紹介: 本文は静的 HTML。取引先一覧（`SupplierList`）は `client:visible` の Island
 - **動的部分**: React コンポーネント（`.tsx`）を Islands として必要な箇所だけハイドレーション
 - **利点**: ページ全体のバンドルサイズを最小化しつつ、フォーム等のインタラクティブな部分は React で実装
 
