@@ -71,6 +71,7 @@ func TestUpdateReservationStatusUseCase(t *testing.T) {
 		{name: "allows approved to no_show", current: "approved", target: "no_show", wantStatus: "no_show"},
 		{name: "rejects rejected to approved", current: "rejected", target: "approved", wantErr: true, wantField: "status"},
 		{name: "rejects pending to no_show", current: "pending", target: "no_show", wantErr: true, wantField: "status"},
+		{name: "rejects approved to rejected", current: "approved", target: "rejected", wantErr: true, wantField: "status"},
 	}
 
 	for _, tt := range tests {
@@ -107,6 +108,34 @@ func TestUpdateReservationStatusUseCase(t *testing.T) {
 				t.Fatalf("repo.lastStatus = %q, want %q", repo.lastStatus, tt.wantStatus)
 			}
 		})
+	}
+}
+
+func TestUpdateReservationStatusUseCaseReturnsNotFound(t *testing.T) {
+	existingID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	missingID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440099")
+	repo := &fakeReservationRepo{
+		reservation: domain.Reservation{ID: existingID, Status: "pending"},
+	}
+	enqueuer := &fakeMailEnqueuer{}
+	uc := NewUpdateReservationStatusUseCase(repo, passThroughTxManager{}, enqueuer)
+
+	result, err := uc.Execute(context.Background(), UpdateReservationStatusCommand{
+		ID:     missingID,
+		Status: "approved",
+	})
+	// handler は ErrReservationNotFound を 404 NOT_FOUND に写像する（ラップせずそのまま返すこと）
+	if !errors.Is(err, domain.ErrReservationNotFound) {
+		t.Fatalf("Execute() err = %v, want ErrReservationNotFound", err)
+	}
+	if result != nil {
+		t.Fatalf("result = %+v, want nil", result)
+	}
+	if repo.lastStatus != "" {
+		t.Fatalf("repo.lastStatus = %q, want empty (no update)", repo.lastStatus)
+	}
+	if enqueuer.approved != 0 {
+		t.Fatalf("approved enqueues = %d, want 0", enqueuer.approved)
 	}
 }
 

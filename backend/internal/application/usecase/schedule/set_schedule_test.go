@@ -216,3 +216,43 @@ func TestSetScheduleUseCase_Execute_externalEvent(t *testing.T) {
 		}
 	})
 }
+
+func TestSetScheduleUseCase_Execute_upsert(t *testing.T) {
+	// Repository の Upsert が返す inserted（行が無ければ true、既存行の上書きなら false）を結果にそのまま載せる
+	tests := []struct {
+		name         string
+		inserted     bool
+		wantInserted bool
+	}{
+		{name: "reports inserted when no row existed for the date", inserted: true, wantInserted: true},
+		{name: "reports updated when existing row is overwritten", inserted: false, wantInserted: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &stubScheduleRepo{inserted: tt.inserted}
+			uc := NewSetScheduleUseCase(repo, testStoreCalendar())
+
+			result, err := uc.Execute(context.Background(), SetScheduleCommand{
+				Date:             datetime.MustParseDate("2026-05-20"),
+				ScheduleType:     "event",
+				Capacity:         8,
+				EventName:        "和紅茶をしばく会",
+				EventDescription: "和紅茶をしばく会 入門編",
+			})
+			if err != nil {
+				t.Fatalf("Execute() err = %v, want nil", err)
+			}
+			if result.Inserted != tt.wantInserted {
+				t.Fatalf("Inserted = %v, want %v", result.Inserted, tt.wantInserted)
+			}
+			// 上書き時も結果は新しい入力の内容になる
+			if result.Schedule.ScheduleType != "event" || result.Schedule.Capacity != 8 || result.Schedule.EventName != "和紅茶をしばく会" {
+				t.Fatalf("Schedule = %+v, want event/8/和紅茶をしばく会", result.Schedule)
+			}
+			if repo.lastIn.Date != datetime.MustParseDate("2026-05-20") {
+				t.Fatalf("Upsert date = %s, want 2026-05-20", repo.lastIn.Date)
+			}
+		})
+	}
+}

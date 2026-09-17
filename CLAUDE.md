@@ -320,6 +320,7 @@ bun run lint:fix  # ESLint 自動修正
 bun run format    # Prettier フォーマット
 bun run test      # Vitest（ウォッチモード）
 bun run test:run  # Vitest（単発実行）
+bun run test:coverage # Vitest + カバレッジ計測（v8。frontend/coverage/ に出力）
 ```
 
 ---

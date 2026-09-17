@@ -12,13 +12,13 @@
 
 ### テストカバレッジ目標
 
-| レイヤー / 対象 | カバレッジ目標 | 実測（2026-09-15） | 備考 |
+| レイヤー / 対象 | カバレッジ目標 | 実測（2026-09-16） | 備考 |
 |----------------|---------------|-------------------|------|
-| Domain Layer（Entity, Domain Service） | 90% 以上 | `domain` 12.5%、`domain/service` 90.9% | ビジネスロジックの中核。最優先でテスト |
-| Application Layer（UseCase） | 80% 以上 | `usecase/reservation` 80.2%、`usecase/auth` 93.3%、`usecase/schedule` 90.3%、`usecase/supplier` 98.5% | 正常系・異常系の主要パスをカバー |
-| Infrastructure Layer（Repository） | 結合テストで担保 | `repository` 9.5% | モックではなく実 DB 接続でテスト（結合テストは `TEST_DATABASE_URL` 必須） |
-| Presentation Layer（Handler） | 結合テストで担保 | `handler` 41.2% | HTTP リクエスト/レスポンスの検証 |
-| フロントエンド（React コンポーネント） | 70% 以上 | 未計測 | ユーザー操作・表示ロジックをテスト。coverage provider は未導入（別 PR で追加予定） |
+| Domain Layer（Entity, Domain Service） | 90% 以上 | `domain` 100%、`domain/service` 90.9% | ビジネスロジックの中核。最優先でテスト |
+| Application Layer（UseCase） | 80% 以上 | `usecase/reservation` 86.6%、`usecase/auth` 93.3%、`usecase/schedule` 90.3%、`usecase/supplier` 98.5% | 正常系・異常系の主要パスをカバー |
+| Infrastructure Layer（Repository） | 結合テストで担保 | `repository` 9.5%（`TEST_DATABASE_URL` なしの値） | モックではなく実 DB 接続でテスト（結合テストは `TEST_DATABASE_URL` 必須） |
+| Presentation Layer（Handler） | 結合テストで担保 | `handler` 51.2% | HTTP リクエスト/レスポンスの検証 |
+| フロントエンド（React コンポーネント） | 70% 以上 | 行: `components/react` 97.4%、`components/react/ui` 100%、`lib` 46.8%（全体 81.7%） | ユーザー操作・表示ロジックをテスト。`lib` は API クライアント等の未テスト分を含む |
 
 計測方法（バックエンド）:
 
@@ -28,6 +28,13 @@ cd backend && go test -cover ./...
 
 # coverage.out / coverage.html を生成
 make test-coverage
+```
+
+計測方法（フロントエンド）:
+
+```bash
+# @vitest/coverage-v8。対象は src/**/*.{ts,tsx}（テスト・src/test・env.d.ts を除く）。frontend/coverage/ に HTML も出力
+cd frontend && bun run test:coverage
 ```
 
 ## 2. 使用ツール
@@ -79,7 +86,7 @@ make test-coverage
 | 7 | 8 名以上で予約 | 単体 | バリデーションエラー |
 | 8 | 必須項目が未入力 | 単体 | バリデーションエラー |
 | 9 | メールアドレスの形式不正 | 単体 | バリデーションエラー |
-| 10 | 予約申請後に受付メールが送信される | 単体 | MailEnqueuer（Outbox）に enqueue される |
+| 10 | 予約申請後に受付メールが送信される | 単体 | MailEnqueuer（Outbox）に作成済み予約で 1 回、Tx 内で enqueue される。enqueue 失敗は UseCase のエラー（実装: `TestCreateReservationUseCase_Execute_mailOutbox`） |
 | 11 | 同一 visit_date の同時申請でオーバーブッキングしない | 単体 | Lock → 再 SUM → Create の順。満席時は `CAPACITY_EXCEEDED`（実 DB 並行は未実施） |
 
 #### 予約承認（オーナー）
@@ -89,7 +96,7 @@ make test-coverage
 | 1 | pending → approved に遷移 | 単体 | ステータスが `approved` に更新 |
 | 2 | 承認後に承認メールが送信される | 単体 | MailEnqueuer（Outbox）に enqueue される |
 | 3 | rejected → approved への不正遷移 | 単体 | `VALIDATION_ERROR`（field `status`） |
-| 4 | 存在しない予約 ID を承認 | 単体 | `NOT_FOUND` エラー |
+| 4 | 存在しない予約 ID を承認 | 単体 / 単体（httptest） | `ErrReservationNotFound` がそのまま返り、handler は 404 `NOT_FOUND`（実装: `TestUpdateReservationStatusUseCaseReturnsNotFound`、`TestAdminReservationHandler_UpdateStatus`） |
 
 #### 予約拒否（オーナー）
 
@@ -97,14 +104,14 @@ make test-coverage
 |---|-------------|-----------|----------|
 | 1 | pending → rejected に遷移 | 単体 | ステータスが `rejected` に更新 |
 | 2 | 拒否後に拒否メールが送信される | 単体 | MailEnqueuer（Outbox）に enqueue される |
-| 3 | approved → rejected への不正遷移 | 単体 | `VALIDATION_ERROR`（field `status`） |
+| 3 | approved → rejected への不正遷移 | 単体 / 単体（httptest） | `VALIDATION_ERROR`（field `status`）（実装: `TestUpdateReservationStatusUseCase/rejects_approved_to_rejected`、`TestAdminReservationHandler_UpdateStatus`。遷移表全体は `TestCanTransition`） |
 
 #### 予約一覧（オーナー）
 
 | # | テストケース | テスト種別 | 期待結果 |
 |---|-------------|-----------|----------|
-| 1 | 日付指定で予約一覧取得 | 単体 | 該当日の予約リストが返る |
-| 2 | 予約がない日付で取得 | 単体 | 空のリストが返る |
+| 1 | 日付指定で予約一覧取得 | 単体 / 単体（httptest） | 該当日の予約リストが返る。date / status / source はそのまま Repository に渡り、不正な status / source は `VALIDATION_ERROR`（field `status` / `source`）、date 形式不正は 400（field `date`）（実装: `TestListReservationsUseCase_Execute_filters`、`TestListReservationsUseCase_Execute_validation`、`TestAdminReservationHandler_List`） |
+| 2 | 予約がない日付で取得 | 単体 / 単体（httptest） | 空のリストが返る（JSON は `{"reservations":[],"total":0}`）（実装: `TestListReservationsUseCase_Execute_results`、`TestAdminReservationHandler_List`） |
 | 3 | 認証なしでアクセス | 単体（httptest） | 401 Unauthorized |
 
 ### 3.2 スケジュール機能
@@ -125,7 +132,7 @@ make test-coverage
 | 1 | 通常営業の設定 | 単体 | スケジュールが保存される |
 | 2 | イベント営業の設定（イベント名・説明付き） | 単体 | イベント情報を含めて保存 |
 | 3 | 臨時休業の設定 | 単体 | 提供可能数 0 で保存 |
-| 4 | 既存スケジュールの上書き（Upsert） | 単体 | 既存データが更新される |
+| 4 | 既存スケジュールの上書き（Upsert） | 単体 | 既存データが更新される（`SetScheduleResult.Inserted` が false）（実装: `TestSetScheduleUseCase_Execute_upsert`） |
 | 5 | 認証なしでアクセス | 単体（httptest） | 401 Unauthorized |
 
 #### スケジュール削除（オーナー）
@@ -161,7 +168,7 @@ make test-coverage
 | 8 | メール単位の失敗上限超過 | 単体 | 429 `TOO_MANY_REQUESTS`、`FindByEmail` 未呼出、`Retry-After` 付与 |
 | 9 | IP 単位の失敗上限超過 | 単体 | 429 `TOO_MANY_REQUESTS`、認証処理未実行 |
 | 10 | ログイン成功後 | 単体 | 当該メールの失敗試行がクリアされる |
-| 11 | 制限中の再試行 | 単体 | 失敗行が増えず、窓経過後に解除される |
+| 11 | 制限中の再試行 | 単体 / 結合（PostgreSQL） | 失敗行が増えず、窓経過後に解除される（実装: 失敗行は `TestLoginUseCase_Execute`・`TestAuthHandler_HandleLogin_rateLimitThresholds` で `RecordFailure` 未呼出、窓は `TestLoginAttemptRepository_CountRecent` で `since` より前の行を数えないこと） |
 | 12 | 未登録メールとパスワード不一致の応答 | 単体 | HTTP ステータス・`code`・`message` が完全一致（`details` なし）。429 も同様 |
 | 13 | 未登録メールの所要時間 | 単体 | ダミー bcrypt 比較により、登録済みメールの誤パスワードと中央値の比が 3 倍以内 |
 | 14 | パスワード比較方式 | 単体 | bcrypt 比較。保存ハッシュが平文と同じ文字列でも認証失敗 |
@@ -182,7 +189,7 @@ make test-coverage
 
 | # | テストケース | テスト種別 | 期待結果 |
 |---|-------------|-----------|----------|
-| 1 | 受付メール enqueue | 単体 | Outbox に `reservation_received` が同一 Tx で記録される |
+| 1 | 受付メール enqueue | 単体 | Outbox に `reservation_received` が同一 Tx で記録される（実装: `TestCreateReservationUseCase_Execute_mailOutbox`） |
 | 2 | 承認・拒否メール enqueue | 単体 | 件名・本文・reason が Outbox に入る |
 | 3 | 重複 enqueue | 単体 / 結合 | `ErrMailAlreadyEnqueued`、予約操作は成功、警告ログ |
 | 4 | Dispatcher 成功 | 単体 | `sent`、Idempotency-Key = `mail_type/reservation_id`、送信 ctx にタイムアウト、claim に lease 期限 |
@@ -340,6 +347,9 @@ cd backend && go test -v ./...
 ```bash
 # 全テスト実行（単発）
 cd frontend && bun run test:run
+
+# カバレッジ付き（frontend/coverage/ に出力）
+cd frontend && bun run test:coverage
 
 # ウォッチモード（開発中）
 cd frontend && bun run test
