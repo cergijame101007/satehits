@@ -203,7 +203,7 @@ satehits/
 │           ├── reservation.ts                  # 予約・スケジュール・空き状況の型（API と対応）
 │           └── supplier.ts                     # 取引先の型
 ├── backend/                                    # Go バックエンド
-│   ├── .air.toml                               # Air（ホットリロード）設定
+│   ├── .air.toml                               # Air（ホットリロード）設定。成果物はコンテナ内 /tmp/air（ホストに残さない）
 │   ├── .dockerignore                           # Docker ビルドの除外設定
 │   ├── .env.example                            # 環境変数テンプレート
 │   ├── .golangci.yml                           # golangci-lint 設定
