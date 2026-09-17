@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import type { AdminReservationRequest } from '../../types/reservation';
 import { createAdminReservation, ReservationApiError } from '@/lib/adminReservation';
 import { getAvailability } from '@/lib/availability';
+import { notifyPendingCountChanged } from '@/lib/pendingReservations';
 import DatePickerField from '@/components/react/DatePickerField';
 import Alert from '@/components/react/ui/Alert';
 import Button from '@/components/react/ui/Button';
@@ -99,6 +100,8 @@ export default function ReservationCreateForm() {
 
     try {
       await createAdminReservation(form);
+      // pending かどうかは再取得側で判定するので、登録したら常に通知する
+      notifyPendingCountChanged();
       setSuccess(true);
     } catch (err) {
       if (err instanceof ReservationApiError) {

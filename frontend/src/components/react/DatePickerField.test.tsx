@@ -15,7 +15,7 @@ const septemberDays: MonthCalendarDay[] = [
   {
     date: '2026-09-15',
     schedule: { date: '2026-09-15', schedule_type: 'normal', capacity: 10, is_default: true },
-    reservation: { count: 1, reservedMeals: 3 },
+    reservation: { count: 1, reservedMeals: 3, pendingCount: 0 },
   },
 ];
 

@@ -29,8 +29,11 @@ const days: MonthCalendarDay[] = [
   day('2026-09-15'),
   day('2026-09-16', { schedule_type: 'closed', capacity: 0 }),
   day('2026-09-17', { schedule_type: 'event', capacity: 8, event_name: '夜会', is_default: false }),
-  day('2026-09-18', {}, { count: 2, reservedMeals: 10 }),
-  day('2026-09-19', {}, { count: 1, reservedMeals: 4 }),
+  day('2026-09-18', {}, { count: 2, reservedMeals: 10, pendingCount: 0 }),
+  day('2026-09-19', {}, { count: 1, reservedMeals: 4, pendingCount: 0 }),
+  day('2026-09-20', {}, { count: 1, reservedMeals: 0, pendingCount: 1 }),
+  // 過去日は buildReservationSummaryByDate が pendingCount を 0 にする
+  day('2026-09-05', {}, { count: 1, reservedMeals: 0, pendingCount: 0 }),
 ];
 
 describe('MonthCalendar', () => {
@@ -149,6 +152,36 @@ describe('MonthCalendar', () => {
     expect(getDayCell(19)).toHaveTextContent('1件');
     expect(getDayCell(19)).toHaveTextContent('4/10食');
     expect(getDayCell(16)).not.toHaveTextContent('件');
+  });
+
+  it('reservation variant では未対応がある日のセルに赤点と「未対応あり」を出す', () => {
+    render(
+      <MonthCalendar viewYear={2026} viewMonth={9} onViewChange={() => {}} days={days} variant="reservation" />,
+    );
+
+    const pendingCell = getDayCell(20);
+    expect(within(pendingCell).getByText('未対応あり')).toHaveClass('sr-only');
+    expect(pendingCell.querySelector('.bg-red-600')).toBeInTheDocument();
+    // 件数表示は押し出されない
+    expect(pendingCell).toHaveTextContent('1件');
+
+    // 未対応 0 件の日・過去日（pendingCount 0）・予約のない日には出ない
+    expect(within(getDayCell(19)).queryByText('未対応あり')).not.toBeInTheDocument();
+    expect(within(getDayCell(5)).queryByText('未対応あり')).not.toBeInTheDocument();
+    expect(within(getDayCell(15)).queryByText('未対応あり')).not.toBeInTheDocument();
+  });
+
+  it('schedule / picker variant では未対応マーカーを出さない', () => {
+    const { unmount } = render(
+      <MonthCalendar viewYear={2026} viewMonth={9} onViewChange={() => {}} days={days} variant="schedule" />,
+    );
+    expect(screen.queryByText('未対応あり')).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <MonthCalendar viewYear={2026} viewMonth={9} onViewChange={() => {}} days={days} variant="picker" />,
+    );
+    expect(screen.queryByText('未対応あり')).not.toBeInTheDocument();
   });
 
   it('picker（restrictSelection）では休業日・満席日を選択不可にし、残数を表示する', async () => {

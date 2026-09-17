@@ -170,7 +170,7 @@ satehits/
 | `layouts/BaseLayout.astro` | 顧客向けページの HTML シェル（meta, font, global CSS） |
 | `layouts/AdminLayout.astro` | 管理画面のシェル（ナビ、`localStorage` の `auth_token` チェック、ログアウト） |
 | `types/reservation.ts` | 型定義。フロントとバックが共通で使う型はここに集約 |
-| `lib/*.ts` | API クライアント・カレンダー共通ロジック・表示ラベル（`auth`, `api`, `reservation`, `availability`, `schedule`, `calendarTheme`, `reservationStatusTheme` 等） |
+| `lib/*.ts` | API クライアント・カレンダー共通ロジック・表示ラベル（`auth`, `api`, `reservation`, `availability`, `schedule`, `pendingReservations`, `calendarTheme`, `reservationStatusTheme` 等） |
 | `styles/global.css` | Tailwind v4 `@theme`（カスタムカラー `#43676B`、Noto Serif JP、グラデーション、アニメーション） |
 | `*.test.ts(x)` | テスト。対象と同じディレクトリに置く（`components/react/Foo.test.tsx`、`lib/foo.test.ts`）。コンポーネントは React Testing Library で描画し、`lib/*` の API 層は `vi.mock` で差し替える（方針は `docs/test_design.md`） |
 

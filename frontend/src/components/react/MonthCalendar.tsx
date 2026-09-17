@@ -8,6 +8,8 @@ import { cx } from '@/lib/cx';
 export interface DayReservationSummary {
   count: number;
   reservedMeals: number;
+  /** 未対応（pending）件数。今日以降の日だけ 1 以上になる */
+  pendingCount: number;
 }
 
 export interface MonthCalendarDay {
@@ -145,8 +147,11 @@ export default function MonthCalendar({
                 dayData.reservation.reservedMeals >= schedule.capacity;
               const isDisabled = variant === 'picker' && restrictSelection && (isClosed || isFull);
 
+              // 未対応マーカーは予約一覧のカレンダーのみ。過去日は pendingCount が 0 なので出ない
+              const hasPending = variant === 'reservation' && (dayData?.reservation?.pendingCount ?? 0) > 0;
+
               const cellClass = cx(
-                'flex flex-col items-center rounded-lg transition-colors',
+                'relative flex flex-col items-center rounded-lg transition-colors',
                 compact ? 'py-1 min-h-[52px]' : 'py-2',
                 isSelected && 'ring-2 ring-primary ring-offset-1',
                 isToday && !isDisabled && 'bg-primary/10 hover:bg-primary/15',
@@ -168,6 +173,20 @@ export default function MonthCalendar({
                   style={cellStyle}
                 >
                   <span className={`text-gray-600 ${compact ? 'text-[10px]' : 'text-xs'}`}>{day}</span>
+
+                  {hasPending && (
+                    <>
+                      {/* セル右上の赤点。絶対配置なので件数表示や compact 表示を押し出さない */}
+                      <span
+                        aria-hidden="true"
+                        className={cx(
+                          'absolute w-1.5 h-1.5 rounded-full bg-red-600',
+                          compact ? 'top-0.5 right-0.5' : 'top-1 right-1',
+                        )}
+                      />
+                      <span className="sr-only">未対応あり</span>
+                    </>
+                  )}
 
                   {(variant === 'schedule' || variant === 'reservation' || variant === 'picker') && (
                     <ScheduleTypeBadge type={schedule.schedule_type} compact={compact} />
