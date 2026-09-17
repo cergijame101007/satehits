@@ -476,7 +476,7 @@ paths:
         - 予約管理
       summary: 予約を登録（オーナー用）
       description: |
-        Instagram/電話/知人経由などの予約をオーナーが登録します。
+        Instagram / 電話 / ウォークインなどの予約をオーナーが登録します。
         Webからの予約と異なり、ステータスを指定可能です。
       operationId: createReservationByAdmin
       security:
