@@ -154,7 +154,7 @@ func Recover(next http.Handler) http.Handler
 defer func() {
     p := recover(); if p == nil { return }
     if p == http.ErrAbortHandler { panic(p) }
-    slog.ErrorContext(r.Context(), "panic recovered",
+    slog.Error("panic recovered",   // ErrorContext は使わない（contextcheck が respondWithError 側への ctx 伝播を要求するため。ハンドラは ctx を使わない）
         "panic", fmt.Sprint(p), "method", r.Method, "path", r.URL.Path,
         "stack_trace", string(debug.Stack()))
     if !rec.wroteHeader { respondWithError(w, 500, InternalErrorCode, "サーバー内部でエラーが発生しました", nil) }

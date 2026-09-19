@@ -232,7 +232,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:         port,
-		Handler:      handler.CORS(cfg.CORSOrigins)(http.DefaultServeMux),
+		Handler:      handler.Recover(handler.CORS(cfg.CORSOrigins)(http.DefaultServeMux)),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
