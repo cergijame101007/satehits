@@ -25,6 +25,7 @@ type routingTestHandlers struct {
 	logout            http.HandlerFunc
 	outbox            http.HandlerFunc
 	root              http.HandlerFunc
+	health            http.HandlerFunc
 }
 
 func newRoutingTestHandlers(t *testing.T) routingTestHandlers {
@@ -46,6 +47,7 @@ func newRoutingTestHandlers(t *testing.T) routingTestHandlers {
 		logout:            auth.HandleLogout,
 		outbox:            NewOutboxHandler(dispatcher).HandleFlush,
 		root:              HandleRoot,
+		health:            NewHealthHandler(fakePinger{}).HandleHealth,
 	}
 }
 
@@ -78,6 +80,7 @@ func TestHandlers_MethodNotAllowed(t *testing.T) {
 		{name: "rejects GET on logout", handler: h.logout, method: http.MethodGet, path: testAuthLogoutPath, wantAllow: "POST"},
 		{name: "rejects GET on outbox flush", handler: h.outbox, method: http.MethodGet, path: "/internal/outbox/flush", wantAllow: "POST"},
 		{name: "rejects POST on root", handler: h.root, method: http.MethodPost, path: "/", wantAllow: "GET"},
+		{name: "rejects POST on healthz", handler: h.health, method: http.MethodPost, path: "/healthz", wantAllow: "GET"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

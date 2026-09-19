@@ -199,6 +199,8 @@ func main() {
 
 	// ルーティング（公開 API は /api/v1/...）
 	http.HandleFunc("/", handler.HandleRoot)
+	// 外形監視・CD スモーク用（DB ping 付き。docs/monitoring.md §4.4）
+	http.HandleFunc("/healthz", handler.NewHealthHandler(db).HandleHealth)
 	http.HandleFunc(availabilityPath, availabilityHandler.HandleAvailability)
 	http.HandleFunc(publicSchedulesPath, publicScheduleHandler.HandlePublicSchedules)
 	http.HandleFunc(reservationsPath, reservationHandler.HandleReservations)
