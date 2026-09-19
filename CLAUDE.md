@@ -51,6 +51,9 @@ API・DB・バリデーション・ドメインルール・エラー形式に触
 | レイヤー責務・DI | `docs/architecture.md` |
 | Go テスト | `docs/coding_rule/go_testing.md` |
 | 画面・遷移 | `docs/screen_transition.md` |
+| ログ・監視・`/healthz`・アラート | `docs/monitoring.md` |
+
+**進行中の実装タスク**: 監視（ADR-012）は `docs/IMPLEMENTATION_PLAN.md` のステップを**上から順に 1 つずつ**進める（設計は `docs/monitoring.md`。完了したらこの一文を外す）。
 
 Copilot 等の自動レビュー指摘は**仮説**とする。上表の docs と変更コードの**利用箇所**（handler・usecase・テスト）で確認してから直す。**docs と矛盾する指摘は採用しない**（必要なら docs 更新を先に提案）。戻り値が未使用なら過剰な refactor はしない。docs と実装がずれたら、どちらを正とするか決めてから片方を直す。
 
@@ -653,3 +656,5 @@ cp frontend/.env.example frontend/.env  # Astro が frontend/ 直下から読む
 | [docs/use_case.md](docs/use_case.md) | ユースケース一覧 |
 | [docs/data_flow.md](docs/data_flow.md) | データフロー図 |
 | [docs/holidays.md](docs/holidays.md) | 祝日データの出典・合成ルール・年次更新手順（毎年 2 月頃に `make update-holidays`） |
+| [docs/monitoring.md](docs/monitoring.md) | 監視の実装設計と運用手順（構造化ログ・Recover・`/healthz`・Cloud Monitoring アラート・UptimeRobot。ADR-012） |
+| [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) | 監視の実装計画（ステップ実行型。チェックボックスが進捗） |
