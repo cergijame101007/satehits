@@ -540,7 +540,8 @@ Presentation  →  Application  →  Domain  ←  Infrastructure
 
 | メソッド | パス | 概要 | 実装状況 |
 |---------|------|------|---------|
-| `GET` | `/` | ヘルスチェック | 実装済み |
+| `GET` | `/` | プロセスの応答確認（DB には触らない） | 実装済み |
+| `GET` | `/healthz` | 死活確認（DB ping 付き。外形監視・CD スモーク用） | 実装済み |
 | `POST` | `/api/v1/reservations` | 顧客：予約申請（Turnstile） | 実装済み |
 | `GET` | `/api/v1/reservations/availability` | 日付別・月次空き確認 | 実装済み |
 | `GET` | `/api/v1/schedules` | 顧客：月間スケジュール | 実装済み |
