@@ -268,7 +268,8 @@ jobs:
         run: |
           echo "environment: ${DEPLOY_ENV}"
           echo "public service: ${PUBLIC_URL}"
-          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors "${PUBLIC_URL}/"
+          # /healthz は DB ping 付き（docs/monitoring.md §4.4）。DATABASE_URL の設定ミスもここで検知する
+          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors "${PUBLIC_URL}/healthz"
           echo
           echo "private service: ${PRIVATE_URL} (not called; requires IAM)"
         env:
