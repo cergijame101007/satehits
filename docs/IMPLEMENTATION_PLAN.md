@@ -25,44 +25,44 @@ make lint && make test && make build
 
 ## Step 0: ベースライン確認と要確認事項の仮置き
 
-- [ ] `make lint && make test && make build` が現状の `develop` で通ることを確認する（通らなければ監視の作業に入る前に原因を報告する）
-- [ ] `grep -rn "log\." backend --include=*_test.go` で、テストが `log` パッケージの出力文字列に依存していないことを確認する（依存があれば Step 2 の影響範囲として控える）
-- [ ] 要確認事項（`monitoring.md` §2 末尾）の仮値を決める: 通知先メール = 開発者自身のアドレスで先行。UptimeRobot = 開発者アカウントで先行
+- [x] `make lint && make test && make build` が現状の `develop` で通ることを確認する（通らなければ監視の作業に入る前に原因を報告する）
+- [x] `grep -rn "log\." backend --include=*_test.go` で、テストが `log` パッケージの出力文字列に依存していないことを確認する（依存があれば Step 2 の影響範囲として控える）
+- [x] 要確認事項（`monitoring.md` §2 末尾）の仮値を決める: 通知先メール = 開発者自身のアドレスで先行。UptimeRobot = 開発者アカウントで先行
 - 完了条件: 検証コマンドが通る。上記 grep の結果（依存の有無）を報告に書く
 
 ## Step 1: 構造化ログ基盤 `internal/logging`（D-04 / D-05 / D-06）
 
-- [ ] `backend/internal/logging/logging.go` を作る: `Setup(environment string) *slog.Logger`、`NewCloudLoggingHandler(w io.Writer, opts *slog.HandlerOptions) slog.Handler`（`monitoring.md` §4.1 のキー変換表どおり。`WARN` → `WARNING`、`msg` → `message`、`level` → `severity`、`source` → `logging.googleapis.com/sourceLocation`、`AddSource: true`）
-- [ ] `development` は `slog.NewTextHandler(os.Stdout, ...)`、それ以外は `NewCloudLoggingHandler(os.Stdout, ...)`。どちらも `slog.SetDefault` する
-- [ ] `backend/internal/logging/logging_test.go`: `bytes.Buffer` に書いて `json.Unmarshal` し、(1) `severity=="WARNING"`、(2) `message`、(3) `logging.googleapis.com/sourceLocation` キーの存在、(4) 任意属性がトップレベルに出る、をテーブル駆動で検証（`docs/coding_rule/go_testing.md`）
-- [ ] `backend/cmd/api/main.go`: `cfg := config.Load()` の直後に `logger := logging.Setup(cfg.Environment)` を入れる。既存の `log.Println("Connected to Database!")` 等はそのまま（INFO で slog に流れる）
+- [x] `backend/internal/logging/logging.go` を作る: `Setup(environment string) *slog.Logger`、`NewCloudLoggingHandler(w io.Writer, opts *slog.HandlerOptions) slog.Handler`（`monitoring.md` §4.1 のキー変換表どおり。`WARN` → `WARNING`、`msg` → `message`、`level` → `severity`、`source` → `logging.googleapis.com/sourceLocation`、`AddSource: true`）
+- [x] `development` は `slog.NewTextHandler(os.Stdout, ...)`、それ以外は `NewCloudLoggingHandler(os.Stdout, ...)`。どちらも `slog.SetDefault` する
+- [x] `backend/internal/logging/logging_test.go`: `bytes.Buffer` に書いて `json.Unmarshal` し、(1) `severity=="WARNING"`、(2) `message`、(3) `logging.googleapis.com/sourceLocation` キーの存在、(4) 任意属性がトップレベルに出る、をテーブル駆動で検証（`docs/coding_rule/go_testing.md`）
+- [x] `backend/cmd/api/main.go`: `cfg := config.Load()` の直後に `logger := logging.Setup(cfg.Environment)` を入れる。既存の `log.Println("Connected to Database!")` 等はそのまま（INFO で slog に流れる）
 - 完了条件: 検証コマンドが通る。`cd backend && ENVIRONMENT=staging JWT_SECRET=$(head -c 48 /dev/zero | tr '\0' x) CORS_ORIGINS=http://localhost DATABASE_URL=postgres://invalid TURNSTILE_SECRET_KEY=x go run ./cmd/api 2>&1 | head -3` の出力が JSON で、`"severity"` と `"message"` キーを含む（DB 接続失敗で終了してよい。**このコマンドの環境変数はダミー値であり、`.env` は読まない**）
 
 ## Step 2: 既存ログ呼び出しのレベル付け（D-05、§4.2 の表）
 
-- [ ] `monitoring.md` §4.2 の表の全行を、表のとおり `slog.Error` / `slog.Warn` に書き換える（表にない行は触らない。メッセージ・属性キーも表に合わせる）
-- [ ] `backend/internal/handler/outbox.go` の `HandleFlush` の 500 分岐に `slog.Error("outbox flush failed", "err", err)` を追加する
-- [ ] `backend/cmd/api/main.go` の `log.Fatalf` 3 箇所を `slog.Error(...)` + `os.Exit(1)` にする（`config.Load` 内の `log.Fatal` は変えない。D-14）
-- [ ] 書き換えたファイルから未使用になった `"log"` import を外す（`goimports` が指摘する）
-- [ ] `mail/dispatcher_test.go` 等、ログ文言に依存するテストがあれば（Step 0 の grep 結果）新しいメッセージに合わせる
+- [x] `monitoring.md` §4.2 の表の全行を、表のとおり `slog.Error` / `slog.Warn` に書き換える（表にない行は触らない。メッセージ・属性キーも表に合わせる）
+- [x] `backend/internal/handler/outbox.go` の `HandleFlush` の 500 分岐に `slog.Error("outbox flush failed", "err", err)` を追加する
+- [x] `backend/cmd/api/main.go` の `log.Fatalf` 3 箇所を `slog.Error(...)` + `os.Exit(1)` にする（`config.Load` 内の `log.Fatal` は変えない。D-14）
+- [x] 書き換えたファイルから未使用になった `"log"` import を外す（`goimports` が指摘する）
+- [x] `mail/dispatcher_test.go` 等、ログ文言に依存するテストがあれば（Step 0 の grep 結果）新しいメッセージに合わせる
 - 完了条件: 検証コマンドが通る。`grep -rn 'log\.Printf("ERROR\|log\.Printf("WARN' backend/internal backend/cmd/api` が 0 件。`grep -rn "slog\.Error" backend/internal/handler | wc -l` が 11 以上（表の handler 行 10 + outbox 1）
 
 ## Step 3: Recover ミドルウェア（D-07、§4.3）
 
-- [ ] `backend/internal/handler/recover.go`: `Recover(next http.Handler) http.Handler` と、`WriteHeader` / `Write` 済みを記録する最小の `ResponseWriter` ラッパー。`http.ErrAbortHandler` は再 panic。ERROR ログは `"panic"`, `"method"`, `"path"`, `"stack_trace"` 属性
-- [ ] `backend/internal/handler/recover_test.go`: §4.3 の 4 ケース（500 JSON / ErrAbortHandler 再 panic / 素通し / ヘッダ送信後は WriteHeader しない）。既存 `middleware_test.go` の `recordingHandler` の流儀に合わせる
-- [ ] `backend/cmd/api/main.go` の `srv.Handler` を `handler.Recover(handler.CORS(cfg.CORSOrigins)(http.DefaultServeMux))` にする
+- [x] `backend/internal/handler/recover.go`: `Recover(next http.Handler) http.Handler` と、`WriteHeader` / `Write` 済みを記録する最小の `ResponseWriter` ラッパー。`http.ErrAbortHandler` は再 panic。ERROR ログは `"panic"`, `"method"`, `"path"`, `"stack_trace"` 属性
+- [x] `backend/internal/handler/recover_test.go`: §4.3 の 4 ケース（500 JSON / ErrAbortHandler 再 panic / 素通し / ヘッダ送信後は WriteHeader しない）。既存 `middleware_test.go` の `recordingHandler` の流儀に合わせる
+- [x] `backend/cmd/api/main.go` の `srv.Handler` を `handler.Recover(handler.CORS(cfg.CORSOrigins)(http.DefaultServeMux))` にする
 - 完了条件: 検証コマンドが通る。`go test ./internal/handler/ -run TestRecover -v` でサブテスト 4 件が PASS
 
 ## Step 4: `GET /healthz`（D-08 / D-09 / D-15、§4.4 / §4.5）
 
-- [ ] `backend/internal/handler/health.go`: `Pinger` インターフェース、`NewHealthHandler(db Pinger)`、`HandleHealth`（2 秒タイムアウト、200 `{"status":"ok","database":"ok"}` / 503 `{"status":"error","database":"error"}` + `slog.Warn`、405、`Cache-Control: no-store`）
-- [ ] `backend/internal/handler/health_test.go`: フェイク `Pinger` で 200 / 503 / タイムアウト時 503 / 405
-- [ ] `backend/internal/handler/method_not_allowed_test.go` の対象一覧に `/healthz` を追加
-- [ ] `backend/cmd/api/main.go`: `http.HandleFunc("/healthz", handler.NewHealthHandler(db).HandleHealth)` を `HandleRoot` の登録の直後に追加
-- [ ] `.github/workflows/deploy-backend.yml` のスモークテストの `curl` 先を `${PUBLIC_URL}/healthz` に変更
-- [ ] `docs/api_design.md` §2 に「運用向け（認証不要）」の小表を追加し `GET /healthz` を載せる（`POST /internal/outbox/flush` の記述位置に合わせる。openapi.yaml には載せない）
-- [ ] `CLAUDE.md` §6 のエンドポイント表に `GET /healthz` を追加
+- [x] `backend/internal/handler/health.go`: `Pinger` インターフェース、`NewHealthHandler(db Pinger)`、`HandleHealth`（2 秒タイムアウト、200 `{"status":"ok","database":"ok"}` / 503 `{"status":"error","database":"error"}` + `slog.Warn`、405、`Cache-Control: no-store`）
+- [x] `backend/internal/handler/health_test.go`: フェイク `Pinger` で 200 / 503 / タイムアウト時 503 / 405
+- [x] `backend/internal/handler/method_not_allowed_test.go` の対象一覧に `/healthz` を追加
+- [x] `backend/cmd/api/main.go`: `http.HandleFunc("/healthz", handler.NewHealthHandler(db).HandleHealth)` を `HandleRoot` の登録の直後に追加
+- [x] `.github/workflows/deploy-backend.yml` のスモークテストの `curl` 先を `${PUBLIC_URL}/healthz` に変更
+- [x] `docs/api_design.md` §2 に「運用向け（認証不要）」の小表を追加し `GET /healthz` を載せる（`POST /internal/outbox/flush` の記述位置に合わせる。openapi.yaml には載せない）
+- [x] `CLAUDE.md` §6 のエンドポイント表に `GET /healthz` を追加
 - 完了条件: 検証コマンドが通る。`make dev` で起動した API に `curl -si localhost:8080/healthz` が `200` と `{"status":"ok","database":"ok"}` を返す（実行した curl の結果を報告に書く。Docker が使えない環境なら「未確認」と明記する）
 
 ## Step 5: staging デプロイで構造化ログを確認
