@@ -3,7 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"mime"
 	"net/http"
 	"strconv"
@@ -111,7 +111,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 			respondWithError(w, http.StatusUnauthorized, UnauthorizedCode, "メールアドレスまたはパスワードが正しくありません", nil)
 			return
 		}
-		log.Printf("Login failed: %v", err)
+		slog.Error("login failed", "err", err)
 		respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
 		return
 	}
@@ -151,7 +151,7 @@ func (h *AuthHandler) HandleRefresh(w http.ResponseWriter, r *http.Request) {
 			respondWithError(w, http.StatusUnauthorized, InvalidTokenCode, "セッションが無効です。再度ログインしてください", nil)
 			return
 		}
-		log.Printf("Refresh failed: %v", err)
+		slog.Error("refresh failed", "err", err)
 		respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
 		return
 	}
@@ -180,7 +180,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.logout.Execute(r.Context(), authusecase.LogoutCommand{RefreshToken: refreshTokenValue}); err != nil {
-		log.Printf("Logout failed: %v", err)
+		slog.Error("logout failed", "err", err)
 		respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
 		return
 	}

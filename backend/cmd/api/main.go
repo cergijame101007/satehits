@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -51,19 +52,20 @@ func main() {
 	// 鮮度チェック: 翌年分は例年 2 月頃公開なので 3 月以降に警告 → make update-holidays（docs/holidays.md）
 	holidays := holiday.Embedded()
 	if holidays.NeedsUpdate(time.Now()) {
-		log.Printf("WARNING: bundled holiday data ends at %d; run `make update-holidays` to bundle next year's holidays (docs/holidays.md)", holidays.LastYear())
+		slog.Warn("bundled holiday data needs update",
+			"last_year", holidays.LastYear(), "hint", "make update-holidays (docs/holidays.md)")
 	}
 
 	// DB接続を開く
 	db, err := sql.Open("pgx", cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("Unable to parse DB URL: %v", err)
+		fatal("parse database url failed", err)
 	}
 	defer db.Close()
 
 	// 実際に接続確認 (Ping)
 	if err := db.Ping(); err != nil {
-		log.Fatalf("Unable to connect to database: %v", err)
+		fatal("connect to database failed", err)
 	}
 	log.Println("Connected to Database!")
 
@@ -239,8 +241,15 @@ func main() {
 	go listenForShutdown(srv)
 
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("Server failed to start: %v", err)
+		fatal("server failed to start", err)
 	}
+}
+
+// fatal は起動を続けられないエラーを ERROR で記録して終了する。
+// log.Fatalf は slog 経由だと INFO になりアラートに乗らないため使わない（docs/monitoring.md §4.2）
+func fatal(msg string, err error) {
+	slog.Error(msg, "err", err)
+	os.Exit(1)
 }
 
 func listenForShutdown(srv *http.Server) {
@@ -251,6 +260,6 @@ func listenForShutdown(srv *http.Server) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Printf("Server shutdown error: %v", err)
+		slog.Warn("server shutdown error", "err", err)
 	}
 }

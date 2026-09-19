@@ -2,7 +2,7 @@ package handler
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -151,7 +151,7 @@ func writeAvailabilityUsecaseError(w http.ResponseWriter, err error, failLog str
 		respondWithError(w, http.StatusBadRequest, ValidationErrorCode, "入力内容に誤りがあります", details)
 		return true
 	}
-	log.Printf("%s: %v", failLog, err)
+	slog.Error(failLog, "err", err)
 	respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
 	return true
 }

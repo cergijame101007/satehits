@@ -3,7 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -178,7 +178,7 @@ func (u *CreateReservationUseCase) createAndEnqueue(
 // ignoreAlreadyEnqueued は防御的 UNIQUE 衝突を警告ログにして継続する（Tx は生きたまま）
 func ignoreAlreadyEnqueued(err error, reservationID interface{}, mailType string) error {
 	if errors.Is(err, domain.ErrMailAlreadyEnqueued) {
-		log.Printf("WARN: mail already enqueued (unexpected duplicate): reservation_id=%v mail_type=%s", reservationID, mailType)
+		slog.Warn("mail already enqueued", "reservation_id", reservationID, "mail_type", mailType)
 		return nil
 	}
 	return err

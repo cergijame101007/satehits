@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"log/slog"
 	"mime"
 	"net/http"
 
@@ -109,7 +110,7 @@ func (h *ReservationHandler) handleCreate(w http.ResponseWriter, r *http.Request
 			respondWithError(w, http.StatusConflict, CapacityExceededCode, "この日の予約可能数を超えています", nil)
 			return
 		}
-		log.Printf("Failed to create reservation: %v", err)
+		slog.Error("create reservation failed", "err", err)
 		respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
 		return
 	}

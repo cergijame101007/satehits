@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 
 	"github.com/google/uuid"
 
@@ -76,7 +76,7 @@ func (u *UploadImageUseCase) Execute(ctx context.Context, cmd UploadImageCommand
 	if current.ImageURL != nil && *current.ImageURL != publicURL {
 		if oldKey := u.storage.KeyFromURL(*current.ImageURL); oldKey != "" {
 			if delErr := u.storage.Delete(ctx, oldKey); delErr != nil {
-				log.Printf("failed to delete old supplier image: key=%s err=%v", oldKey, delErr)
+				slog.Warn("delete old supplier image failed", "key", oldKey, "err", delErr)
 			}
 		}
 	}
