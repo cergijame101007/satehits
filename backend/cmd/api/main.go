@@ -25,6 +25,7 @@ import (
 	"github.com/cergijame101007/satehits/internal/infrastructure/external/storage"
 	"github.com/cergijame101007/satehits/internal/infrastructure/external/turnstile"
 	inframail "github.com/cergijame101007/satehits/internal/infrastructure/mail"
+	"github.com/cergijame101007/satehits/internal/logging"
 	"github.com/cergijame101007/satehits/internal/repository"
 	"github.com/cergijame101007/satehits/pkg/config"
 	"github.com/cergijame101007/satehits/pkg/jwt"
@@ -42,6 +43,9 @@ func main() {
 	}
 
 	cfg := config.Load()
+
+	// 構造化ログ（docs/monitoring.md §4.1）。以後の log.Printf も INFO としてここへ流れる
+	logging.Setup(cfg.Environment)
 
 	// 同梱の祝日データ（内閣府 CSV）。店舗定例の合成（StoreCalendar）に注入する
 	// 鮮度チェック: 翌年分は例年 2 月頃公開なので 3 月以降に警告 → make update-holidays（docs/holidays.md）
