@@ -1,5 +1,7 @@
 ---
+import { getImage } from 'astro:assets';
 import '../styles/global.css';
+import heroImage from '../assets/images/top-view-high.jpg';
 
 interface Props {
   title: string;
@@ -7,6 +9,9 @@ interface Props {
 }
 
 const { title, description = 'さて、羊に戻るとしよう - 和紅茶とお野菜と富山湾の幸' } = Astro.props;
+
+// OGP 用に原寸 (約 4MB) ではなく縮小した JPEG を出す
+const ogImage = await getImage({ src: heroImage, width: 1200, format: 'jpg' });
 ---
 
 <!doctype html>
@@ -22,7 +27,7 @@ const { title, description = 'さて、羊に戻るとしよう - 和紅茶と�
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/images/top-view-high.jpg" />
+    <meta property="og:image" content={ogImage.src} />
     
     <title>{title}</title>
   </head>
