@@ -66,6 +66,7 @@ func (h *ReservationHandler) HandleReservations(w http.ResponseWriter, r *http.R
 func (h *ReservationHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != mediaTypeJSON {
+		slog.Info("reservation request malformed", "reason", "content_type")
 		respondWithError(w, http.StatusBadRequest, InvalidRequestCode, "リクエスト形式が不正です", nil)
 		return
 	}
@@ -74,6 +75,7 @@ func (h *ReservationHandler) handleCreate(w http.ResponseWriter, r *http.Request
 
 	var request ReservationRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		slog.Info("reservation request malformed", "reason", "decode")
 		respondWithError(w, http.StatusBadRequest, InvalidRequestCode, "リクエスト形式が不正です", nil)
 		return
 	}
@@ -95,6 +97,7 @@ func (h *ReservationHandler) handleCreate(w http.ResponseWriter, r *http.Request
 			for i, v := range vErr.Violations {
 				details[i] = ErrorDetail{Field: v.Field, Message: v.Message}
 			}
+			logReservationValidationFailure(details)
 			respondWithError(w, http.StatusBadRequest, ValidationErrorCode, "入力内容に誤りがあります", details)
 			return
 		}
@@ -120,4 +123,14 @@ func (h *ReservationHandler) handleCreate(w http.ResponseWriter, r *http.Request
 		created.People, created.VisitDate, created.VisitTime, created.Status, created.Source)
 
 	respondWithJSON(w, http.StatusCreated, created)
+}
+
+// logReservationValidationFailure は予約申請の入力エラーを違反フィールド名だけで記録する（値は個人情報を含むため出さない）
+// 同じフィールドの違反が偏っていたらフロントとバックの検証ルールのずれを疑う（docs/monitoring.md §4.6 L3）
+func logReservationValidationFailure(details []ErrorDetail) {
+	fields := make([]string, 0, len(details))
+	for _, d := range details {
+		fields = append(fields, d.Field)
+	}
+	slog.Info("reservation validation failed", "fields", fields)
 }
