@@ -45,7 +45,7 @@
 
 | メソッド | パス | 説明 |
 |----------|------|------|
-| GET | `/` | プロセスの応答確認（DB には触らない） |
+| GET | `/` | プロセスの応答確認（DB には触らない）。200 `{"message":"satehits API is running","status":"ok"}` |
 | GET | `/healthz` | 死活確認（DB ping 付き）。外形監視と CD のスモークテストが使う。詳細は §5「GET /healthz」 |
 | POST | `/internal/outbox/flush` | Outbox 送信処理（private サービスのみ。Cloud Run IAM で保護）。詳細は §5 |
 

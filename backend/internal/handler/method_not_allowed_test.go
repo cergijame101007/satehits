@@ -145,7 +145,7 @@ func TestHandleRoot(t *testing.T) {
 		if got := rec.Header().Get("Content-Type"); got != mediaTypeJSON {
 			t.Fatalf("Content-Type = %q, want %q", got, mediaTypeJSON)
 		}
-		if got, want := rec.Body.String(), `{"message":"Welcome to the Go API","status":"success"}`; got != want {
+		if got, want := rec.Body.String(), `{"message":"satehits API is running","status":"ok"}`; got != want {
 			t.Fatalf("body = %s, want %s", got, want)
 		}
 	})
