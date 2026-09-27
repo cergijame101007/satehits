@@ -175,7 +175,7 @@ Settings → Environments → New environment で `staging` と `production` を
 
 - `Resolve target environment` step のログに `target: staging (services: satehits-api-stg / ...)` と出ていること
 - `Run migrations` step が成功していること（Cloud Run Job `satehits-migrate-stg` の実行ログは Cloud Console → Cloud Run → Jobs）
-- `Smoke test` step が `{"message":"Welcome to the Go API","status":"success"}` を出力していること
+- `Smoke test` step が `GET /healthz` の `{"status":"ok","database":"ok"}` を出力していること（DB に接続できないと 503 で step が失敗する）
 - 公開サービスの URL は `Deploy public service` step の `url` 出力（ログに出る）
 
 staging で問題なければ `develop` → `main` の PR をマージして **production** へ。`production` に Required reviewers を付けていれば Actions 画面で承認する。
