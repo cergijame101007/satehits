@@ -15,6 +15,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
+// objectCacheControl は保存するオブジェクトの Cache-Control。
+// キーは `suppliers/{id}/{uuid}.{ext}` で差し替え時に UUID ごと変わり URL が変わるため、
+// immutable にして CDN / ブラウザの長期キャッシュを効かせる（docs/infrastructure.md STORAGE 節）。
+const objectCacheControl = "public, max-age=31536000, immutable"
+
 // Config は S3 互換ストレージの接続設定
 type Config struct {
 	Endpoint      string // S3 互換エンドポイント（R2 / MinIO）
@@ -64,6 +69,7 @@ func (s *S3Storage) Save(ctx context.Context, key, contentType string, r io.Read
 		Body:          bytes.NewReader(body),
 		ContentType:   aws.String(contentType),
 		ContentLength: aws.Int64(int64(len(body))),
+		CacheControl:  aws.String(objectCacheControl),
 	})
 	if err != nil {
 		return "", fmt.Errorf("put object: %w", err)
