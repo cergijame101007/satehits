@@ -274,6 +274,8 @@ Go は `1.24`、bun は `oven-sh/setup-bun` の latest を使う。
 
 `STORAGE_*` が未設定の場合、画像アップロード API は無効（NoOp ストレージ）。取引先 CRUD は DB の `image_url` 文字列のみで動作可能。
 
+保存時は `Cache-Control: public, max-age=31536000, immutable` を付与する。キーは差し替え時に UUID ごと変わり URL が変わるため immutable にしても安全で、R2 をカスタムドメインで配信する際に CDN / ブラウザの長期キャッシュが効く。
+
 > **運用**: 画像は公開配信される。非公開取引先の `image_url` を直接知られてもページ上は非表示だが、URL 自体はアクセス可能。機微情報を画像に載せないこと。
 
 ## 7. セキュリティ
