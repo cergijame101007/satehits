@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -62,6 +63,10 @@ func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 				// ログイン 429 の待ち秒数をブラウザの JS から読めるようにする
 				w.Header().Set("Access-Control-Expose-Headers", "Retry-After")
 				w.Header().Add("Vary", "Origin")
+			} else if origin != "" {
+				// サーバーは普通に応答し、ブラウザ側で止まるためログが無いと気づけない。
+				// 大量に出ていたら CORS_ORIGINS の設定ミスを疑う（docs/monitoring.md §4.6 L2）
+				slog.Warn("cors origin rejected", "origin", origin, "method", r.Method, "path", r.URL.Path)
 			}
 
 			if r.Method == http.MethodOptions {
@@ -82,6 +87,8 @@ func checkOrigin(w http.ResponseWriter, r *http.Request, allowedOrigins []string
 		return true
 	}
 
+	// Cookie ドメインや許可リストの設定ミスで管理者のセッションが切れる原因になるため記録する（§4.6 L6）
+	slog.Warn("origin check rejected", "origin", origin, "path", r.URL.Path)
 	respondWithError(w, http.StatusForbidden, ForbiddenCode, "リクエストが拒否されました", nil)
 	return false
 }

@@ -271,11 +271,17 @@ func TestCheckOrigin(t *testing.T) {
 				req.Header.Set("Referer", tt.referer)
 			}
 			rec := httptest.NewRecorder()
+			logBuf := captureLog(t)
 
 			got := checkOrigin(rec, req, allowed)
 
 			if got != tt.wantOK {
 				t.Fatalf("checkOrigin() = %v, want %v", got, tt.wantOK)
+			}
+			// docs/monitoring.md §4.6 L6: 拒否したときだけ WARN を残す
+			logged := strings.Contains(logBuf.String(), "origin check rejected")
+			if logged == tt.wantOK {
+				t.Fatalf("origin check log written = %v, want %v: %s", logged, !tt.wantOK, logBuf.String())
 			}
 			if tt.wantOK {
 				if rec.Code != http.StatusOK || rec.Body.Len() != 0 {
@@ -306,13 +312,14 @@ func TestCORS(t *testing.T) {
 		wantHeaders bool
 		wantStatus  int
 		wantNext    bool
+		wantLog     bool
 	}{
 		{name: "echoes listed Origin with credentials", method: http.MethodGet, origin: testAuthOrigin, allowed: allowed, wantHeaders: true, wantStatus: http.StatusOK, wantNext: true},
-		{name: "adds no CORS headers for unlisted Origin", method: http.MethodGet, origin: "https://evil.example", allowed: allowed, wantHeaders: false, wantStatus: http.StatusOK, wantNext: true},
+		{name: "adds no CORS headers for unlisted Origin", method: http.MethodGet, origin: "https://evil.example", allowed: allowed, wantHeaders: false, wantStatus: http.StatusOK, wantNext: true, wantLog: true},
 		{name: "adds no CORS headers without Origin", method: http.MethodGet, origin: "", allowed: allowed, wantHeaders: false, wantStatus: http.StatusOK, wantNext: true},
 		{name: "answers preflight with 204 without calling next", method: http.MethodOptions, origin: testAuthOrigin, allowed: allowed, wantHeaders: true, wantStatus: http.StatusNoContent, wantNext: false},
-		{name: "answers preflight from unlisted Origin with 204 and no CORS headers", method: http.MethodOptions, origin: "https://evil.example", allowed: allowed, wantHeaders: false, wantStatus: http.StatusNoContent, wantNext: false},
-		{name: "does not treat wildcard entry as a match", method: http.MethodGet, origin: "https://evil.example", allowed: []string{"*"}, wantHeaders: false, wantStatus: http.StatusOK, wantNext: true},
+		{name: "answers preflight from unlisted Origin with 204 and no CORS headers", method: http.MethodOptions, origin: "https://evil.example", allowed: allowed, wantHeaders: false, wantStatus: http.StatusNoContent, wantNext: false, wantLog: true},
+		{name: "does not treat wildcard entry as a match", method: http.MethodGet, origin: "https://evil.example", allowed: []string{"*"}, wantHeaders: false, wantStatus: http.StatusOK, wantNext: true, wantLog: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -322,8 +329,14 @@ func TestCORS(t *testing.T) {
 				req.Header.Set("Origin", tt.origin)
 			}
 			rec := httptest.NewRecorder()
+			logBuf := captureLog(t)
 
 			CORS(tt.allowed)(next).ServeHTTP(rec, req)
+
+			// docs/monitoring.md §4.6 L2: Origin 付きで許可リストに無いときだけ WARN を残す
+			if logged := strings.Contains(logBuf.String(), "cors origin rejected"); logged != tt.wantLog {
+				t.Fatalf("cors log written = %v, want %v: %s", logged, tt.wantLog, logBuf.String())
+			}
 
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d", rec.Code, tt.wantStatus)
