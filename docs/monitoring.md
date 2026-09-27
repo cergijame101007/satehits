@@ -196,6 +196,27 @@ func (h *HealthHandler) HandleHealth(w http.ResponseWriter, r *http.Request)
 
 `.github/workflows/deploy-backend.yml` の `Smoke test (public service)` step の `curl` 先を `${PUBLIC_URL}/healthz` に変える。private 側は従来どおり呼ばない。
 
+### 4.6 4xx だが運用上記録するもの（黙って失敗する経路）
+
+4xx は原則ログ不要（§8）だが、次の 6 経路は「利用者には 4xx が返るのに原因が設定ミスや攻撃で、ログが無いと誰も気づけない」ため記録する。**レスポンス（ステータス・ボディ）は変えない**。値に個人情報を含めない（メールは `privacy.MaskEmail`、入力値は記録せずフィールド名だけ）。
+
+| # | 箇所 | 条件 | レベル | message | 属性 |
+|---|------|------|--------|---------|------|
+| L1 | `turnstile/verifier.go` | トークンが `dev-bypass`（検証器は development 以外でしか使わないので、フロントのサイトキー未設定を意味する） | ERROR | `turnstile dev-bypass token received` | なし |
+| L1 | 同上 | siteverify が `success=false` で、error-codes に `missing-input-secret` / `invalid-input-secret` / `bad-request` を含む（こちらの設定・実装起因） | ERROR | `turnstile verification misconfigured` | `error_codes` |
+| L1 | 同上 | error-codes に `internal-error` を含む（Cloudflare 側の障害） | WARN | `turnstile verification unavailable` | `error_codes` |
+| L1 | 同上 | それ以外の `success=false`（期限切れ・再利用・不正トークン。利用者・bot 起因） | INFO | `turnstile verification rejected` | `error_codes` |
+| L2 | `handler/middleware.go` `CORS` | `Origin` ヘッダがあり許可リストに無い（preflight を含む） | WARN | `cors origin rejected` | `origin`, `method`, `path` |
+| L3 | `handler/reservation.go` | 予約申請の `VALIDATION_ERROR`（400） | INFO | `reservation validation failed` | `fields`（違反フィールド名の配列。値は出さない） |
+| L3 | 同上 | 予約申請の `INVALID_REQUEST`（Content-Type 不正・JSON 不正） | INFO | `reservation request malformed` | `reason`（`content_type` / `decode`） |
+| L4 | `usecase/auth/refresh.go` | 失効済み RT の再利用を検知して全 RT を失効（事前検知・ローテーション競合の 2 箇所） | WARN | `refresh token reuse detected` | `admin_user_id`, `stage`（`lookup` / `rotate`） |
+| L5 | `handler/auth.go` ログイン | レートリミット超過（429） | WARN | `login rate limited` | `email`（マスク済み）, `client_ip`, `retry_after_seconds` |
+| L6 | `handler/middleware.go` `checkOrigin` | refresh / logout の Origin / Referer 検査で拒否（403） | WARN | `origin check rejected` | `origin`（空なら `""`）, `path` |
+
+- L1 の ERROR だけが P1 のメール対象。Turnstile の秘密鍵誤りやフロントのサイトキー漏れは「全員の予約申請が 400 になる」ため即時に知る必要がある
+- L2 / L4 / L5 / L6 は WARN。Cloud Logging で `severity=WARNING` を検索して定期的に見る（メールにはしない）。L2 が大量に出ていたら `CORS_ORIGINS` の設定ミスを疑う
+- L3 は INFO。同じフィールドの違反が偏っていたらフロントとバックの検証ルールのずれを疑う（`jsonPayload.message="reservation validation failed"` で検索し `jsonPayload.fields` を集計）
+
 ---
 
 ## 5. A: Cloud Monitoring の設定

@@ -65,6 +65,15 @@ make lint && make test && make build
 - [x] `CLAUDE.md` §6 のエンドポイント表に `GET /healthz` を追加
 - 完了条件: 検証コマンドが通る。`make dev` で起動した API に `curl -si localhost:8080/healthz` が `200` と `{"status":"ok","database":"ok"}` を返す（実行した curl の結果を報告に書く。Docker が使えない環境なら「未確認」と明記する）
 
+## Step 4.5: 黙って失敗する 4xx 経路のログ（`monitoring.md` §4.6）
+
+- [x] L1: Turnstile の `dev-bypass` と error-codes をレベル分けして記録（`turnstile/verifier_test.go` を新設し、分類と戻り値を検証）
+- [x] L2 / L6: `CORS` と `checkOrigin` の拒否を WARN で記録（`middleware_test.go` にログの有無を追加）
+- [x] L3: 予約申請の 400（VALIDATION_ERROR / INVALID_REQUEST）をフィールド名・理由だけ INFO で記録
+- [x] L4: RT 再利用検知を WARN で記録（`refresh_test.go` にログの有無を追加）
+- [x] L5: ログインの 429 を WARN で記録（メールはマスク。既存の秘密情報非出力テストが通ること）
+- 完了条件: 検証コマンドが通る。レスポンスのステータス・ボディが変わっていない（既存テストが無変更で通る）
+
 ## Step 5: staging デプロイで構造化ログを確認
 
 - [ ] Step 1〜4 を `develop` に push（ユーザーの指示があってから）し、`Backend Deploy (staging)` が成功することを確認する（スモークが `/healthz` で通る）
