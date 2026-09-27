@@ -202,7 +202,7 @@ func (h *HealthHandler) HandleHealth(w http.ResponseWriter, r *http.Request)
 
 | # | 箇所 | 条件 | レベル | message | 属性 |
 |---|------|------|--------|---------|------|
-| L1 | `turnstile/verifier.go` | トークンが `dev-bypass`（検証器は development 以外でしか使わないので、フロントのサイトキー未設定を意味する） | ERROR | `turnstile dev-bypass token received` | なし |
+| L1 | `turnstile/verifier.go` | トークンが `dev-bypass`（本番ビルドのフロントはサイトキー未設定なら送信自体を止めるため、届くのはローカル開発から staging を叩いたときか外部で作られたリクエスト。誰でも送れる値なので ERROR にしない） | WARN | `turnstile dev-bypass token received` | なし |
 | L1 | 同上 | siteverify が `success=false` で、error-codes に `missing-input-secret` / `invalid-input-secret` / `bad-request` を含む（こちらの設定・実装起因） | ERROR | `turnstile verification misconfigured` | `error_codes` |
 | L1 | 同上 | error-codes に `internal-error` を含む（Cloudflare 側の障害） | WARN | `turnstile verification unavailable` | `error_codes` |
 | L1 | 同上 | それ以外の `success=false`（期限切れ・再利用・不正トークン。利用者・bot 起因） | INFO | `turnstile verification rejected` | `error_codes` |
@@ -213,7 +213,8 @@ func (h *HealthHandler) HandleHealth(w http.ResponseWriter, r *http.Request)
 | L5 | `handler/auth.go` ログイン | レートリミット超過（429） | WARN | `login rate limited` | `email`（マスク済み）, `client_ip`, `retry_after_seconds` |
 | L6 | `handler/middleware.go` `checkOrigin` | refresh / logout の Origin / Referer 検査で拒否（403） | WARN | `origin check rejected` | `origin`（空なら `""`）, `path` |
 
-- L1 の ERROR だけが P1 のメール対象。Turnstile の秘密鍵誤りやフロントのサイトキー漏れは「全員の予約申請が 400 になる」ため即時に知る必要がある
+- L1 の ERROR（秘密鍵・リクエスト形式の誤り）だけが P1 のメール対象。秘密鍵の誤りは「全員の予約申請が 400 になる」ため即時に知る必要がある。どちらも外部からは起こせない（秘密鍵とリクエスト形式はこちらが持つ）
+- **フロントのビルドにサイトキーが入っていない場合はバックエンドに何も届かない**（フォームが送信を止める）。これはサーバーのログでは検知できないため、フロントのビルド時に検出する必要がある（未対応。§9）
 - L2 / L4 / L5 / L6 は WARN。Cloud Logging で `severity=WARNING` を検索して定期的に見る（メールにはしない）。L2 が大量に出ていたら `CORS_ORIGINS` の設定ミスを疑う
 - L3 は INFO。同じフィールドの違反が偏っていたらフロントとバックの検証ルールのずれを疑う（`jsonPayload.message="reservation validation failed"` で検索し `jsonPayload.fields` を集計）
 
@@ -375,6 +376,7 @@ UptimeRobot Free（50 モニター・5 分間隔・メール通知）。IaC 化�
 
 | 条件 | 見直すこと |
 |------|------------|
+| （未対応・早めに） | 本番ビルドで `PUBLIC_TURNSTILE_SITE_KEY` が空なら `bun run build` を失敗させる。現状はフォームが送信を止めて画面に注意文を出すだけで、サーバーにもアラートにも何も残らない |
 | P1 のメールだけでは原因追跡に時間がかかる（同じエラーの頻度・初出が分からない）ことが 2 回続いた | Sentry（Go SDK）の導入。`BeforeSend` で PII をマスクし、ADR-013 と整合させる |
 | 5 分間隔の外形監視では検知が遅いと感じた | Better Stack Free（3 分間隔）へ乗り換え、またはステータスページが必要になった時点で乗り換え |
 | フロントで再現困難な JS エラーが報告された | Sentry のブラウザ SDK（`PublicScheduleCalendar` / `ReservationForm` の Island だけ） |

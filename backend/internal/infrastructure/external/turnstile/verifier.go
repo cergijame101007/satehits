@@ -54,8 +54,10 @@ func (v *Verifier) Verify(ctx context.Context, token string) error {
 		return domain.ErrCaptchaFailed
 	}
 	if token == devBypassToken {
-		// この検証器は development 以外でしか使わないため、フロントのビルドにサイトキーが入っていない
-		slog.Error("turnstile dev-bypass token received")
+		// この検証器は development 以外でしか使わない。本番ビルドのフロントはサイトキー未設定なら送信自体を止めるため、
+		// ここに来るのはローカル開発から staging を叩いたときか、外部で作られたリクエスト。
+		// 誰でも送れる値なので ERROR（メール通知）にはしない
+		slog.Warn("turnstile dev-bypass token received")
 		return domain.ErrCaptchaFailed
 	}
 

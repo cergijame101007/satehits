@@ -93,12 +93,12 @@ func TestVerifier_Verify(t *testing.T) {
 			wantNoLog: true,
 		},
 		{
-			name:      "logs an error for the dev-bypass token without calling siteverify",
+			name:      "logs a warning for the dev-bypass token without calling siteverify",
 			token:     "dev-bypass",
 			wantErr:   domain.ErrCaptchaFailed,
 			wantCalls: 0,
 			wantLog:   "turnstile dev-bypass token received",
-			wantLevel: "ERROR",
+			wantLevel: "WARN",
 		},
 		{
 			name:      "logs an error when the secret is invalid",
