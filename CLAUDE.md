@@ -88,10 +88,12 @@ satehits/
 │   │   ├── favicon.svg                         # ファビコン（SVG）
 │   │   ├── robots.txt                          # クローラ設定
 │   │   └── images/
-│   │       ├── top-icon.svg                    # ロゴアイコン
-│   │       └── top-view-high.jpg               # ヒーロー画像
+│   │       └── top-icon.svg                    # ロゴアイコン
 │   └── src/
 │       ├── env.d.ts                            # Astro クライアント型の参照
+│       ├── assets/                             # astro:assets でビルド時に最適化する画像
+│       │   └── images/
+│       │       └── top-view-high.jpg           # ヒーロー画像（<Picture> で AVIF / WebP・複数幅に変換。OGP にも縮小版を使用）
 │       ├── components/
 │       │   ├── astro/                          # 静的コンポーネント（JS なし）
 │       │   │   ├── AccordionItem.astro         # 開閉式セクション（details ベース）
