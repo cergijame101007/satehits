@@ -51,9 +51,10 @@ func TestRejectionLevel(t *testing.T) {
 	}{
 		{name: "treats invalid secret as misconfiguration", codes: []string{"invalid-input-secret"}, want: slog.LevelError},
 		{name: "treats missing secret as misconfiguration", codes: []string{"missing-input-secret"}, want: slog.LevelError},
-		{name: "treats bad request as misconfiguration", codes: []string{"bad-request"}, want: slog.LevelError},
-		{name: "treats cloudflare internal error as unavailable", codes: []string{"internal-error"}, want: slog.LevelWarn},
-		{name: "prefers misconfiguration over unavailable", codes: []string{"internal-error", "invalid-input-secret"}, want: slog.LevelError},
+		// bad-request は送られたトークンの内容でも起こりうるため、メール通知（ERROR）にしない
+		{name: "treats bad request as abnormal", codes: []string{"bad-request"}, want: slog.LevelWarn},
+		{name: "treats cloudflare internal error as abnormal", codes: []string{"internal-error"}, want: slog.LevelWarn},
+		{name: "prefers misconfiguration over abnormal", codes: []string{"internal-error", "invalid-input-secret"}, want: slog.LevelError},
 		{name: "treats expired or reused token as user side", codes: []string{"timeout-or-duplicate"}, want: slog.LevelInfo},
 		{name: "treats invalid response token as user side", codes: []string{"invalid-input-response"}, want: slog.LevelInfo},
 		{name: "treats missing error codes as user side", codes: nil, want: slog.LevelInfo},
@@ -110,12 +111,12 @@ func TestVerifier_Verify(t *testing.T) {
 			wantLevel: "ERROR",
 		},
 		{
-			name:      "logs a warning when cloudflare is unavailable",
+			name:      "logs a warning when cloudflare reports an internal error",
 			token:     "token",
 			body:      `{"success":false,"error-codes":["internal-error"]}`,
 			wantErr:   domain.ErrCaptchaFailed,
 			wantCalls: 1,
-			wantLog:   "turnstile verification unavailable",
+			wantLog:   "turnstile verification abnormal",
 			wantLevel: "WARN",
 		},
 		{
