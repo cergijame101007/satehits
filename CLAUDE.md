@@ -238,6 +238,7 @@ satehits/
 │   │   │       │   ├── logout_test.go
 │   │   │       │   ├── refresh.go              # AT 更新・RT ローテーション
 │   │   │       │   ├── refresh_test.go
+│   │   │       │   ├── refresh_log_test.go     # RT 再利用検知のログ出力テスト
 │   │   │       │   ├── refresh_token_hash.go   # RT 平文のハッシュ化
 │   │   │       │   └── refresh_token_hash_test.go
 │   │   │       ├── reservation/
@@ -333,14 +334,19 @@ satehits/
 │   │   │   ├── client_ip_test.go
 │   │   │   ├── cookie.go                       # RT Cookie の発行・削除
 │   │   │   ├── cookie_test.go
+│   │   │   ├── health.go                       # GET /healthz（DB ping 付きの死活確認。docs/monitoring.md）
+│   │   │   ├── health_test.go
 │   │   │   ├── method_not_allowed_test.go      # 405 / 404 の JSON レスポンステスト
-│   │   │   ├── middleware.go                   # JWT 認証（RequireAuth）・CORS
+│   │   │   ├── middleware.go                   # JWT 認証（RequireAuth）・CORS・Origin 検査
 │   │   │   ├── middleware_test.go
 │   │   │   ├── outbox.go                       # 内部 Outbox flush API
 │   │   │   ├── outbox_test.go
+│   │   │   ├── recover.go                      # panic を 500 JSON とスタック付き ERROR ログにするミドルウェア
+│   │   │   ├── recover_test.go
 │   │   │   ├── reservation.go                  # 顧客の予約申請 API
+│   │   │   ├── reservation_log_test.go         # 予約申請の 400 のログ出力テスト
 │   │   │   ├── response.go                     # JSON レスポンス・エラーレスポンスの共通処理
-│   │   │   ├── root.go                         # GET / ヘルスチェックと未知パスの 404
+│   │   │   ├── root.go                         # GET / プロセス応答確認と未知パスの 404
 │   │   │   ├── schedule.go                     # 管理者スケジュール API
 │   │   │   ├── schedule_test.go
 │   │   │   ├── schedule_errors.go              # スケジュール系ユースケースエラーの HTTP 変換
@@ -357,7 +363,8 @@ satehits/
 │   │   │   │   │   ├── noop.go                 # ストレージ未設定時のフォールバック
 │   │   │   │   │   └── s3.go                   # S3 互換ストレージ（R2 / MinIO）
 │   │   │   │   └── turnstile/
-│   │   │   │       └── verifier.go             # Cloudflare Turnstile の siteverify クライアント
+│   │   │   │       ├── verifier.go             # Cloudflare Turnstile の siteverify クライアント（失敗を原因別のレベルで記録）
+│   │   │   │       └── verifier_test.go
 │   │   │   └── mail/                           # メールテンプレート・Outbox enqueue・Dispatcher
 │   │   │       ├── backoff_test.go             # 再送間隔・失敗確定判定のテスト
 │   │   │       ├── dispatcher.go               # Outbox の pending 行を送信（lease 方式）
@@ -366,6 +373,9 @@ satehits/
 │   │   │       ├── outbox_enqueuer_test.go
 │   │   │       ├── templates.go                # 受付・承認・拒否メールの本文
 │   │   │       └── templates_test.go
+│   │   ├── logging/
+│   │   │   ├── logging.go                      # log/slog を Cloud Logging 互換 JSON で出す設定（docs/monitoring.md）
+│   │   │   └── logging_test.go
 │   │   ├── privacy/
 │   │   │   ├── mask.go                         # ログ向けの個人情報マスキング
 │   │   │   └── mask_test.go
