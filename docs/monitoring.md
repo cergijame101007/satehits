@@ -203,8 +203,8 @@ func (h *HealthHandler) HandleHealth(w http.ResponseWriter, r *http.Request)
 | # | 箇所 | 条件 | レベル | message | 属性 |
 |---|------|------|--------|---------|------|
 | L1 | `turnstile/verifier.go` | トークンが `dev-bypass`（本番ビルドのフロントはサイトキー未設定なら送信自体を止めるため、届くのはローカル開発から staging を叩いたときか外部で作られたリクエスト。誰でも送れる値なので ERROR にしない） | WARN | `turnstile dev-bypass token received` | なし |
-| L1 | 同上 | siteverify が `success=false` で、error-codes に `missing-input-secret` / `invalid-input-secret` / `bad-request` を含む（こちらの設定・実装起因） | ERROR | `turnstile verification misconfigured` | `error_codes` |
-| L1 | 同上 | error-codes に `internal-error` を含む（Cloudflare 側の障害） | WARN | `turnstile verification unavailable` | `error_codes` |
+| L1 | 同上 | siteverify が `success=false` で、error-codes に `missing-input-secret` / `invalid-input-secret` を含む（秘密鍵の設定起因） | ERROR | `turnstile verification misconfigured` | `error_codes` |
+| L1 | 同上 | error-codes に `internal-error`（Cloudflare 側の障害）または `bad-request`（リクエスト不正。送られたトークンの内容でも起こりうる）を含む | WARN | `turnstile verification abnormal` | `error_codes` |
 | L1 | 同上 | それ以外の `success=false`（期限切れ・再利用・不正トークン。利用者・bot 起因） | INFO | `turnstile verification rejected` | `error_codes` |
 | L2 | `handler/middleware.go` `CORS` | `Origin` ヘッダがあり許可リストに無い（preflight を含む） | WARN | `cors origin rejected` | `origin`, `method`, `path` |
 | L3 | `handler/reservation.go` | 予約申請の `VALIDATION_ERROR`（400） | INFO | `reservation validation failed` | `fields`（違反フィールド名の配列。値は出さない） |
@@ -213,7 +213,8 @@ func (h *HealthHandler) HandleHealth(w http.ResponseWriter, r *http.Request)
 | L5 | `handler/auth.go` ログイン | レートリミット超過（429） | WARN | `login rate limited` | `email`（マスク済み）, `client_ip`, `retry_after_seconds` |
 | L6 | `handler/middleware.go` `checkOrigin` | refresh / logout の Origin / Referer 検査で拒否（403） | WARN | `origin check rejected` | `origin`（空なら `""`）, `path` |
 
-- L1 の ERROR（秘密鍵・リクエスト形式の誤り）だけが P1 のメール対象。秘密鍵の誤りは「全員の予約申請が 400 になる」ため即時に知る必要がある。どちらも外部からは起こせない（秘密鍵とリクエスト形式はこちらが持つ）
+- L1 の ERROR（秘密鍵の誤り）だけが P1 のメール対象。「全員の予約申請が 400 になる」ため即時に知る必要がある。秘密鍵はこちらだけが持つので外部からは起こせない。**外部から起こせる失敗を ERROR にしない**（誰でも障害メールを鳴らせてしまう）
+- L2 / L6 と panic のログに出すリクエスト由来の文字列（`origin` / `path`）は 200 バイトで切り詰める（ヘッダは 1MB まで送れるため、そのまま出すと外部からログ量を膨らませられる）
 - **フロントのビルドにサイトキーが入っていない場合はバックエンドに何も届かない**（フォームが送信を止める）。これはサーバーのログでは検知できないため、フロントのビルド時に検出する必要がある（未対応。§9）
 - L2 / L4 / L5 / L6 は WARN。Cloud Logging で `severity=WARNING` を検索して定期的に見る（メールにはしない）。L2 が大量に出ていたら `CORS_ORIGINS` の設定ミスを疑う
 - L3 は INFO。同じフィールドの違反が偏っていたらフロントとバックの検証ルールのずれを疑う（`jsonPayload.message="reservation validation failed"` で検索し `jsonPayload.fields` を集計）
