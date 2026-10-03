@@ -38,15 +38,18 @@ const (
 )
 
 func main() {
-	// .envファイルを読み込む
-	if err := godotenv.Load(); err != nil {
-		log.Printf("Error loading .env file: %v", err)
-	}
+	// .envファイルを読み込む（Cloud Run には無いので、無いこと自体は正常）
+	dotenvErr := godotenv.Load()
 
 	cfg := config.Load()
 
 	// 構造化ログ（docs/monitoring.md §4.1）。以後の log.Printf も INFO としてここへ流れる
 	logging.Setup(cfg.Environment)
+
+	// ログ設定より前に出すと平文で stderr に流れ、Cloud Logging 上の severity を制御できないため、ここで INFO として出す
+	if dotenvErr != nil {
+		slog.Info("dotenv file not loaded", "err", dotenvErr)
+	}
 
 	// 同梱の祝日データ（内閣府 CSV）。店舗定例の合成（StoreCalendar）に注入する
 	// 鮮度チェック: 翌年分は例年 2 月頃公開なので 3 月以降に警告 → make update-holidays（docs/holidays.md）
