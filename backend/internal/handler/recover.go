@@ -26,7 +26,7 @@ func Recover(next http.Handler) http.Handler {
 			slog.Error("panic recovered",
 				"panic", fmt.Sprint(p),
 				"method", r.Method,
-				"path", r.URL.Path,
+				"path", truncateForLog(r.URL.Path),
 				"stack_trace", string(debug.Stack()),
 			)
 			// ヘッダ送信後は追加のレスポンスを書けない

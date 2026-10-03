@@ -294,6 +294,43 @@ func TestCheckOrigin(t *testing.T) {
 	}
 }
 
+// ヘッダは 1MB まで送れるため、ログに出すリクエスト由来の文字列は切り詰める（docs/monitoring.md §4.6）
+func TestTruncateForLog(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "keeps a short value", in: "https://satehits.com", want: "https://satehits.com"},
+		{name: "keeps a value at the limit", in: strings.Repeat("a", 200), want: strings.Repeat("a", 200)},
+		{name: "cuts a value over the limit", in: strings.Repeat("a", 201), want: strings.Repeat("a", 200) + "..."},
+		// 3 バイト文字 66 個（198 バイト）+ 途中で切れる 1 文字。壊れた末尾は落とす
+		{name: "drops a multibyte character cut in the middle", in: strings.Repeat("あ", 70), want: strings.Repeat("あ", 66) + "..."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := truncateForLog(tt.in); got != tt.want {
+				t.Errorf("truncateForLog: got %q (%d bytes), want %q", got, len(got), tt.want)
+			}
+		})
+	}
+}
+
+func TestCORS_truncatesLongOriginInLog(t *testing.T) {
+	logBuf := captureLog(t)
+	req := httptest.NewRequest(http.MethodGet, testAuthRefreshPath, nil)
+	req.Header.Set("Origin", "https://"+strings.Repeat("x", 5000)+".example")
+
+	CORS([]string{testAuthOrigin})(&recordingHandler{}).ServeHTTP(httptest.NewRecorder(), req)
+
+	if got := logBuf.Len(); got > 1000 {
+		t.Errorf("log line length: got %d bytes, want the origin truncated", got)
+	}
+	if !strings.Contains(logBuf.String(), "cors origin rejected") {
+		t.Errorf("log should contain the rejection: %s", logBuf.String())
+	}
+}
+
 func TestCORS(t *testing.T) {
 	allowed := []string{testAuthOrigin}
 	corsHeaders := []string{
