@@ -47,7 +47,7 @@
 
 **要確認（ユーザー判断待ち・実装をブロックしない）**
 
-- 通知先メールアドレス（`setup-monitoring.sh` の `NOTIFICATION_EMAIL`）。実装・staging 検証は開発者自身のアドレスで先行し、production 実行時に決める
+- 通知先メールアドレス（`setup-monitoring.sh` の `NOTIFICATION_EMAIL`）は未確定。staging の検証は開発者自身のアドレスで行い、production で実行するときに確定する
 - UptimeRobot アカウントの作成者（オーナーか開発者か）。開発者アカウントで先行し、必要なら後で招待する
 - フロントの外形監視 URL。カスタムドメイン `https://satehits.com/` を前提にする。未接続なら Cloudflare Pages の `*.pages.dev` URL で先行
 
