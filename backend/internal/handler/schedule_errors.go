@@ -2,7 +2,7 @@ package handler
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 
 	usecase "github.com/cergijame101007/satehits/internal/application/usecase/schedule"
@@ -23,7 +23,7 @@ func writeScheduleUsecaseError(w http.ResponseWriter, err error, failLog string)
 		respondWithError(w, http.StatusNotFound, NotFoundCode, "この日は店舗定例のため削除できる設定がありません", nil)
 		return true
 	}
-	log.Printf("%s: %v", failLog, err)
+	slog.Error(failLog, "err", err)
 	respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
 	return true
 }

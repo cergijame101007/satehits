@@ -51,6 +51,9 @@ API・DB・バリデーション・ドメインルール・エラー形式に触
 | レイヤー責務・DI | `docs/architecture.md` |
 | Go テスト | `docs/coding_rule/go_testing.md` |
 | 画面・遷移 | `docs/screen_transition.md` |
+| ログ・監視・`/healthz`・アラート | `docs/monitoring.md` |
+
+**進行中の実装タスク**: 監視（ADR-012）は `docs/IMPLEMENTATION_PLAN.md` のステップを**上から順に 1 つずつ**進める（設計は `docs/monitoring.md`。完了したらこの一文を外す）。
 
 Copilot 等の自動レビュー指摘は**仮説**とする。上表の docs と変更コードの**利用箇所**（handler・usecase・テスト）で確認してから直す。**docs と矛盾する指摘は採用しない**（必要なら docs 更新を先に提案）。戻り値が未使用なら過剰な refactor はしない。docs と実装がずれたら、どちらを正とするか決めてから片方を直す。
 
@@ -235,6 +238,7 @@ satehits/
 │   │   │       │   ├── logout_test.go
 │   │   │       │   ├── refresh.go              # AT 更新・RT ローテーション
 │   │   │       │   ├── refresh_test.go
+│   │   │       │   ├── refresh_log_test.go     # RT 再利用検知のログ出力テスト
 │   │   │       │   ├── refresh_token_hash.go   # RT 平文のハッシュ化
 │   │   │       │   └── refresh_token_hash_test.go
 │   │   │       ├── reservation/
@@ -330,14 +334,19 @@ satehits/
 │   │   │   ├── client_ip_test.go
 │   │   │   ├── cookie.go                       # RT Cookie の発行・削除
 │   │   │   ├── cookie_test.go
+│   │   │   ├── health.go                       # GET /healthz（DB ping 付きの死活確認。docs/monitoring.md）
+│   │   │   ├── health_test.go
 │   │   │   ├── method_not_allowed_test.go      # 405 / 404 の JSON レスポンステスト
-│   │   │   ├── middleware.go                   # JWT 認証（RequireAuth）・CORS
+│   │   │   ├── middleware.go                   # JWT 認証（RequireAuth）・CORS・Origin 検査
 │   │   │   ├── middleware_test.go
 │   │   │   ├── outbox.go                       # 内部 Outbox flush API
 │   │   │   ├── outbox_test.go
+│   │   │   ├── recover.go                      # panic を 500 JSON とスタック付き ERROR ログにするミドルウェア
+│   │   │   ├── recover_test.go
 │   │   │   ├── reservation.go                  # 顧客の予約申請 API
+│   │   │   ├── reservation_log_test.go         # 予約申請の 400 のログ出力テスト
 │   │   │   ├── response.go                     # JSON レスポンス・エラーレスポンスの共通処理
-│   │   │   ├── root.go                         # GET / ヘルスチェックと未知パスの 404
+│   │   │   ├── root.go                         # GET / プロセス応答確認と未知パスの 404
 │   │   │   ├── schedule.go                     # 管理者スケジュール API
 │   │   │   ├── schedule_test.go
 │   │   │   ├── schedule_errors.go              # スケジュール系ユースケースエラーの HTTP 変換
@@ -354,7 +363,8 @@ satehits/
 │   │   │   │   │   ├── noop.go                 # ストレージ未設定時のフォールバック
 │   │   │   │   │   └── s3.go                   # S3 互換ストレージ（R2 / MinIO）
 │   │   │   │   └── turnstile/
-│   │   │   │       └── verifier.go             # Cloudflare Turnstile の siteverify クライアント
+│   │   │   │       ├── verifier.go             # Cloudflare Turnstile の siteverify クライアント（失敗を原因別のレベルで記録）
+│   │   │   │       └── verifier_test.go
 │   │   │   └── mail/                           # メールテンプレート・Outbox enqueue・Dispatcher
 │   │   │       ├── backoff_test.go             # 再送間隔・失敗確定判定のテスト
 │   │   │       ├── dispatcher.go               # Outbox の pending 行を送信（lease 方式）
@@ -363,6 +373,9 @@ satehits/
 │   │   │       ├── outbox_enqueuer_test.go
 │   │   │       ├── templates.go                # 受付・承認・拒否メールの本文
 │   │   │       └── templates_test.go
+│   │   ├── logging/
+│   │   │   ├── logging.go                      # log/slog を Cloud Logging 互換 JSON で出す設定（docs/monitoring.md）
+│   │   │   └── logging_test.go
 │   │   ├── privacy/
 │   │   │   ├── mask.go                         # ログ向けの個人情報マスキング
 │   │   │   └── mask_test.go
@@ -537,7 +550,8 @@ Presentation  →  Application  →  Domain  ←  Infrastructure
 
 | メソッド | パス | 概要 | 実装状況 |
 |---------|------|------|---------|
-| `GET` | `/` | ヘルスチェック | 実装済み |
+| `GET` | `/` | プロセスの応答確認（DB には触らない） | 実装済み |
+| `GET` | `/healthz` | 死活確認（DB ping 付き。外形監視・CD スモーク用） | 実装済み |
 | `POST` | `/api/v1/reservations` | 顧客：予約申請（Turnstile） | 実装済み |
 | `GET` | `/api/v1/reservations/availability` | 日付別・月次空き確認 | 実装済み |
 | `GET` | `/api/v1/schedules` | 顧客：月間スケジュール | 実装済み |
@@ -653,3 +667,5 @@ cp frontend/.env.example frontend/.env  # Astro が frontend/ 直下から読む
 | [docs/use_case.md](docs/use_case.md) | ユースケース一覧 |
 | [docs/data_flow.md](docs/data_flow.md) | データフロー図 |
 | [docs/holidays.md](docs/holidays.md) | 祝日データの出典・合成ルール・年次更新手順（毎年 2 月頃に `make update-holidays`） |
+| [docs/monitoring.md](docs/monitoring.md) | 監視の実装設計と運用手順（構造化ログ・Recover・`/healthz`・Cloud Monitoring アラート・UptimeRobot。ADR-012） |
+| [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) | 監視の実装計画（ステップ実行型。チェックボックスが進捗） |

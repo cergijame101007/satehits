@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"log"
+	"log/slog"
 	"mime"
 	"net/http"
 	"strconv"
@@ -278,7 +279,7 @@ func (h *AdminSupplierHandler) handleUploadImage(w http.ResponseWriter, r *http.
 	defer func() {
 		if r.MultipartForm != nil {
 			if removeErr := r.MultipartForm.RemoveAll(); removeErr != nil {
-				log.Printf("failed to remove multipart temp files: %v", removeErr)
+				slog.Warn("remove multipart temp files failed", "err", removeErr)
 			}
 		}
 	}()

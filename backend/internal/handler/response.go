@@ -2,7 +2,7 @@ package handler
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 )
@@ -53,11 +53,11 @@ type ErrorDetail struct {
 func respondWithJSON[T any](w http.ResponseWriter, status int, payload T) {
 	res, err := json.Marshal(payload)
 	if err != nil {
-		log.Printf("Failed to marshal JSON: %v", err)
+		slog.Error("marshal response failed", "err", err)
 		w.Header().Set("Content-Type", mediaTypeJSON)
 		w.WriteHeader(http.StatusInternalServerError)
 		if _, err := w.Write([]byte(`{"error":{"code":"INTERNAL_ERROR","message":"レスポンスの生成に失敗しました"}}`)); err != nil {
-			log.Printf("Failed to write error fallback response: %v", err)
+			slog.Error("write fallback response failed", "err", err)
 		}
 		return
 	}
@@ -66,7 +66,7 @@ func respondWithJSON[T any](w http.ResponseWriter, status int, payload T) {
 	w.WriteHeader(status)
 	if _, err := w.Write(res); err != nil {
 		// ヘッダ送信後のため追加のレスポンスは不可
-		log.Printf("Failed to write response: %v", err)
+		slog.Warn("write response failed", "err", err)
 		return
 	}
 }

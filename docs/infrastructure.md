@@ -301,11 +301,11 @@ Go は `1.24`、bun は `oven-sh/setup-bun` の latest を使う。
 | 項目 | サービス |
 |------|----------|
 | フロントエンドログ | Cloudflare Analytics |
-| バックエンドログ | Cloud Logging |
-| エラートラッキング | (将来: Sentry) |
-| 稼働監視 | (将来: Cloud Monitoring) |
+| バックエンドログ | Cloud Logging（`log/slog` の JSON。実装中） |
+| エラー・障害の通知 | Cloud Logging のログベースアラート + Cloud Monitoring → メール（実装中。ADR-012） |
+| 外形監視 | UptimeRobot Free（`GET /healthz` と `https://satehits.com/` を 5 分間隔。実装中） |
 
-現状、構造化ログと HTTP の recovery ミドルウェアは未導入で、標準 `log` パッケージの出力を Cloud Logging が収集している。
+設計・アラート定義・運用手順は [`docs/monitoring.md`](./monitoring.md)、実装の進捗は [`docs/IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md) を正とする。現状（実装前）は構造化ログと HTTP の recovery ミドルウェアが未導入で、標準 `log` パッケージの出力を Cloud Logging が収集している。
 
 ## 9. コスト概算
 

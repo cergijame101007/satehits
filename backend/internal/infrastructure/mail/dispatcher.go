@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/cergijame101007/satehits/internal/domain"
@@ -126,7 +126,7 @@ func (d *Dispatcher) ProcessPending(ctx context.Context) (ProcessStats, error) {
 	for stats.Processed < d.batchSize {
 		if d.overBudget(start) {
 			stats.Halted = HaltTimeBudget
-			log.Printf("mail outbox halted: reason=%s processed=%d", HaltTimeBudget, stats.Processed)
+			slog.Warn("mail outbox halted", "reason", HaltTimeBudget, "processed", stats.Processed)
 			break
 		}
 		msg, err := d.repo.ClaimNextPending(ctx, d.now().Add(d.leaseDuration))
@@ -183,8 +183,8 @@ func (d *Dispatcher) deliver(ctx context.Context, msg *domain.EmailOutboxMessage
 		if err := d.repo.ReleaseClaim(markCtx, msg.ID, d.now().Add(authErrorRetryDelay), errText); err != nil {
 			d.recordMarkError(stats, msg, "release claim", err)
 		}
-		log.Printf("ERROR: mail outbox halted: reason=%s id=%s type=%s reservation=%s err=%v",
-			HaltAuthError, msg.ID, msg.MailType, msg.ReservationID, sendErr)
+		slog.Error("mail outbox halted", "reason", HaltAuthError,
+			"outbox_id", msg.ID, "mail_type", msg.MailType, "reservation_id", msg.ReservationID, "err", sendErr)
 		return HaltAuthError
 	}
 
@@ -203,8 +203,9 @@ func (d *Dispatcher) deliver(ctx context.Context, msg *domain.EmailOutboxMessage
 		return ""
 	}
 	stats.Retried++
-	log.Printf("mail outbox retry: id=%s type=%s reservation=%s attempt=%d next=%s err=%v",
-		msg.ID, msg.MailType, msg.ReservationID, msg.AttemptCount, nextAt.Format(time.RFC3339), sendErr)
+	slog.Warn("mail outbox retry",
+		"outbox_id", msg.ID, "mail_type", msg.MailType, "reservation_id", msg.ReservationID,
+		"attempt", msg.AttemptCount, "next_attempt_at", nextAt.Format(time.RFC3339), "err", sendErr)
 	return ""
 }
 
@@ -214,12 +215,14 @@ func (d *Dispatcher) markFailed(ctx context.Context, msg *domain.EmailOutboxMess
 		return
 	}
 	stats.Failed++
-	log.Printf("ERROR: mail outbox failed: id=%s type=%s reservation=%s attempt=%d err=%v",
-		msg.ID, msg.MailType, msg.ReservationID, msg.AttemptCount, sendErr)
+	slog.Error("mail outbox failed",
+		"outbox_id", msg.ID, "mail_type", msg.MailType, "reservation_id", msg.ReservationID,
+		"attempt", msg.AttemptCount, "err", sendErr)
 }
 
 func (d *Dispatcher) recordMarkError(stats *ProcessStats, msg *domain.EmailOutboxMessage, op string, err error) {
 	stats.Errors++
-	log.Printf("ERROR: mail outbox %s: id=%s type=%s reservation=%s attempt=%d err=%v",
-		op, msg.ID, msg.MailType, msg.ReservationID, msg.AttemptCount, err)
+	slog.Error("mail outbox mark failed", "op", op,
+		"outbox_id", msg.ID, "mail_type", msg.MailType, "reservation_id", msg.ReservationID,
+		"attempt", msg.AttemptCount, "err", err)
 }

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -62,6 +63,11 @@ func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 				// ログイン 429 の待ち秒数をブラウザの JS から読めるようにする
 				w.Header().Set("Access-Control-Expose-Headers", "Retry-After")
 				w.Header().Add("Vary", "Origin")
+			} else if origin != "" {
+				// サーバーは普通に応答し、ブラウザ側で止まるためログが無いと気づけない。
+				// 大量に出ていたら CORS_ORIGINS の設定ミスを疑う（docs/monitoring.md §4.6 L2）
+				slog.Warn("cors origin rejected",
+					"origin", truncateForLog(origin), "method", r.Method, "path", truncateForLog(r.URL.Path))
 			}
 
 			if r.Method == http.MethodOptions {
@@ -82,8 +88,23 @@ func checkOrigin(w http.ResponseWriter, r *http.Request, allowedOrigins []string
 		return true
 	}
 
+	// Cookie ドメインや許可リストの設定ミスで管理者のセッションが切れる原因になるため記録する（§4.6 L6）
+	slog.Warn("origin check rejected", "origin", truncateForLog(origin), "path", truncateForLog(r.URL.Path))
 	respondWithError(w, http.StatusForbidden, ForbiddenCode, "リクエストが拒否されました", nil)
 	return false
+}
+
+// maxLoggedRequestValueLen はリクエスト由来の文字列（ヘッダ・パス）をログへ出すときの上限バイト数
+// ヘッダは既定で 1MB まで送れるため、そのまま出すとログの量を外部から膨らませられる
+const maxLoggedRequestValueLen = 200
+
+// truncateForLog はリクエスト由来の文字列をログ用に切り詰める
+func truncateForLog(s string) string {
+	if len(s) <= maxLoggedRequestValueLen {
+		return s
+	}
+	// バイト位置で切ると文字の途中になりうるため、不正な UTF-8 は落とす
+	return strings.ToValidUTF8(s[:maxLoggedRequestValueLen], "") + "..."
 }
 
 func isAllowedOrigin(origin string, allowedOrigins []string) bool {

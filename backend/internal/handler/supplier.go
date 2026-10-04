@@ -2,7 +2,7 @@ package handler
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 
 	usecase "github.com/cergijame101007/satehits/internal/application/usecase/supplier"
@@ -124,7 +124,7 @@ func writeSupplierUsecaseError(w http.ResponseWriter, err error, logPrefix strin
 		return true
 	}
 
-	log.Printf("%s: %v", logPrefix, err)
+	slog.Error(logPrefix, "err", err)
 	respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
 	return true
 }

@@ -314,11 +314,22 @@ func TestAuthHandler_HandleLogin(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Forwarded-For", "203.0.113.99")
 		rec := httptest.NewRecorder()
+		logBuf := captureLog(t)
 
 		h.HandleLogin(rec, req)
 
 		if rec.Code != http.StatusTooManyRequests {
 			t.Fatalf("status = %d, want 429; body = %s", rec.Code, rec.Body.String())
+		}
+		// docs/monitoring.md §4.6 L5: マスク済みメールとクライアント IP を WARN で残す
+		logText := logBuf.String()
+		for _, want := range []string{"login rate limited", "client_ip=203.0.113.99", "retry_after_seconds="} {
+			if !strings.Contains(logText, want) {
+				t.Errorf("log should contain %q: %s", want, logText)
+			}
+		}
+		if strings.Contains(logText, "owner@example.com") || strings.Contains(logText, "password123") {
+			t.Errorf("log should not contain the raw email or password: %s", logText)
 		}
 		assertAuthErrorCode(t, rec, TooManyRequestsCode)
 		retryAfter := rec.Header().Get("Retry-After")

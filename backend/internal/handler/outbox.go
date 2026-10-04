@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 
 	inframail "github.com/cergijame101007/satehits/internal/infrastructure/mail"
@@ -26,6 +27,7 @@ func (h *OutboxHandler) HandleFlush(w http.ResponseWriter, r *http.Request) {
 
 	stats, err := h.dispatcher.ProcessPending(r.Context())
 	if err != nil {
+		slog.Error("outbox flush failed", "err", err)
 		respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "Outbox の処理に失敗しました", nil)
 		return
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/cergijame101007/satehits/internal/application"
@@ -61,6 +62,8 @@ func (u *RefreshUseCase) Execute(ctx context.Context, cmd RefreshCommand) (*Refr
 
 	// revoke 済み RT の再利用検知: 当該ユーザーの全 RT を失効させる
 	if rt.RevokedAt != nil {
+		// 盗まれた RT が使われた可能性があるセキュリティ上の出来事（docs/monitoring.md §4.6 L4）
+		slog.Warn("refresh token reuse detected", "admin_user_id", rt.AdminUserID, "stage", "lookup")
 		if err := u.refreshTokenRepo.RevokeAllByUser(ctx, rt.AdminUserID); err != nil {
 			return nil, fmt.Errorf("failed to revoke refresh token: %w", err)
 		}
@@ -102,6 +105,8 @@ func (u *RefreshUseCase) Execute(ctx context.Context, cmd RefreshCommand) (*Refr
 		return err
 	}); err != nil {
 		if errors.Is(err, domain.ErrRefreshTokenInvalid) {
+			// 同じ RT が並行してローテーションされた（片方は再利用）
+			slog.Warn("refresh token reuse detected", "admin_user_id", rt.AdminUserID, "stage", "rotate")
 			if revokeErr := u.refreshTokenRepo.RevokeAllByUser(ctx, rt.AdminUserID); revokeErr != nil {
 				return nil, fmt.Errorf("failed to revoke refresh token: %w", revokeErr)
 			}

@@ -41,6 +41,14 @@
 | PUT | `/admin/suppliers/order` | 取引先の表示順を更新 |
 | POST | `/admin/suppliers/{id}/image` | 取引先画像をアップロード |
 
+### 運用向け（`/api/v1` の外・OpenAPI 対象外）
+
+| メソッド | パス | 説明 |
+|----------|------|------|
+| GET | `/` | プロセスの応答確認（DB には触らない）。200 `{"message":"satehits API is running","status":"ok"}` |
+| GET | `/healthz` | 死活確認（DB ping 付き）。外形監視と CD のスモークテストが使う。詳細は §5「GET /healthz」 |
+| POST | `/internal/outbox/flush` | Outbox 送信処理（private サービスのみ。Cloud Run IAM で保護）。詳細は §5 |
+
 ## 3. 共通仕様
 
 ### リクエストヘッダー
@@ -503,6 +511,24 @@ Cookie の RT を revoke し、同名 Cookie を削除する。リクエスト�
 #### メール（実装状況）
 
 - **UC-S01〜S03（顧客向け）**: 実装済み。`email_outbox` + Resend（`MailSender`）。予約操作と同一トランザクションで enqueue。`RESEND_API_KEY` 未設定時は NoOp Sender（ログのみ）。送信処理は Cloud Scheduler が `POST /internal/outbox/flush` を呼ぶ（ADR-014 / ADR-015）
+
+---
+
+### GET /healthz
+
+外形監視（UptimeRobot）と CD のスモークテスト向けの死活確認エンドポイント。**OpenAPI（公開 API 仕様）の対象外**。認証なし。確認対象は自プロセスと DB だけで、外部 API（Resend / Turnstile / ストレージ）の状態は含めない。設計は [`docs/monitoring.md`](./monitoring.md) §4.4。
+
+- Method: `GET`（それ以外は 405 `INVALID_REQUEST`）
+- Path: `/healthz`（`/api/v1` の外）
+- 処理: DB に 2 秒タイムアウトで ping する
+- レスポンスヘッダ: `Cache-Control: no-store`
+
+| 状況 | ステータス | ボディ |
+|------|-----------|--------|
+| DB に ping できた | 200 | `{"status":"ok","database":"ok"}` |
+| ping 失敗・2 秒でタイムアウト | 503 | `{"status":"error","database":"error"}` |
+
+503 のボディは共通のエラー形式（§3）ではなく上表の形。失敗時のアプリログは WARN（通知は外形監視が担当するため、ログベースアラートの対象にしない）。
 
 ---
 

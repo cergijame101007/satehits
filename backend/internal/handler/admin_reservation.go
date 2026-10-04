@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"log/slog"
 	"mime"
 	"net/http"
 	"strings"
@@ -280,7 +281,7 @@ func writeReservationUsecaseError(w http.ResponseWriter, err error, logPrefix st
 		return true
 	}
 
-	log.Printf("%s: %v", logPrefix, err)
+	slog.Error(logPrefix, "err", err)
 	respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
 	return true
 }

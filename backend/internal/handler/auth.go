@@ -3,7 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"mime"
 	"net/http"
 	"strconv"
@@ -11,6 +11,7 @@ import (
 
 	authusecase "github.com/cergijame101007/satehits/internal/application/usecase/auth"
 	"github.com/cergijame101007/satehits/internal/domain"
+	"github.com/cergijame101007/satehits/internal/privacy"
 )
 
 // loginRequest は POST /admin/login のリクエストボディ
@@ -82,10 +83,11 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ip := clientIP(r, h.trustedProxyHops)
 	result, err := h.login.Execute(r.Context(), authusecase.LoginCommand{
 		Email:    req.Email,
 		Password: req.Password,
-		ClientIP: clientIP(r, h.trustedProxyHops),
+		ClientIP: ip,
 	})
 	if err != nil {
 		var vErr *authusecase.ValidationError
@@ -104,6 +106,9 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 				seconds = 1
 			}
 			w.Header().Set("Retry-After", strconv.Itoa(seconds))
+			// 総当たりの兆候。メールはマスクして残す（docs/monitoring.md §4.6 L5）
+			slog.Warn("login rate limited",
+				"email", privacy.MaskEmail(req.Email), "client_ip", ip, "retry_after_seconds", seconds)
 			respondWithError(w, http.StatusTooManyRequests, TooManyRequestsCode, rateErr.Error(), nil)
 			return
 		}
@@ -111,7 +116,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 			respondWithError(w, http.StatusUnauthorized, UnauthorizedCode, "メールアドレスまたはパスワードが正しくありません", nil)
 			return
 		}
-		log.Printf("Login failed: %v", err)
+		slog.Error("login failed", "err", err)
 		respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
 		return
 	}
@@ -151,7 +156,7 @@ func (h *AuthHandler) HandleRefresh(w http.ResponseWriter, r *http.Request) {
 			respondWithError(w, http.StatusUnauthorized, InvalidTokenCode, "セッションが無効です。再度ログインしてください", nil)
 			return
 		}
-		log.Printf("Refresh failed: %v", err)
+		slog.Error("refresh failed", "err", err)
 		respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
 		return
 	}
@@ -180,7 +185,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.logout.Execute(r.Context(), authusecase.LogoutCommand{RefreshToken: refreshTokenValue}); err != nil {
-		log.Printf("Logout failed: %v", err)
+		slog.Error("logout failed", "err", err)
 		respondWithError(w, http.StatusInternalServerError, InternalErrorCode, "サーバー内部でエラーが発生しました", nil)
 		return
 	}

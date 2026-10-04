@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -25,6 +26,7 @@ import (
 	"github.com/cergijame101007/satehits/internal/infrastructure/external/storage"
 	"github.com/cergijame101007/satehits/internal/infrastructure/external/turnstile"
 	inframail "github.com/cergijame101007/satehits/internal/infrastructure/mail"
+	"github.com/cergijame101007/satehits/internal/logging"
 	"github.com/cergijame101007/satehits/internal/repository"
 	"github.com/cergijame101007/satehits/pkg/config"
 	"github.com/cergijame101007/satehits/pkg/jwt"
@@ -36,30 +38,37 @@ const (
 )
 
 func main() {
-	// .envファイルを読み込む
-	if err := godotenv.Load(); err != nil {
-		log.Printf("Error loading .env file: %v", err)
-	}
+	// .envファイルを読み込む（Cloud Run には無いので、無いこと自体は正常）
+	dotenvErr := godotenv.Load()
 
 	cfg := config.Load()
+
+	// 構造化ログ（docs/monitoring.md §4.1）。以後の log.Printf も INFO としてここへ流れる
+	logging.Setup(cfg.Environment)
+
+	// ログ設定より前に出すと平文で stderr に流れ、Cloud Logging 上の severity を制御できないため、ここで INFO として出す
+	if dotenvErr != nil {
+		slog.Info("dotenv file not loaded", "err", dotenvErr)
+	}
 
 	// 同梱の祝日データ（内閣府 CSV）。店舗定例の合成（StoreCalendar）に注入する
 	// 鮮度チェック: 翌年分は例年 2 月頃公開なので 3 月以降に警告 → make update-holidays（docs/holidays.md）
 	holidays := holiday.Embedded()
 	if holidays.NeedsUpdate(time.Now()) {
-		log.Printf("WARNING: bundled holiday data ends at %d; run `make update-holidays` to bundle next year's holidays (docs/holidays.md)", holidays.LastYear())
+		slog.Warn("bundled holiday data needs update",
+			"last_year", holidays.LastYear(), "hint", "make update-holidays (docs/holidays.md)")
 	}
 
 	// DB接続を開く
 	db, err := sql.Open("pgx", cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("Unable to parse DB URL: %v", err)
+		fatal("parse database url failed", err)
 	}
 	defer db.Close()
 
 	// 実際に接続確認 (Ping)
 	if err := db.Ping(); err != nil {
-		log.Fatalf("Unable to connect to database: %v", err)
+		fatal("connect to database failed", err)
 	}
 	log.Println("Connected to Database!")
 
@@ -193,6 +202,8 @@ func main() {
 
 	// ルーティング（公開 API は /api/v1/...）
 	http.HandleFunc("/", handler.HandleRoot)
+	// 外形監視・CD スモーク用（DB ping 付き。docs/monitoring.md §4.4）
+	http.HandleFunc("/healthz", handler.NewHealthHandler(db).HandleHealth)
 	http.HandleFunc(availabilityPath, availabilityHandler.HandleAvailability)
 	http.HandleFunc(publicSchedulesPath, publicScheduleHandler.HandlePublicSchedules)
 	http.HandleFunc(reservationsPath, reservationHandler.HandleReservations)
@@ -226,7 +237,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:         port,
-		Handler:      handler.CORS(cfg.CORSOrigins)(http.DefaultServeMux),
+		Handler:      handler.Recover(handler.CORS(cfg.CORSOrigins)(http.DefaultServeMux)),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -235,8 +246,15 @@ func main() {
 	go listenForShutdown(srv)
 
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("Server failed to start: %v", err)
+		fatal("server failed to start", err)
 	}
+}
+
+// fatal は起動を続けられないエラーを ERROR で記録して終了する。
+// log.Fatalf は slog 経由だと INFO になりアラートに乗らないため使わない（docs/monitoring.md §4.2）
+func fatal(msg string, err error) {
+	slog.Error(msg, "err", err)
+	os.Exit(1)
 }
 
 func listenForShutdown(srv *http.Server) {
@@ -247,6 +265,6 @@ func listenForShutdown(srv *http.Server) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Printf("Server shutdown error: %v", err)
+		slog.Warn("server shutdown error", "err", err)
 	}
 }

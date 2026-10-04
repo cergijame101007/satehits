@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -186,7 +187,7 @@ func (u *LoginUseCase) checkRateLimit(counts domain.LoginAttemptCounts, now time
 func (u *LoginUseCase) cleanupExpiredRefreshTokens(ctx context.Context, now time.Time) {
 	deleted, err := u.refreshTokenRepo.DeleteExpired(ctx, now)
 	if err != nil {
-		log.Printf("refresh token cleanup failed: %v", err)
+		slog.Warn("refresh token cleanup failed", "err", err)
 		return
 	}
 	if deleted > 0 {
